@@ -1,19 +1,21 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { isValidStars } from '@product-rating/shared';
-import { buildApp } from './app.js';
-import { parseConfig } from './config/index.js';
+import { seedDatabase } from './db/testing.js';
+import { createSession } from './services/sessions.js';
+import { createTestApp, type TestApp } from './testing/harness.js';
 
 describe('app skeleton', () => {
+  let harness: TestApp;
   let app: FastifyInstance;
 
   beforeAll(async () => {
-    app = buildApp({ config: parseConfig({}) });
-    await app.ready();
+    harness = await createTestApp();
+    app = harness.app;
   });
 
   afterAll(async () => {
-    await app.close();
+    await harness.close();
   });
 
   it('answers the liveness probe', async () => {
@@ -36,5 +38,24 @@ describe('app skeleton', () => {
 
   it('can use the shared workspace', () => {
     expect(isValidStars(5)).toBe(true);
+  });
+
+  it('exposes the migrated database', () => {
+    const tables = harness.database.sqlite
+      .prepare(`select name from sqlite_master where type = 'table'`)
+      .all() as { name: string }[];
+
+    expect(tables.map((table) => table.name)).toContain('users');
+  });
+
+  it('sweeps expired sessions on demand', () => {
+    const seeded = seedDatabase(app.db, { users: [{ username: 'anna' }] });
+    const userId = seeded.users?.[0]?.id as string;
+
+    createSession(app.db, app.config, userId, null, new Date(Date.now() - 400 * 24 * 3600 * 1000));
+    createSession(app.db, app.config, userId, null);
+
+    expect(app.cleanupSessions()).toBe(1);
+    expect(app.cleanupSessions()).toBe(0);
   });
 });

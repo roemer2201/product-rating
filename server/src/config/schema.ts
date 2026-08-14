@@ -21,6 +21,11 @@ const serverSection = z.strictObject({
   base_url: z.url().default('http://127.0.0.1:8080'),
   /** Evaluate `X-Forwarded-*`; only enable behind a trusted reverse proxy. */
   trust_proxy: z.boolean().default(false),
+  /**
+   * Extra origins accepted by the CSRF check besides `base_url`. Needed for
+   * the Vite dev server, otherwise it stays empty.
+   */
+  trusted_origins: z.array(z.url()).default([]),
 });
 
 const pathsSection = z.strictObject({
@@ -55,6 +60,12 @@ const authSection = z
     invite_ttl_days: z.int().min(1).max(365).default(14),
     login_rate_limit_per_minute: z.int().min(1).max(1000).default(5),
     argon2_memory_mib: z.int().min(8).max(4096).default(64),
+    /** Number of argon2id passes; higher costs more time per login. */
+    argon2_time_cost: z.int().min(1).max(20).default(3),
+    /** Lanes used by argon2id; one is plenty for a household sized instance. */
+    argon2_parallelism: z.int().min(1).max(16).default(1),
+    /** Shortest accepted password, checked on every password change. */
+    min_password_length: z.int().min(8).max(256).default(10),
   })
   .refine((value) => value.session_renew_threshold_days < value.session_ttl_days, {
     message: 'session_renew_threshold_days must be smaller than session_ttl_days',

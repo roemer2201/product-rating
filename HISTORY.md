@@ -5,6 +5,104 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-14 – M3: Authentifizierung und Nutzer
+
+**Umfang**
+
+- `server/src/services/`: `passwords.ts` (argon2id über `@node-rs/argon2`,
+  Parameter aus `[auth]`, `needsRehash()`), `sessions.ts` (Erstellen, Finden,
+  rollierendes Verlängern, Auflisten, Widerrufen, Aufräumen), `users.ts`
+  (Anlegen, Suchen, Rolle und Zustand ändern, Passwort setzen), `invites.ts`
+  (Erzeugen, Auflisten, Zurückziehen, Einlösen), `bootstrap.ts` (erster Admin
+  aus der Umgebung), `rateLimit.ts` (Fenster von einer Minute je Schlüssel),
+  `errors.ts` (`ServiceError` mit Statuscode und Fehlercode).
+- `server/src/plugins/`: `auth.ts` (Cookie-Ausgabe, `onRequest`-Hook,
+  `requireUser`/`requireAdmin`, täglicher Aufräumlauf), `csrf.ts`
+  (Origin-/Referer-Prüfung), `errorHandler.ts` (einheitliches Fehlerformat,
+  Zod-Fehler als `400`).
+- `server/src/routes/`: `auth.ts` (login, logout, me, register, password,
+  sessions), `invites.ts`, `users.ts` – alle Eingaben serverseitig mit den
+  neuen Zod-Schemata aus `shared/src/schemas/auth.ts` geprüft.
+- Konfiguration erweitert: `server.trusted_origins`, `auth.argon2_time_cost`,
+  `auth.argon2_parallelism`, `auth.min_password_length` – jeweils in Schema,
+  `config.example.toml` und README-Tabelle.
+- `config/file.ts`: `config/config.toml` wird zusätzlich in übergeordneten
+  Verzeichnissen gesucht. npm startet Workspace-Skripte im Workspace, `npm run
+  dev` und `npm run migrate` liefen deshalb bisher gegen die Standardpfade
+  statt gegen die Entwicklungskonfiguration.
+- 141 Tests grün; `lint`, `typecheck`, `format:check` und `build` fehlerfrei.
+  Zusätzlich real geprüft: Bootstrap-Admin beim ersten Start, Anmeldung mit
+  richtigem und falschem Passwort, Rate-Limit ab dem sechsten Fehlversuch,
+  Einladung erzeugen, Registrierung damit, zweite Registrierung mit demselben
+  Code abgelehnt, Adminroute für einen normalen Nutzer gesperrt, schreibende
+  Anfrage mit fremder Herkunft abgewiesen.
+
+**Getroffene Entscheidungen**
+
+| Thema | Entscheidung | Begründung |
+|---|---|---|
+| argon2-Bibliothek | `@node-rs/argon2` statt `argon2` | Vorgebaute Binaries für amd64 und arm64, kein `node-gyp` beim Paketbau |
+| Session-Speicherung | Cookie trägt 32 Zufallsbytes, gespeichert wird nur deren SHA-256-Abdruck | Aus einem Datenbank-Leck lässt sich kein benutzbares Cookie gewinnen; Widerruf bleibt ein `DELETE` |
+| Cookie-Signatur | Zusätzlich mit dem Secret aus `auth.secret_file` signiert | Manipulierte Cookies werden erkannt, bevor die Datenbank gefragt wird; das Secret bekommt damit seine Aufgabe |
+| `Secure`-Flag | Wird gesetzt, sobald `base_url` mit `https://` beginnt | Über reines HTTP verwirft der Browser ein `Secure`-Cookie kommentarlos – die lokale Entwicklung wäre ohne erkennbaren Grund kaputt |
+| CSRF | Origin-/Referer-Prüfung statt Token, zusätzlich zu `SameSite=Lax` | Kein Token-Umlauf nötig; `server.trusted_origins` deckt den Vite-Dev-Server ab |
+| Rate-Limit | Prozesslokal, zwei Schlüssel (IP und Benutzername), Fenster von einer Minute | Einzelprozess mit wenigen Nutzern; ein gemeinsamer Speicher wäre Aufwand ohne Nutzen |
+| Fehlermeldung beim Login | Unbekannter Nutzer, falsches Passwort und deaktiviertes Konto antworten gleich | Sonst wird die Route zur Auskunft darüber, wer hier ein Konto hat |
+| Benutzernamen | Klein geschrieben gespeichert, per CHECK-Constraint abgesichert | „Anna“ und „anna“ können nie beide existieren, ohne Ausdrucksindex |
+| Einladungscodes | Klartext in der Datenbank, kurzlebig und einmalig | Ein Admin muss den Code erneut lesen können, um ihn weiterzugeben |
+| Registrierung | Konto anlegen und Code einlösen in einer Transaktion, Hashing davor | SQLite-Transaktionen sind synchron, argon2 ist es nicht; so bleibt beides unteilbar |
+| Konten löschen | Gibt es nicht, nur deaktivieren; Sessions verfallen dabei | Bewertungen und Fotos behalten einen gültigen Eigentümer |
+| Letzter Administrator | Kann weder herabgestuft noch deaktiviert werden | Sonst ist die Instanz nur noch über die Datenbank zu retten |
+| Passwortwechsel | Verwirft alle anderen Sessions, behält die eigene | Erwartetes Verhalten nach einem verlorenen Gerät, ohne den Nutzer selbst hinauszuwerfen |
+
+**Offen**
+
+- Der Aufräumlauf für abgelaufene Sessions hängt an einem `setInterval` im
+  Serverprozess. Für den Betrieb reicht das; ein CLI-Befehl kommt mit M13.
+- Das Rate-Limit zählt im Prozessspeicher und beginnt nach einem Neustart von
+  vorn. Bei einem Prozess je Instanz ist das kein Verlust.
+- `POST /api/v1/users` legt Konten ohne Einladung an – bewusst, damit ein Admin
+  nicht den Umweg über einen Code gehen muss.
+
+---
+
+## 2026-08-14 – M2: Datenbank und Migrationen
+
+**Umfang**
+
+- `server/src/db/`: `schema.ts` (alle sechs Tabellen mit Indizes,
+  Fremdschlüsseln und CHECK-Constraints), `client.ts` (`openDatabase()` mit
+  WAL, `foreign_keys = ON`, `busy_timeout`, `synchronous = NORMAL`),
+  `migrate.ts` (Runner mit Snapshot), `testing.ts` (Wegwerf-Datenbank je Test
+  plus Seed-Funktion), `index.ts` als Barrel.
+- `drizzle.config.ts` und die erste eingecheckte Migration
+  `src/db/migrations/0000_initial_schema.sql`.
+- Neue Skripte `npm run migrate` (eigener Einstiegspunkt `src/migrate.ts`, für
+  Container-Entrypoint und `postinst`) und `npm run db:generate`. `tsup` kopiert
+  die Migrationen nach `dist/migrations`, weil der Runner sie zur Laufzeit
+  liest.
+- Der Serverstart führt Migrationen aus, bevor die erste Abfrage läuft.
+
+**Getroffene Entscheidungen**
+
+| Thema | Entscheidung | Begründung |
+|---|---|---|
+| Zeitstempel | `integer` mit Unix-Millisekunden, in TypeScript `Date` | Günstig zu vergleichen und zu indizieren, ohne SQLite-Datumsfunktionen; die API gibt weiterhin ISO-8601 aus |
+| Identifikatoren | UUIDv4 als `text` | Erlaubt das Erzeugen im Anwendungscode und macht Zusammenführungen von Datenbeständen möglich |
+| Standardwerte | Im Anwendungscode (`$defaultFn`) statt als SQL-Default | Ein Ort für die Regel; alle Schreibzugriffe laufen ohnehin über Drizzle |
+| Snapshot | `VACUUM INTO` vor jeder Migration einer bestehenden Datenbank | Im WAL-Modus ist das Kopieren der `.db` nicht konsistent; ein Fehlschlag bricht die Migration ab |
+| Fremdschlüssel | `ratings`/`photos` kaskadieren mit dem Produkt, `products.created_by` ist `restrict` | Ein gelöschtes Produkt nimmt seine Bewertungen mit, ein Konto lässt sich nicht unter einem Produkt wegziehen |
+| Testdatenbank | Datei in einem temporären Verzeichnis statt `:memory:` | Prüft WAL, `busy_timeout` und den Migrationsweg so, wie sie im Betrieb laufen |
+
+**Offen**
+
+- Die Snapshots landen neben der Datenbank und werden nicht aufgeräumt; eine
+  Aufbewahrungsgrenze gehört zum Backup-Thema in M13.
+- `product-rating migrate` als Unterbefehl der CLI kommt mit M13; bis dahin ist
+  `npm run migrate` beziehungsweise `node dist/migrate.js` der Weg.
+
+---
+
 ## 2026-08-14 – M1: Konfiguration
 
 **Umfang**

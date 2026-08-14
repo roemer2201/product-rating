@@ -23,6 +23,29 @@ export interface User {
   disabledAt: string | null;
 }
 
+/** One of the caller's own sessions, as listed in the settings page. */
+export interface SessionInfo {
+  id: string;
+  userAgent: string | null;
+  createdAt: string;
+  lastSeenAt: string;
+  expiresAt: string;
+  /** True for the session the request itself was made with. */
+  current: boolean;
+}
+
+/** An invite code as shown to an administrator. */
+export interface Invite {
+  code: string;
+  note: string | null;
+  createdBy: string;
+  createdAt: string;
+  expiresAt: string;
+  usedBy: string | null;
+  usedAt: string | null;
+  status: 'open' | 'used' | 'expired';
+}
+
 /**
  * A product in the shared catalogue. An EAN exists exactly once across all
  * users; ratings and photos are per user.
