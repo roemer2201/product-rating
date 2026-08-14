@@ -43,15 +43,28 @@ describe('configuration loading', () => {
     const candidates = configFileCandidates({
       explicitPath: 'cli.toml',
       env: { [CONFIG_PATH_ENV_VAR]: 'env.toml' },
-      cwd: '/work',
+      cwd: '/work/server',
     });
 
     expect(candidates.map((candidate) => [candidate.source, candidate.path])).toEqual([
-      ['cli', '/work/cli.toml'],
-      ['env', '/work/env.toml'],
+      ['cli', '/work/server/cli.toml'],
+      ['env', '/work/server/env.toml'],
       ['system', SYSTEM_CONFIG_PATH],
+      // The local file is looked for upwards as well, because npm runs a
+      // workspace script inside the workspace directory.
+      ['local', '/work/server/config/config.toml'],
       ['local', '/work/config/config.toml'],
+      ['local', '/config/config.toml'],
     ]);
+  });
+
+  it('finds a configuration file in a parent directory', () => {
+    writeConfig('config/config.toml');
+    mkdirSync(join(root, 'server'), { recursive: true });
+
+    const loaded = loadConfig({ env: {}, cwd: join(root, 'server') });
+
+    expect(loaded.configFile).toBe(join(root, 'config/config.toml'));
   });
 
   it('starts on defaults alone when no configuration file exists', () => {

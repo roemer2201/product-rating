@@ -1,5 +1,5 @@
 import { readFileSync, statSync } from 'node:fs';
-import { isAbsolute, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { parse as parseToml, TomlError } from 'smol-toml';
 import { ConfigError } from './errors.js';
 import type { RawConfig } from './values.js';
@@ -10,6 +10,8 @@ export const CONFIG_PATH_ENV_VAR = 'PRODUCT_RATING_CONFIG';
 export const SYSTEM_CONFIG_PATH = '/etc/product-rating/config.toml';
 /** Location used during development, relative to the working directory. */
 export const LOCAL_CONFIG_PATH = 'config/config.toml';
+/** How many directory levels above the working directory are searched. */
+export const LOCAL_CONFIG_MAX_LEVELS = 4;
 
 /** Where a configuration file path came from, in ascending precedence. */
 export type ConfigFileSource = 'cli' | 'env' | 'system' | 'local';
@@ -44,7 +46,19 @@ export function configFileCandidates(options: ConfigFileLookupOptions = {}): Con
   }
 
   candidates.push({ path: SYSTEM_CONFIG_PATH, source: 'system', required: false });
-  candidates.push({ path: absolute(LOCAL_CONFIG_PATH), source: 'local', required: false });
+
+  // `config/config.toml` is looked for in the working directory and above it.
+  // npm runs a workspace script with the workspace as working directory, so
+  // `npm run dev` from the repository root starts in `server/` while the file
+  // lives one level up.
+  let directory = resolve(cwd);
+  for (let level = 0; level <= LOCAL_CONFIG_MAX_LEVELS; level += 1) {
+    candidates.push({ path: join(directory, LOCAL_CONFIG_PATH), source: 'local', required: false });
+
+    const parent = dirname(directory);
+    if (parent === directory) break;
+    directory = parent;
+  }
 
   return candidates;
 }

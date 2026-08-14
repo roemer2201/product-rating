@@ -13,9 +13,11 @@ describe('config schema', () => {
       port: 8080,
       base_url: 'http://127.0.0.1:8080',
       trust_proxy: false,
+      trusted_origins: [],
     });
     expect(config.uploads.allowed_mime).toContain('image/jpeg');
     expect(config.auth.session_ttl_days).toBe(90);
+    expect(config.auth.min_password_length).toBe(10);
     expect(config.log.destination).toBe('stdout');
     expect(config.app.external_lookup).toBe(false);
   });

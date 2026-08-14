@@ -37,36 +37,38 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 
 ## M2 – Datenbank und Migrationen
 
-- [ ] **[S]** Drizzle + better-sqlite3 einbinden, `drizzle.config.ts`
-- [ ] **[S]** DB-Verbindung kapseln: WAL-Modus, `foreign_keys = ON`, `busy_timeout`, `synchronous = NORMAL`
-- [ ] **[M]** Schema `users` (id, username UNIQUE, email, password_hash, role, created_at, disabled_at)
-- [ ] **[S]** Schema `sessions` (id, user_id, expires_at, user_agent, created_at, last_seen_at) + Index auf `user_id`
-- [ ] **[S]** Schema `invites` (code UNIQUE, created_by, expires_at, used_by, used_at)
-- [ ] **[M]** Schema `products` (id, ean UNIQUE, name, brand, category, notes, created_by, created_at, updated_at) + Index auf `name`, `brand`
-- [ ] **[S]** Schema `ratings` (id, product_id, user_id, stars, comment, created_at, updated_at) + `UNIQUE (product_id, user_id)` + CHECK `stars BETWEEN 0 AND 5`
-- [ ] **[S]** Schema `photos` (id, product_id, user_id, filename, mime, width, height, is_primary, created_at)
-- [ ] **[S]** Erste Migration generieren und einchecken
-- [ ] **[S]** Migrationsrunner beim Serverstart, plus `product-rating migrate`
-- [ ] **[S]** Automatischer DB-Snapshot vor jeder Migration
-- [ ] **[S]** Testhilfe: In-Memory- bzw. Temp-Datenbank je Testlauf, Seed-Funktion
+- [x] **[S]** Drizzle + better-sqlite3 einbinden, `drizzle.config.ts`
+- [x] **[S]** DB-Verbindung kapseln: WAL-Modus, `foreign_keys = ON`, `busy_timeout`, `synchronous = NORMAL`
+- [x] **[M]** Schema `users` (id, username UNIQUE, email, password_hash, role, created_at, disabled_at)
+- [x] **[S]** Schema `sessions` (id, user_id, expires_at, user_agent, created_at, last_seen_at) + Index auf `user_id`
+- [x] **[S]** Schema `invites` (code UNIQUE, created_by, expires_at, used_by, used_at)
+- [x] **[M]** Schema `products` (id, ean UNIQUE, name, brand, category, notes, created_by, created_at, updated_at) + Index auf `name`, `brand`
+- [x] **[S]** Schema `ratings` (id, product_id, user_id, stars, comment, created_at, updated_at) + `UNIQUE (product_id, user_id)` + CHECK `stars BETWEEN 0 AND 5`
+- [x] **[S]** Schema `photos` (id, product_id, user_id, filename, mime, width, height, is_primary, created_at)
+- [x] **[S]** Erste Migration generieren und einchecken
+- [x] **[S]** Migrationsrunner beim Serverstart, plus `product-rating migrate`
+- [x] **[S]** Automatischer DB-Snapshot vor jeder Migration
+- [x] **[S]** Testhilfe: In-Memory- bzw. Temp-Datenbank je Testlauf, Seed-Funktion
 
 ## M3 – Authentifizierung und Nutzer
 
-- [ ] **[M]** Passwort-Hashing mit argon2id, Parameter aus der Konfiguration
-- [ ] **[M]** Session-Erstellung: 32-Byte-Zufalls-ID, Speicherung, Cookie `HttpOnly`/`Secure`/`SameSite=Lax`
-- [ ] **[S]** Auth-Hook in Fastify: Session laden, `request.user` setzen, abgelaufene Sessions verwerfen
-- [ ] **[S]** Rollierende Verlängerung, wenn Restlaufzeit unter `session_renew_threshold_days`
-- [ ] **[S]** Aufräumjob für abgelaufene Sessions (beim Start und täglich)
-- [ ] **[S]** `POST /api/v1/auth/login` mit Rate-Limit pro IP und Benutzername
-- [ ] **[S]** `POST /api/v1/auth/logout`, `GET /api/v1/auth/me`
-- [ ] **[S]** `GET/DELETE /api/v1/auth/sessions` – eigene Sessions anzeigen und einzeln widerrufen
-- [ ] **[M]** Bootstrap-Admin aus `BOOTSTRAP_ADMIN_USER` / `BOOTSTRAP_ADMIN_PASSWORD` beim ersten Start
-- [ ] **[M]** Einladungen: `POST /api/v1/invites` (admin), `GET /api/v1/invites`, `DELETE /api/v1/invites/:code`
-- [ ] **[M]** `POST /api/v1/auth/register` – nur mit gültigem, unbenutztem Einladungscode
-- [ ] **[S]** Nutzerverwaltung für Admins: auflisten, deaktivieren, Rolle ändern, Passwort zurücksetzen
-- [ ] **[S]** Passwortwechsel für den eigenen Account (mit Prüfung des alten Passworts, invalidiert andere Sessions)
-- [ ] **[S]** CSRF-Absicherung: Origin-/Referer-Prüfung für alle schreibenden Routen
-- [ ] **[S]** Tests: Login-Erfolg/-Fehlschlag, Rate-Limit, abgelaufene Session, Registrierung mit gültigem/ungültigem/verbrauchtem Code, Rollenprüfung
+- [x] **[M]** Passwort-Hashing mit argon2id, Parameter aus der Konfiguration
+- [x] **[M]** Session-Erstellung: 32-Byte-Zufalls-ID, Speicherung, Cookie `HttpOnly`/`Secure`/`SameSite=Lax`
+- [x] **[S]** Auth-Hook in Fastify: Session laden, `request.user` setzen, abgelaufene Sessions verwerfen
+- [x] **[S]** Rollierende Verlängerung, wenn Restlaufzeit unter `session_renew_threshold_days`
+- [x] **[S]** Aufräumjob für abgelaufene Sessions (beim Start und täglich)
+- [x] **[S]** `POST /api/v1/auth/login` mit Rate-Limit pro IP und Benutzername
+- [x] **[S]** `POST /api/v1/auth/logout`, `GET /api/v1/auth/me`
+- [x] **[S]** `GET/DELETE /api/v1/auth/sessions` – eigene Sessions anzeigen und einzeln widerrufen
+- [x] **[M]** Bootstrap-Admin aus `BOOTSTRAP_ADMIN_USER` / `BOOTSTRAP_ADMIN_PASSWORD` beim ersten Start
+- [x] **[M]** Einladungen: `POST /api/v1/invites` (admin), `GET /api/v1/invites`, `DELETE /api/v1/invites/:code`
+- [x] **[M]** `POST /api/v1/auth/register` – nur mit gültigem, unbenutztem Einladungscode
+- [x] **[S]** Nutzerverwaltung für Admins: auflisten, deaktivieren, Rolle ändern, Passwort zurücksetzen
+- [x] **[S]** Passwortwechsel für den eigenen Account (mit Prüfung des alten Passworts, invalidiert andere Sessions)
+- [x] **[S]** CSRF-Absicherung: Origin-/Referer-Prüfung für alle schreibenden Routen
+- [x] **[S]** Tests: Login-Erfolg/-Fehlschlag, Rate-Limit, abgelaufene Session, Registrierung mit gültigem/ungültigem/verbrauchtem Code, Rollenprüfung
+- [ ] **[S]** Sitzungsliste lesbarer machen: User-Agent zu „iPhone · Safari“ verdichten (mit der Einstellungsseite in M8)
+- [ ] **[S]** Anmeldeversuche zusätzlich ins Log mit einheitlichem Ereignisnamen, sobald strukturiertes Logging steht (M13)
 
 ## M4 – Produkt-API
 
@@ -140,7 +142,7 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 ## M10 – Docker
 
 - [ ] **[M]** Mehrstufiges `Dockerfile` (Build-Stufe, schlanke Laufzeitstufe, nicht-privilegierter Nutzer)
-- [ ] **[S]** Entrypoint: Verzeichnisse anlegen, Secret erzeugen, falls nicht vorhanden, Migrationen ausführen
+- [ ] **[S]** Entrypoint: Verzeichnisse anlegen, Secret erzeugen, falls nicht vorhanden, Migrationen ausführen (`node dist/migrate.js`)
 - [ ] **[S]** `docker-compose.yml` mit Volume `/data` und gemounteter Konfiguration
 - [ ] **[S]** `HEALTHCHECK` auf `/healthz`
 - [ ] **[S]** `.dockerignore`
@@ -153,7 +155,8 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [ ] **[M]** Buildskript `npm run package:deb`: Bundle bauen, Baum unter `packaging/build/` aufbauen, `dpkg-deb --build`
 - [ ] **[S]** Dateibaum: `/opt/product-rating`, `/etc/product-rating`, `/var/lib/product-rating/{db,uploads,tmp}`, `/var/log/product-rating`
 - [ ] **[S]** `conffiles`: `/etc/product-rating/config.toml` registrieren, damit Änderungen Updates überleben
-- [ ] **[M]** `postinst`: Systemnutzer anlegen, Verzeichnisse und Rechte setzen, Secret erzeugen (`0600`), Migrationen ausführen, Dienst aktivieren
+- [ ] **[M]** `postinst`: Systemnutzer anlegen, Verzeichnisse und Rechte setzen, Secret erzeugen (`0600`), Migrationen ausführen (`node dist/migrate.js`), Dienst aktivieren
+- [ ] **[S]** Prüfen, dass `dist/migrations/` im Paket und im Image landet – der Runner liest die SQL-Dateien zur Laufzeit
 - [ ] **[S]** `prerm` / `postrm`: Dienst stoppen, bei `purge` Konfiguration und Daten nach Rückfrage entfernen
 - [ ] **[S]** systemd-Unit mit Härtung: `ProtectSystem=strict`, `ReadWritePaths`, `NoNewPrivileges`, `PrivateTmp`, `Restart=on-failure`
 - [ ] **[S]** `/usr/bin/product-rating` als Wrapper auf die CLI
@@ -172,6 +175,7 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [ ] **[S]** `packaging/examples/systemd/override.conf` als Vorlage für abweichende Pfade
 - [ ] **[S]** `packaging/examples/ufw/product-rating` – Applikationsprofil
 - [ ] **[M]** `packaging/examples/backup/product-rating-backup` – Skript nach den Skript-Konventionen (Header, `--help`, Silent-/Verbose-Modus, Logging über `logger`), plus systemd-Timer
+- [ ] **[S]** In allen Proxy-Beispielen darauf hinweisen, dass `server.base_url` der öffentlichen Adresse entsprechen muss – sonst schlägt die Origin-Prüfung schreibender Anfragen fehl
 - [ ] **[S]** Jede Beispielkonfiguration einmal real gegen die laufende App testen
 - [ ] **[S]** Querverweise in `README.md` prüfen
 

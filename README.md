@@ -90,10 +90,18 @@ schneller, hält DB-Backups klein und erlaubt HTTP-Caching und Range-Requests.
   `GET /products/by-ean/:ean`, `POST /products`, `PATCH /products/:id`,
   `PUT /products/:id/rating`, `POST /products/:id/photos`,
   `GET /media/:id?size=thumb|full`.
-- **Sessions:** serverseitig in SQLite, Cookie `HttpOnly`, `Secure`,
-  `SameSite=Lax`. Laufzeit standardmäßig 90 Tage mit rollierender Verlängerung –
-  wichtig, damit die Home-Bildschirm-PWA nicht bei jedem Öffnen nach dem Passwort
-  fragt. Einzelne Sessions lassen sich serverseitig sofort widerrufen.
+- **Sessions:** serverseitig in SQLite, Cookie `HttpOnly`, `SameSite=Lax` und
+  signiert mit dem Secret aus `auth.secret_file`. Das Cookie trägt 32 zufällige
+  Bytes, gespeichert wird nur deren SHA-256-Abdruck – aus der Datenbank lässt
+  sich also kein benutzbares Cookie gewinnen. `Secure` wird gesetzt, sobald
+  `server.base_url` mit `https://` beginnt; über reines HTTP würde der Browser
+  ein `Secure`-Cookie kommentarlos verwerfen. Laufzeit standardmäßig 90 Tage mit
+  rollierender Verlängerung – wichtig, damit die Home-Bildschirm-PWA nicht bei
+  jedem Öffnen nach dem Passwort fragt. Einzelne Sessions lassen sich
+  serverseitig sofort widerrufen.
+- **Fehlerformat:** jede Fehlerantwort ist
+  `{"error": {"code": "...", "message": "...", "details": {...}}}`. Unerwartete
+  Fehler werden protokolliert, aber nur als `internal_error` beantwortet.
 - **Uploads:** `multipart/form-data`, Größenlimit und MIME-Whitelist aus der
   Konfiguration, serverseitiges Re-Encoding mit `sharp`. Das entfernt EXIF-Daten
   (inklusive GPS-Position) und entschärft manipulierte Bilddateien.
@@ -101,6 +109,9 @@ schneller, hält DB-Backups klein und erlaubt HTTP-Caching und Range-Requests.
   Berechtigungsprüfung – keine erratbaren Direktlinks im Webroot.
 - **Härtung:** Rate-Limit auf Login und Upload, CSRF-Schutz über `SameSite=Lax`
   plus Origin-Prüfung, Content-Security-Policy, `/healthz`-Endpunkt.
+  Die Origin-Prüfung greift bei jeder schreibenden Anfrage, die ein
+  Session-Cookie mitbringt: `Origin` beziehungsweise `Referer` muss zu
+  `server.base_url` oder zu `server.trusted_origins` passen.
 - **Kein ausgehender Netzwerkverkehr.** Es gibt bewusst keine Anbindung an eine
   externe Produktdatenbank; alle Produktdaten werden lokal erfasst.
 
@@ -119,11 +130,42 @@ Let's-Encrypt-Zertifikat (DNS-Challenge funktioniert auch ohne offenen Port 80).
 - Keine offene Registrierung.
 - Der **erste Start** legt aus `BOOTSTRAP_ADMIN_USER` und
   `BOOTSTRAP_ADMIN_PASSWORD` ein Administratorkonto an. Alternativ:
-  `product-rating user add --admin`.
+  `product-rating user add --admin`. Die Variablen wirken nur, solange die
+  Instanz überhaupt kein Konto hat – ein vergessener Eintrag in einer
+  Unit- oder Compose-Datei kann später also keinen Administrator nachschieben.
 - Weitere Konten entstehen nur über **Einladungscodes**
   (`product-rating invite create`, oder in der Weboberfläche als Admin).
+  Ein Code hat die Form `A1B2-C3D4-E5F6`, gilt `auth.invite_ttl_days` lang und
+  ist genau einmal verwendbar.
+- Benutzernamen werden klein geschrieben gespeichert; „Anna“ und „anna“ sind
+  dasselbe Konto. Erlaubt sind Buchstaben, Ziffern, Punkt, Bindestrich und
+  Unterstrich.
+- Konten werden nie gelöscht, sondern deaktiviert – Bewertungen und Fotos
+  behalten damit einen gültigen Eigentümer. Mit dem Deaktivieren verfallen alle
+  Sessions des Kontos.
 - Rollen: `admin` (Nutzerverwaltung, Einladungen, alle Daten) und `user`
-  (eigene Bewertungen und Fotos, gemeinsamer Produktkatalog).
+  (eigene Bewertungen und Fotos, gemeinsamer Produktkatalog). Der letzte aktive
+  Administrator kann weder herabgestuft noch deaktiviert werden.
+
+### 5.1 Routen zu Konten und Sitzungen
+
+| Route | Rolle | Zweck |
+|---|---|---|
+| `POST /api/v1/auth/login` | – | Anmelden, setzt das Session-Cookie |
+| `POST /api/v1/auth/logout` | angemeldet | Aktuelle Sitzung widerrufen |
+| `GET /api/v1/auth/me` | angemeldet | Eigenes Konto |
+| `POST /api/v1/auth/register` | – | Konto mit gültigem Einladungscode anlegen |
+| `POST /api/v1/auth/password` | angemeldet | Passwort ändern, verwirft die übrigen Sitzungen |
+| `GET /api/v1/auth/sessions` | angemeldet | Eigene Sitzungen auflisten |
+| `DELETE /api/v1/auth/sessions/:id` | angemeldet | Eine eigene Sitzung widerrufen |
+| `DELETE /api/v1/auth/sessions` | angemeldet | Alle anderen eigenen Sitzungen widerrufen |
+| `POST /api/v1/invites` | admin | Einladungscode erzeugen |
+| `GET /api/v1/invites` | admin | Codes mit Status `open`/`used`/`expired` |
+| `DELETE /api/v1/invites/:code` | admin | Unbenutzten Code zurückziehen |
+| `GET /api/v1/users` | admin | Konten auflisten |
+| `POST /api/v1/users` | admin | Konto ohne Einladung anlegen |
+| `PATCH /api/v1/users/:id` | admin | Rolle, Zustand oder E-Mail ändern |
+| `POST /api/v1/users/:id/password` | admin | Passwort zurücksetzen |
 - Nachrüstbar: TOTP-2FA oder Delegation an ein Reverse-Proxy-SSO
   (Authelia/Authentik) über vertrauenswürdige Header.
 
@@ -141,7 +183,10 @@ Die App liest eine TOML-Datei. Suchreihenfolge:
 Ein Pfad aus `--config` oder `$PRODUCT_RATING_CONFIG` muss existieren, sonst
 bricht der Start ab. Die beiden festen Orte werden übersprungen, wenn dort
 nichts liegt – die App startet also auch allein mit Standardwerten und
-Umgebungsvariablen.
+Umgebungsvariablen. `./config/config.toml` wird zusätzlich in bis zu vier
+übergeordneten Verzeichnissen gesucht, weil npm Workspace-Skripte im jeweiligen
+Workspace-Verzeichnis startet (`npm run dev` läuft in `server/`, die Datei liegt
+eine Ebene darüber).
 
 Vorrang der Quellen: **Standardwerte < Konfigurationsdatei < Umgebungsvariablen
 < CLI-Argumente.** Jeder Schlüssel lässt sich per Umgebungsvariable
@@ -170,6 +215,7 @@ Alle dort eingetragenen Werte entsprechen den Standardwerten.
 | `port` | Zahl 1–65535 | `8080` | Port der HTTP-Schnittstelle |
 | `base_url` | URL | `http://127.0.0.1:8080` | Öffentliche Adresse, für absolute Links und Cookies |
 | `trust_proxy` | Wahrheitswert | `false` | `X-Forwarded-*` auswerten, nur hinter vertrauenswürdigem Proxy |
+| `trusted_origins` | Liste von URLs | `[]` | Zusätzlich für schreibende Anfragen erlaubte Herkünfte; `base_url` gilt immer |
 
 **`[paths]`** – relative Pfade werden gegen das Verzeichnis der
 Konfigurationsdatei aufgelöst, ohne Datei gegen das Arbeitsverzeichnis.
@@ -198,8 +244,11 @@ Konfigurationsdatei aufgelöst, ohne Datei gegen das Arbeitsverzeichnis.
 | `session_ttl_days` | Zahl 1–3650 | `90` | Laufzeit einer Sitzung |
 | `session_renew_threshold_days` | Zahl 0–3650 | `7` | Ab dieser Restlaufzeit wird verlängert, muss kleiner als `session_ttl_days` sein |
 | `invite_ttl_days` | Zahl 1–365 | `14` | Gültigkeit eines Einladungscodes |
-| `login_rate_limit_per_minute` | Zahl 1–1000 | `5` | Anmeldeversuche je Minute, je IP und Benutzername |
+| `login_rate_limit_per_minute` | Zahl 1–1000 | `5` | Fehlversuche je Minute, je IP und Benutzername |
 | `argon2_memory_mib` | Zahl 8–4096 | `64` | Speicherbedarf des argon2id-Hashings |
+| `argon2_time_cost` | Zahl 1–20 | `3` | Anzahl der argon2id-Durchläufe |
+| `argon2_parallelism` | Zahl 1–16 | `1` | Anzahl der argon2id-Lanes |
+| `min_password_length` | Zahl 8–256 | `10` | Kürzestes akzeptiertes Passwort |
 
 **`[log]`**
 
@@ -342,15 +391,37 @@ install -m 600 /dev/null config/secret.env
 openssl rand -hex 32 > config/secret.env
 ```
 
+Damit die Anmeldung aus dem Vite-Dev-Server heraus funktioniert, gehört dessen
+Herkunft in die Konfiguration – der Proxy reicht den `Origin`-Header des
+Browsers durch, und die Origin-Prüfung lehnt alles Unbekannte ab:
+
+```toml
+[server]
+trusted_origins = ["http://localhost:5173"]
+```
+
+Den ersten Administrator legt der erste Start aus der Umgebung an:
+
+```bash
+BOOTSTRAP_ADMIN_USER=chef BOOTSTRAP_ADMIN_PASSWORD=... npm run dev
+```
+
 ```bash
 npm install                 # npm-Workspaces: server, web, shared
 npm run dev                 # API auf :8080, Vite-Dev-Server auf :5173
 npm run migrate             # Migrationen anwenden
+npm run db:generate         # Migration aus geändertem Schema erzeugen
 npm test                    # Vitest
 npm run lint && npm run typecheck
 npm run build               # Produktions-Bundle nach dist/
 npm run package:deb         # Debian-Paket bauen
 ```
+
+Schemaänderungen laufen immer über `server/src/db/schema.ts` plus
+`npm run db:generate`; die erzeugte SQL-Datei unter
+`server/src/db/migrations/` wird eingecheckt. Vor jeder Migration einer
+bestehenden Datenbank legt der Runner selbständig einen Snapshot
+`pre-migration-<zeitstempel>.db` neben der Datenbank an.
 
 Repository-Struktur:
 

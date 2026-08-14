@@ -23,6 +23,9 @@ port = 8080
 base_url = "http://127.0.0.1:8080"
 # X-Forwarded-*-Header auswerten. Nur hinter einem vertrauenswürdigen Proxy!
 trust_proxy = false
+# Zusätzliche Herkünfte, die schreibende Anfragen stellen dürfen (CSRF-Prüfung).
+# base_url ist immer erlaubt. In der Entwicklung: ["http://localhost:5173"].
+trusted_origins = []
 
 [paths]
 # Speicherorte für Datenbank, Fotos und temporäre Dateien. Frei wählbar,
@@ -57,8 +60,13 @@ session_renew_threshold_days = 7
 invite_ttl_days = 14
 # Fehlversuche pro Minute je IP-Adresse und Benutzername.
 login_rate_limit_per_minute = 5
-# Speicherbedarf des argon2id-Hashings in MiB.
+# Parameter des argon2id-Hashings: Speicher in MiB, Anzahl der Durchläufe und
+# Anzahl der Lanes. Höhere Werte kosten Zeit bei jeder Anmeldung.
 argon2_memory_mib = 64
+argon2_time_cost = 3
+argon2_parallelism = 1
+# Kürzestes akzeptiertes Passwort bei Registrierung und Passwortwechsel.
+min_password_length = 10
 
 [log]
 level = "info"        # error | warn | info | debug
