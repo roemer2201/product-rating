@@ -5,6 +5,62 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-14 – M1: Konfiguration
+
+**Umfang**
+
+- `server/src/config/` als eigenständiges Modul: `schema.ts` (Zod-Schema mit
+  allen Standardwerten), `file.ts` (Suchreihenfolge und TOML-Einlesen über
+  `smol-toml`), `env.ts` (`PR_<SEKTION>__<SCHLÜSSEL>`), `cli.ts` (`--config`,
+  `--set`, Kurzformen), `values.ts` (Typkonvertierung und Zusammenführung),
+  `load.ts` (Vorrangkette und Pfadauflösung), `checks.ts` (Startprüfungen),
+  `errors.ts` (`ConfigError` mit mehrzeiliger Ausgabe).
+- Vorrangkette Standardwerte < Datei < Umgebungsvariablen < CLI, mit Tests je
+  Stufe belegt.
+- Startprüfungen: Verzeichnisse für Datenbank, Uploads, Temp und – bei
+  `log.destination = "file"` – für das Log werden angelegt beziehungsweise
+  bemängelt; `auth.secret_file` muss existieren, Rechte `0600` haben und
+  mindestens 32 Zeichen enthalten.
+- `config/config.example.toml` mit allen Schlüsseln und Kommentaren; ein Test
+  lädt die Datei und vergleicht sie mit den Standardwerten, damit Beispiel und
+  Schema nicht auseinanderlaufen.
+- `README.md`: Abschnitt 6 um Schlüsseltabellen je Sektion, die Regeln für
+  Umgebungsvariablen und CLI-Argumente, die Startprüfungen und eine Anleitung
+  für die lokale Entwicklungskonfiguration ergänzt.
+- `server/src/index.ts` liest nichts mehr aus `process.env`, sondern lädt die
+  Konfiguration, führt die Startprüfungen aus und bricht bei Fehlern mit einer
+  benannten Meldung und Exit-Code 1 ab. `buildApp()` bekommt die geprüfte
+  Konfiguration und stellt sie als `app.config` bereit.
+- 53 Tests grün; `lint`, `typecheck`, `format:check` und `build` fehlerfrei. Der
+  Start wurde real gegen eine lokale `config/config.toml` geprüft (Konfiguration
+  geladen, Verzeichnisse angelegt, `/healthz` erreichbar) sowie in den
+  Fehlerfällen fehlendes Secret, zu offene Rechte, ungültiger Wert und
+  unbekannter Schlüssel.
+
+**Getroffene Entscheidungen**
+
+| Thema | Entscheidung | Begründung |
+|---|---|---|
+| Typkonvertierung | Werte aus Env und CLI werden gegen das Schlüssel-Schema probiert (Zeichenkette → Zahl → Wahrheitswert → kommagetrennte Liste) | Keine zweite Tabelle mit Typen, die zum Schema synchron gehalten werden müsste |
+| Unbekannte Schlüssel | `strictObject`; Tippfehler in Datei, Env oder CLI brechen den Start ab | Ein stillschweigend ignorierter Schlüssel ist im Betrieb kaum zu finden |
+| Relative Pfade | Werden gegen das Verzeichnis der Konfigurationsdatei aufgelöst, ohne Datei gegen das Arbeitsverzeichnis | Eine Konfiguration bleibt damit samt Datenverzeichnis verschiebbar |
+| Session-Secret | Eigene Datei, entweder nur das Secret oder eine Zeile `PRODUCT_RATING_SECRET=…`, Rechte `0600`, mindestens 32 Zeichen | Passt zu `secret.env` aus `postinst` und Container-Entrypoint, ohne ein bestimmtes Format zu erzwingen |
+| `app.external_lookup` | Schlüssel existiert, `true` wird beim Start abgelehnt | Festgelegte Entscheidung: kein ausgehender Netzwerkverkehr, solange es keine Implementierung gibt |
+| Wertegrenzen | Zahlen mit Ober- und Untergrenzen, Querbezüge geprüft (`session_renew_threshold_days < session_ttl_days`, `thumbnail_px < detail_px`) | Fängt Zahlendreher ab, bevor sie im Betrieb auffallen |
+| CLI-Argumente | Nur konfigurationsbezogene Argumente werden gelesen, alles andere ignoriert | Die eigentliche CLI mit Unterbefehlen kommt in M13 |
+
+**Offen**
+
+- `log.format` und `log.destination` werden validiert, aber noch nicht
+  angewendet; wirksam ist bislang nur `log.level` (neuer Punkt in M13).
+- Die Entwicklungskonfiguration `config/config.toml` und ein lokales
+  `config/secret.env` müssen von Hand angelegt werden; beides ist über
+  `.gitignore` ausgeschlossen und in der README beschrieben.
+- Docker-Entrypoint und `postinst` müssen das Secret erzeugen – bereits als
+  Punkte in M10 und M11 vorgemerkt.
+
+---
+
 ## 2026-08-14 – M0: Projektgerüst
 
 **Umfang**

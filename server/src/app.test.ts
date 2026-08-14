@@ -2,12 +2,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { isValidStars } from '@product-rating/shared';
 import { buildApp } from './app.js';
+import { parseConfig } from './config/index.js';
 
 describe('app skeleton', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
-    app = buildApp();
+    app = buildApp({ config: parseConfig({}) });
     await app.ready();
   });
 
@@ -26,6 +27,11 @@ describe('app skeleton', () => {
     const response = await app.inject({ method: 'GET', url: '/does-not-exist' });
 
     expect(response.statusCode).toBe(404);
+  });
+
+  it('exposes the validated configuration', () => {
+    expect(app.config.server.port).toBe(8080);
+    expect(app.config.app.title).toBe('product-rating');
   });
 
   it('can use the shared workspace', () => {

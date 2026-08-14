@@ -138,56 +138,107 @@ Die App liest eine TOML-Datei. Suchreihenfolge:
 3. `/etc/product-rating/config.toml` (Debian-Paket)
 4. `./config/config.toml` (Entwicklung)
 
+Ein Pfad aus `--config` oder `$PRODUCT_RATING_CONFIG` muss existieren, sonst
+bricht der Start ab. Die beiden festen Orte werden übersprungen, wenn dort
+nichts liegt – die App startet also auch allein mit Standardwerten und
+Umgebungsvariablen.
+
 Vorrang der Quellen: **Standardwerte < Konfigurationsdatei < Umgebungsvariablen
-< CLI-Argumente.** Jeder Schlüssel lässt sich per Umgebungsvariable überschreiben,
-Schema `PR_<SEKTION>__<SCHLÜSSEL>`, zum Beispiel `PR_PATHS__DATABASE`.
+< CLI-Argumente.** Jeder Schlüssel lässt sich per Umgebungsvariable
+überschreiben, Schema `PR_<SEKTION>__<SCHLÜSSEL>`, zum Beispiel
+`PR_PATHS__DATABASE=/srv/app.db`. Listen werden durch Kommas getrennt
+(`PR_UPLOADS__ALLOWED_MIME=image/jpeg,image/png`), Wahrheitswerte als
+`true`/`false` (auch `1`/`0`, `yes`/`no`, `on`/`off`). Auf der Kommandozeile gibt
+es zusätzlich `--set <sektion>.<schlüssel>=<wert>` sowie die Kurzformen
+`--host`, `--port`, `--base-url`, `--database`, `--uploads`, `--temp`,
+`--log-level`, `--log-format` und `--log-destination`.
 
-```toml
-[server]
-host      = "127.0.0.1"
-port      = 8080
-base_url  = "https://products.example.com"   # für absolute Links und Cookies
-trust_proxy = true                            # X-Forwarded-* auswerten
+Unbekannte Sektionen und Schlüssel sind ein Fehler und keine stille Annahme:
+ein Tippfehler in der Datei oder in einer `PR_*`-Variablen bricht den Start mit
+einer benannten Meldung ab.
 
-[paths]
-database = "/var/lib/product-rating/db/app.db"
-uploads  = "/var/lib/product-rating/uploads"
-temp     = "/var/lib/product-rating/tmp"
+Vollständig kommentierte Vorlage: [`config/config.example.toml`](config/config.example.toml).
+Alle dort eingetragenen Werte entsprechen den Standardwerten.
 
-[uploads]
-max_file_size_mb = 15
-allowed_mime     = ["image/jpeg", "image/png", "image/webp", "image/heic"]
-thumbnail_px     = 400
-detail_px        = 1600
-strip_exif       = true
+### 6.1 Schlüssel
 
-[auth]
-secret_file                  = "/etc/product-rating/secret.env"
-session_ttl_days             = 90
-session_renew_threshold_days = 7
-invite_ttl_days              = 14
-login_rate_limit_per_minute  = 5
-argon2_memory_mib            = 64
+**`[server]`**
 
-[log]
-level       = "info"      # error | warn | info | debug
-format      = "json"      # json | pretty
-destination = "stdout"    # stdout | file | syslog
-file        = "/var/log/product-rating/app.log"
+| Schlüssel | Typ | Standard | Bedeutung |
+|---|---|---|---|
+| `host` | Zeichenkette | `127.0.0.1` | Adresse, an die gebunden wird |
+| `port` | Zahl 1–65535 | `8080` | Port der HTTP-Schnittstelle |
+| `base_url` | URL | `http://127.0.0.1:8080` | Öffentliche Adresse, für absolute Links und Cookies |
+| `trust_proxy` | Wahrheitswert | `false` | `X-Forwarded-*` auswerten, nur hinter vertrauenswürdigem Proxy |
 
-[app]
-title            = "product-rating"
-external_lookup  = false  # bewusst deaktiviert: reiner Offline-Betrieb
-```
+**`[paths]`** – relative Pfade werden gegen das Verzeichnis der
+Konfigurationsdatei aufgelöst, ohne Datei gegen das Arbeitsverzeichnis.
 
-Die Speicherorte für Datenbank und Bilder sind damit frei wählbar – etwa auf
-einem NAS-Mount oder einer separaten Platte. Beim Start prüft die App, ob die
-Verzeichnisse existieren und beschreibbar sind, und bricht andernfalls mit einer
-klaren Fehlermeldung ab.
+| Schlüssel | Typ | Standard | Bedeutung |
+|---|---|---|---|
+| `database` | Pfad | `/var/lib/product-rating/db/app.db` | SQLite-Datenbank |
+| `uploads` | Pfad | `/var/lib/product-rating/uploads` | Fotos und Thumbnails |
+| `temp` | Pfad | `/var/lib/product-rating/tmp` | Zwischendateien beim Upload |
+
+**`[uploads]`**
+
+| Schlüssel | Typ | Standard | Bedeutung |
+|---|---|---|---|
+| `max_file_size_mb` | Zahl 1–512 | `15` | Größenlimit je Bild; Reverse Proxy muss dazu passen |
+| `allowed_mime` | Liste | `["image/jpeg", "image/png", "image/webp", "image/heic"]` | Akzeptierte Bildtypen |
+| `thumbnail_px` | Zahl 64–2048 | `400` | Kantenlänge des Thumbnails |
+| `detail_px` | Zahl 256–8192 | `1600` | Kantenlänge des Detailbilds, muss größer als `thumbnail_px` sein |
+| `strip_exif` | Wahrheitswert | `true` | EXIF-Daten inklusive GPS entfernen |
+
+**`[auth]`**
+
+| Schlüssel | Typ | Standard | Bedeutung |
+|---|---|---|---|
+| `secret_file` | Pfad | `/etc/product-rating/secret.env` | Datei mit dem Session-Secret, Rechte `0600` |
+| `session_ttl_days` | Zahl 1–3650 | `90` | Laufzeit einer Sitzung |
+| `session_renew_threshold_days` | Zahl 0–3650 | `7` | Ab dieser Restlaufzeit wird verlängert, muss kleiner als `session_ttl_days` sein |
+| `invite_ttl_days` | Zahl 1–365 | `14` | Gültigkeit eines Einladungscodes |
+| `login_rate_limit_per_minute` | Zahl 1–1000 | `5` | Anmeldeversuche je Minute, je IP und Benutzername |
+| `argon2_memory_mib` | Zahl 8–4096 | `64` | Speicherbedarf des argon2id-Hashings |
+
+**`[log]`**
+
+| Schlüssel | Typ | Standard | Bedeutung |
+|---|---|---|---|
+| `level` | `error`\|`warn`\|`info`\|`debug` | `info` | Ausführlichkeit |
+| `format` | `json`\|`pretty` | `json` | Ausgabeformat |
+| `destination` | `stdout`\|`file`\|`syslog` | `stdout` | Ziel der Logausgabe |
+| `file` | Pfad | `/var/log/product-rating/app.log` | Nur bei `destination = "file"` |
+
+**`[app]`**
+
+| Schlüssel | Typ | Standard | Bedeutung |
+|---|---|---|---|
+| `title` | Zeichenkette | `product-rating` | Anzeigename der Instanz |
+| `external_lookup` | Wahrheitswert | `false` | Reserviert; `true` wird abgelehnt, solange es keine Implementierung gibt |
+
+### 6.2 Startprüfungen
+
+Die Speicherorte für Datenbank und Bilder sind frei wählbar – etwa auf einem
+NAS-Mount oder einer separaten Platte. Beim Start prüft die App:
+
+- `paths.database` (Verzeichnis), `paths.uploads`, `paths.temp` und bei
+  `log.destination = "file"` auch das Logverzeichnis: fehlende Verzeichnisse
+  werden angelegt, nicht beschreibbare führen zum Abbruch mit einer Liste aller
+  Beanstandungen.
+- `auth.secret_file`: vorhanden, keine Rechte für Gruppe und andere (`0600`),
+  Inhalt mindestens 32 Zeichen. Andernfalls bricht der Start mit dem Befehl zum
+  Erzeugen der Datei ab.
 
 Das Session-Secret steht **nicht** in der Konfigurationsdatei, sondern in einer
 eigenen Datei mit Rechten `0600` (`secret_file`), die bei der Installation
-beziehungsweise beim ersten Containerstart erzeugt wird.
+beziehungsweise beim ersten Containerstart erzeugt wird. Die Datei enthält
+entweder nur das Secret oder eine Zeile `PRODUCT_RATING_SECRET=…`:
+
+```bash
+sudo install -m 600 /dev/null /etc/product-rating/secret.env
+openssl rand -hex 32 | sudo tee /etc/product-rating/secret.env > /dev/null
+```
 
 ---
 
@@ -276,6 +327,20 @@ Unter `/usr/share/doc/product-rating/examples/` (im Repo: `packaging/examples/`)
 ---
 
 ## 9. Entwicklung
+
+Einmalig eine lokale Konfiguration und ein Secret anlegen (beides ist über
+`.gitignore` ausgeschlossen):
+
+```bash
+cp config/config.example.toml config/config.toml
+# in config/config.toml auf lokale Pfade zeigen, relativ zur Datei erlaubt:
+#   [paths] database = "../data/db/app.db"
+#           uploads  = "../data/uploads"
+#           temp     = "../data/tmp"
+#   [auth]  secret_file = "secret.env"
+install -m 600 /dev/null config/secret.env
+openssl rand -hex 32 > config/secret.env
+```
 
 ```bash
 npm install                 # npm-Workspaces: server, web, shared
