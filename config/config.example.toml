@@ -1,0 +1,74 @@
+# product-rating – Beispielkonfiguration
+#
+# Suchreihenfolge beim Start:
+#   1. --config <pfad>
+#   2. $PRODUCT_RATING_CONFIG
+#   3. /etc/product-rating/config.toml   (Debian-Paket, Container)
+#   4. ./config/config.toml              (Entwicklung)
+#
+# Vorrang der Quellen: Standardwerte < diese Datei < Umgebungsvariablen < CLI.
+# Jeder Schlüssel lässt sich per Umgebungsvariable überschreiben, Schema
+# PR_<SEKTION>__<SCHLÜSSEL>, zum Beispiel PR_PATHS__DATABASE=/srv/app.db.
+# Listen werden dabei durch Kommas getrennt, Wahrheitswerte als true/false.
+#
+# Alle Werte unten entsprechen den eingebauten Standardwerten; auskommentierte
+# Zeilen können also weggelassen werden. Relative Pfade werden gegen das
+# Verzeichnis dieser Datei aufgelöst.
+
+[server]
+# Adresse, an die gebunden wird. Hinter einem Reverse Proxy auf 127.0.0.1 lassen.
+host = "127.0.0.1"
+port = 8080
+# Öffentlich erreichbare Adresse, für absolute Links und Cookie-Einstellungen.
+base_url = "http://127.0.0.1:8080"
+# X-Forwarded-*-Header auswerten. Nur hinter einem vertrauenswürdigen Proxy!
+trust_proxy = false
+
+[paths]
+# Speicherorte für Datenbank, Fotos und temporäre Dateien. Frei wählbar,
+# zum Beispiel auf einem NAS-Mount. Fehlende Verzeichnisse legt der Start an.
+database = "/var/lib/product-rating/db/app.db"
+uploads = "/var/lib/product-rating/uploads"
+temp = "/var/lib/product-rating/tmp"
+
+[uploads]
+# Maximale Größe je hochgeladenem Bild. Achtung: Der Reverse Proxy braucht ein
+# passendes Limit (nginx client_max_body_size, Apache LimitRequestBody).
+max_file_size_mb = 15
+allowed_mime = ["image/jpeg", "image/png", "image/webp", "image/heic"]
+# Kantenlängen der serverseitig erzeugten Varianten in Pixeln.
+thumbnail_px = 400
+detail_px = 1600
+# EXIF-Daten (inklusive GPS-Position) beim Re-Encoding entfernen.
+strip_exif = true
+
+[auth]
+# Datei mit dem Session-Secret, Rechte 0600. Steht bewusst nicht in dieser
+# Datei. Erzeugen mit:
+#   install -m 600 /dev/null /etc/product-rating/secret.env
+#   openssl rand -hex 32 > /etc/product-rating/secret.env
+secret_file = "/etc/product-rating/secret.env"
+# Laufzeit einer Sitzung in Tagen. Lang gewählt, damit die PWA auf dem
+# Home-Bildschirm nicht ständig nach dem Passwort fragt.
+session_ttl_days = 90
+# Ab dieser Restlaufzeit wird die Sitzung bei Nutzung verlängert.
+session_renew_threshold_days = 7
+# Gültigkeit eines Einladungscodes in Tagen.
+invite_ttl_days = 14
+# Fehlversuche pro Minute je IP-Adresse und Benutzername.
+login_rate_limit_per_minute = 5
+# Speicherbedarf des argon2id-Hashings in MiB.
+argon2_memory_mib = 64
+
+[log]
+level = "info"        # error | warn | info | debug
+format = "json"       # json | pretty
+destination = "stdout" # stdout | file | syslog
+# Nur bei destination = "file" verwendet.
+file = "/var/log/product-rating/app.log"
+
+[app]
+title = "product-rating"
+# Bewusst deaktiviert: die Anwendung erzeugt keinen ausgehenden Netzwerkverkehr.
+# Ein Aktivieren wird beim Start abgelehnt, solange es keine Implementierung gibt.
+external_lookup = false

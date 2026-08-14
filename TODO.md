@@ -25,15 +25,15 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 
 ## M1 – Konfiguration
 
-- [ ] **[M]** Zod-Schema für die gesamte Konfiguration (`server/src/config/schema.ts`), inklusive Standardwerten
-- [ ] **[M]** TOML-Datei laden (`smol-toml`) mit Suchreihenfolge `--config` → `$PRODUCT_RATING_CONFIG` → `/etc/product-rating/config.toml` → `./config/config.toml`
-- [ ] **[M]** Überschreibung per Umgebungsvariablen `PR_<SEKTION>__<SCHLÜSSEL>` implementieren, inklusive Typkonvertierung
-- [ ] **[S]** Vorrangkette Standardwerte < Datei < Env < CLI festschreiben und mit Tests belegen
-- [ ] **[S]** Startprüfung: Existenz und Schreibrechte von `paths.database`, `paths.uploads`, `paths.temp`; fehlende Verzeichnisse anlegen
-- [ ] **[S]** Startprüfung: `auth.secret_file` vorhanden, Rechte `0600`, Inhalt ausreichend lang – sonst klarer Abbruch
-- [ ] **[S]** `config/config.example.toml` mit allen Schlüsseln und Kommentaren schreiben
-- [ ] **[S]** Konfigurationstabelle in `README.md` mit dem Schema abgleichen
-- [ ] **[S]** Tests: fehlende Datei, ungültiger Wert, Env-Überschreibung, relative Pfade
+- [x] **[M]** Zod-Schema für die gesamte Konfiguration (`server/src/config/schema.ts`), inklusive Standardwerten
+- [x] **[M]** TOML-Datei laden (`smol-toml`) mit Suchreihenfolge `--config` → `$PRODUCT_RATING_CONFIG` → `/etc/product-rating/config.toml` → `./config/config.toml`
+- [x] **[M]** Überschreibung per Umgebungsvariablen `PR_<SEKTION>__<SCHLÜSSEL>` implementieren, inklusive Typkonvertierung
+- [x] **[S]** Vorrangkette Standardwerte < Datei < Env < CLI festschreiben und mit Tests belegen
+- [x] **[S]** Startprüfung: Existenz und Schreibrechte von `paths.database`, `paths.uploads`, `paths.temp`; fehlende Verzeichnisse anlegen
+- [x] **[S]** Startprüfung: `auth.secret_file` vorhanden, Rechte `0600`, Inhalt ausreichend lang – sonst klarer Abbruch
+- [x] **[S]** `config/config.example.toml` mit allen Schlüsseln und Kommentaren schreiben
+- [x] **[S]** Konfigurationstabelle in `README.md` mit dem Schema abgleichen
+- [x] **[S]** Tests: fehlende Datei, ungültiger Wert, Env-Überschreibung, relative Pfade
 
 ## M2 – Datenbank und Migrationen
 
@@ -185,6 +185,8 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [ ] **[S]** `fsck` – verwaiste Dateien und Datenbankeinträge finden
 - [ ] **[S]** `/healthz` liefert Version, DB-Erreichbarkeit, Schreibbarkeit der Uploads
 - [ ] **[S]** Strukturiertes Logging (pino) mit den Zielen stdout, Datei und syslog
+- [ ] **[S]** `log.format` und `log.destination` tatsächlich anwenden – seit M1 validiert, wirksam ist bislang nur `log.level`
+- [ ] **[S]** CLI-Argumente aus M1 (`--config`, `--set`, Kurzformen) in `--help` aufnehmen
 
 ## M14 – Qualitätssicherung und Release
 
