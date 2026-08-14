@@ -1,0 +1,38 @@
+# Claude Code workspace-local configuration
+.claude/
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Local runtime data (database, uploads, temp files)
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Local configuration and secrets
+config/config.toml
+*.env
+!*.env.example
+secret.env
+
+# Debian build artifacts
+packaging/build/
+*.deb
+*.buildinfo
+*.changes
+
+# Logs
+*.log
+logs/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
