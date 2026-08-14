@@ -5,6 +5,46 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-14 – M0: Projektgerüst
+
+**Umfang**
+
+- npm-Workspaces `shared`, `server`, `web` mit gemeinsamer TypeScript-Basis
+  (`tsconfig.base.json`, `strict` plus `noUncheckedIndexedAccess`,
+  `exactOptionalPropertyTypes`, `verbatimModuleSyntax`).
+- Toolchain: ESLint 10 (Flat Config, typescript-eslint), Prettier, Vitest 4,
+  `concurrently`. Skripte `dev`, `build`, `start`, `test`, `lint`, `typecheck`,
+  `format` im Wurzelverzeichnis.
+- `shared/`: erste Domänentypen (`User`, `Product`, `Rating`, `Photo`,
+  `ProductWithRatings`), Sterngrenzen und `isValidStars()`.
+- `server/`: Fastify-Instanz als Factory (`buildApp()`), `/healthz`, sauberes
+  Herunterfahren bei `SIGINT`/`SIGTERM`, Entwicklung über `tsx watch`, Build
+  über `tsup` nach `dist/index.js`.
+- `web/`: Vite-React-Gerüst mit Platzhalter-App, Alias `@` auf `src`,
+  Dev-Proxy `/api` auf `127.0.0.1:8080`.
+- Rauchtests je Workspace: 8 Tests, alle grün. `lint`, `typecheck`,
+  `format:check` und `build` laufen fehlerfrei; der gebaute Server und beide
+  Dev-Server wurden gegen `/healthz` geprüft.
+
+**Getroffene Entscheidungen**
+
+| Thema | Entscheidung | Begründung |
+|---|---|---|
+| TypeScript-Version | `~5.9.3` statt des aktuellen 7.0.2 | `typescript-eslint@8.67` erlaubt nur `>=4.8.4 <6.1.0`; Upgrade als TODO vermerkt |
+| Shared-Paket | Liefert TypeScript-Quellen statt eines Build-Artefakts | Keine Build-Reihenfolge nötig; `tsup` bündelt es in den Server, Vite in das Frontend |
+| Server-Build | `tsup` (esbuild) statt `tsc` | Ein einzelnes Bundle vereinfacht später das Debian-Paket und das Container-Image |
+| Testaufbau | Eine Vitest-Konfiguration im Wurzelverzeichnis für alle Workspaces | Weniger Konfigurationsdateien; `jsdom` kommt erst, wenn es Komponenten zu testen gibt |
+| Prettier | `*.md` ausgenommen | Die deutschen Dokumente enthalten von Hand gesetzte Tabellen |
+| Fastify-Optionen | `bodyLimit` vorerst 1 MB | Wird mit dem Foto-Upload in M6 auf den Konfigurationswert gehoben |
+
+**Offen**
+
+- Lizenz weiterhin nicht festgelegt.
+- `PR_SERVER__*` wird im Server derzeit direkt aus `process.env` gelesen; das
+  ersetzt M1 durch den Konfigurationslader.
+
+---
+
 ## 2026-08-14 – Konzept und Projektdokumentation
 
 **Umfang**

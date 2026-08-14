@@ -76,14 +76,16 @@ docker/                 Dockerfile, docker-compose.yml, entrypoint
 ```bash
 npm install              # npm-Workspaces
 npm run dev              # API :8080 + Vite :5173
-npm run migrate          # Migrationen anwenden
-npm run db:generate      # Migration aus Schema-Änderung erzeugen
 npm test                 # Vitest
 npm run lint             # ESLint
-npm run typecheck        # tsc --noEmit
+npm run typecheck        # tsc --noEmit je Workspace
+npm run format           # Prettier
 npm run build            # Produktions-Bundle
-npm run package:deb      # Debian-Paket bauen
+npm start                # gebauten Server starten
 ```
+
+Noch nicht vorhanden, kommen mit dem jeweiligen Meilenstein: `npm run migrate`
+und `npm run db:generate` (M2), `npm run package:deb` (M11).
 
 Vor jedem Commit mindestens `npm run lint`, `npm run typecheck` und `npm test`
 laufen lassen und Fehlschläge berichten, nicht stillschweigend übergehen.
