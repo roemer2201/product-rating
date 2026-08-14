@@ -51,8 +51,8 @@ export class ForbiddenError extends ServiceError {
 
 /** 404 – the addressed object does not exist (or must not be revealed). */
 export class NotFoundError extends ServiceError {
-  constructor(message = 'not found') {
-    super(404, 'not_found', message);
+  constructor(message = 'not found', details?: Record<string, unknown>) {
+    super(404, 'not_found', message, details);
     this.name = 'NotFoundError';
   }
 }

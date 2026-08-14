@@ -5,6 +5,61 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-14 – M4: Produkt-API
+
+**Umfang**
+
+- `shared/src/ean.ts`: Prüfziffernrechnung und Normalisierung. Akzeptiert
+  werden EAN-13, EAN-8 und UPC-A; gespeichert wird immer die auf dreizehn
+  Stellen aufgefüllte Form.
+- `shared/src/schemas/product.ts`: `eanSchema` (validiert und normalisiert in
+  einem Schritt), `createProductSchema`, `updateProductSchema` und
+  `productListQuerySchema` inklusive Typkonvertierung für Query-Parameter.
+  Neuer Typ `ProductListPage` in `shared/src/types.ts`.
+- `server/src/services/products.ts`: Anlegen mit Duplikatserkennung, Lesen aus
+  Sicht des Aufrufers (eigene Bewertung, Durchschnitt, Anzahl, Primärfoto),
+  Liste mit Suche, Filtern, Sortierung und Cursor-Pagination, Ändern und
+  Löschen.
+- `server/src/routes/products.ts`: die sechs Routen aus dem Meilenstein, alle
+  hinter `requireUser`, `DELETE` hinter `requireAdmin`.
+- `server/src/db/client.ts`: SQL-Funktion `pr_lower()` für die Suche.
+  `NotFoundError` nimmt jetzt wie die übrigen Dienstfehler `details` entgegen.
+- Keine Schemaänderung, also keine neue Migration – die Tabellen stehen seit M2.
+- 187 Tests grün (45 neue); `lint`, `typecheck`, `format:check` fehlerfrei.
+  Zusätzlich real gegen eine laufende Instanz geprüft: Anlegen als UPC-A,
+  Ablehnen desselben Artikels in der EAN-13-Schreibweise mit `409` und
+  Produkt-ID, abgewiesene Prüfziffer, Nachschlagen über beide Schreibweisen,
+  Suche nach „kölln“ auf „Kölln“, zwei Seiten über den Cursor, Cursor mit
+  gewechselter Sortierung abgelehnt, EAN-Präfixsuche, `PATCH` und `DELETE`.
+
+**Getroffene Entscheidungen**
+
+| Thema | Entscheidung | Begründung |
+|---|---|---|
+| EAN-Form | Alles wird auf dreizehn Stellen aufgefüllt gespeichert | EAN-8, UPC-A und EAN-13 sind dieselbe GTIN; die Prüfziffer wird von rechts berechnet und übersteht das Auffüllen, `products.ean UNIQUE` bleibt damit aussagekräftig |
+| Belegte EAN | `409` mit `details.productId` statt einer nackten Fehlermeldung | Nach dem Scan will die Oberfläche zum vorhandenen Produkt springen, nicht eine Fehlermeldung zeigen |
+| Volltextsuche | `LIKE` über Name und Marke, keine FTS5-Tabelle | Bei sechsstelligen Produktzahlen und wenigen Nutzern reicht der Durchlauf; FTS5 kostet Tabelle, Trigger und kann Teilwörter nicht ohne Weiteres |
+| Groß-/Kleinschreibung | Eigene SQL-Funktion `pr_lower()` mit `String.toLowerCase()` | SQLites `lower()` faltet nur ASCII – „Müller“ wäre sonst nicht über „müller“ zu finden |
+| EAN in der Suche | Ziffernfolgen ab vier Stellen als Präfix, nicht als Teilzeichenkette | Ein Präfix nutzt den Index auf `ean`, eine Teilzeichenkette würde die Tabelle durchlaufen |
+| Pagination | Keyset über (Sortierwert, ID) statt `OFFSET` | Ein währenddessen angelegtes Produkt verschiebt sonst die folgenden Seiten; die ID bricht Gleichstände auf |
+| Cursor | Trägt die Sortierung mit sich; ein Wechsel ergibt `400` | Ein weitergereichter Cursor aus einer anderen Sortierung würde Produkte überspringen oder doppeln |
+| Unbewertete Produkte | Zählen als `-1` beim Sortieren und erreichen kein `minStars` | Sonst stünden sie beim Sortieren nach Bewertung vor den schlecht bewerteten |
+| Ändern | Jedes Konto darf jedes Produkt ändern | Der Katalog ist ausdrücklich gemeinsam; Eigentum gilt für Bewertungen und Fotos |
+| Löschen | Nur Administratoren | Es nimmt fremde Bewertungen und Fotos mit |
+| Durchschnitt | Auf zwei Nachkommastellen gerundet ausgegeben | Mehr Stellen sagen bei fünf Sternen nichts aus; der Cursor rechnet intern weiter mit dem vollen Wert |
+
+**Offen**
+
+- `deleteProduct()` gibt die betroffenen Fotozeilen zurück, löscht aber keine
+  Dateien – das Speicherlayout entsteht erst in M6, wo der Punkt vermerkt ist.
+- Die Aggregation je Produkt läuft über korrelierte Unterabfragen. Das ist bei
+  der angepeilten Größe unauffällig; falls die Liste später spürbar langsam
+  wird, ist eine Materialisierung der Durchschnitte der nächste Schritt.
+- Die Kategorievorschläge des Produktformulars brauchen noch eine eigene Route;
+  als Punkt in M8 vermerkt.
+
+---
+
 ## 2026-08-14 – M3: Authentifizierung und Nutzer
 
 **Umfang**

@@ -36,6 +36,24 @@ export interface OpenedDatabase {
 /** Default time a blocked writer waits before giving up. */
 export const DEFAULT_BUSY_TIMEOUT_MS = 5000;
 
+/** Name of the case folding function used by the product search. */
+export const LOWER_FUNCTION = 'pr_lower';
+
+/**
+ * Registers the SQL functions the queries rely on.
+ *
+ * SQLite's built-in `lower()` only folds ASCII, so "Müller" and "müller" would
+ * be different words to the product search — not acceptable for a catalogue of
+ * German groceries. JavaScript's `toLowerCase()` knows the full Unicode case
+ * mapping, and a search that scans a six digit number of short rows can afford
+ * the call.
+ */
+function registerFunctions(sqlite: Database.Database): void {
+  sqlite.function(LOWER_FUNCTION, { deterministic: true }, (value: unknown) =>
+    typeof value === 'string' ? value.toLowerCase() : null,
+  );
+}
+
 /**
  * Opens the SQLite database with the pragmas this application relies on.
  *
@@ -63,6 +81,8 @@ export function openDatabase(options: OpenDatabaseOptions): OpenedDatabase {
   sqlite.pragma('foreign_keys = ON');
   sqlite.pragma(`busy_timeout = ${busyTimeoutMs}`);
   sqlite.pragma('synchronous = NORMAL');
+
+  registerFunctions(sqlite);
 
   const db = drizzle(sqlite, { schema, logger: options.logger ?? false });
 

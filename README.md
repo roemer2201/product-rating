@@ -115,6 +115,52 @@ schneller, hält DB-Backups klein und erlaubt HTTP-Caching und Range-Requests.
 - **Kein ausgehender Netzwerkverkehr.** Es gibt bewusst keine Anbindung an eine
   externe Produktdatenbank; alle Produktdaten werden lokal erfasst.
 
+### 4.1 Routen zum Produktkatalog
+
+Alle Routen setzen eine Anmeldung voraus. Der Katalog ist gemeinsam: jedes Konto
+darf Produkte anlegen und korrigieren. Löschen bleibt Administratoren
+vorbehalten, weil es fremde Bewertungen und Fotos mitnimmt.
+
+| Route | Rolle | Zweck |
+|---|---|---|
+| `POST /api/v1/products` | angemeldet | Produkt anlegen; belegte EAN → `409` mit `details.productId` |
+| `GET /api/v1/products` | angemeldet | Liste mit Suche, Filtern, Sortierung und Cursor-Pagination |
+| `GET /api/v1/products/by-ean/:ean` | angemeldet | Nachschlagen nach dem Scan |
+| `GET /api/v1/products/:id` | angemeldet | Produkt inklusive eigener Bewertung, Durchschnitt und Anzahl |
+| `PATCH /api/v1/products/:id` | angemeldet | Name, Marke, Kategorie oder Notizen ändern |
+| `DELETE /api/v1/products/:id` | admin | Produkt samt Bewertungen und Fotos entfernen |
+
+**EAN-Normalisierung.** Akzeptiert werden EAN-13, EAN-8 und UPC-A, jeweils mit
+Prüfung der Prüfziffer. Gespeichert und nachgeschlagen wird immer die auf
+dreizehn Stellen aufgefüllte Form – dieselbe Ware ergibt also unabhängig davon,
+welches Symbol der Scanner gelesen hat, denselben Eintrag. Führende Nullen
+ändern die Prüfziffer nicht, weil sie von rechts berechnet wird.
+
+**Parameter der Liste** (`GET /api/v1/products`):
+
+| Parameter | Werte | Bedeutung |
+|---|---|---|
+| `q` | Text | Sucht in Name und Marke, bei mindestens vier Ziffern zusätzlich als EAN-Präfix |
+| `category` | Text | Genaue Kategorie, Groß- und Kleinschreibung egal |
+| `minStars` | 0–5 | Nur Produkte, deren Durchschnitt diesen Wert erreicht; unbewertete fallen heraus |
+| `ratedByMe` | `true`/`false` | Nur selbst bewertete Produkte |
+| `sort` | `name`, `created`, `updated`, `rating` | Standard `updated` |
+| `order` | `asc`, `desc` | Standard: `asc` bei `name`, sonst `desc` |
+| `limit` | 1–100 | Standard 25 |
+| `cursor` | Zeichenkette | `nextCursor` der vorherigen Seite |
+
+Die Antwort ist `{ products, nextCursor, total }`. Der Cursor merkt sich die
+Sortierung, mit der er entstanden ist; wird sie gewechselt, antwortet die Route
+mit `400`, statt Produkte zu überspringen oder doppelt zu liefern.
+
+**Suche.** Die Suche arbeitet mit `LIKE` über Name und Marke, nicht mit einer
+FTS5-Tabelle: bei bis zu sechsstelligen Produktzahlen und wenigen Nutzern ist
+der Tabellendurchlauf schnell genug, und FTS5 könnte weder Teilwörter noch die
+Schreibweise mit Umlauten ohne zusätzliche Konfiguration. Groß- und
+Kleinschreibung werden über die Anwendungsfunktion `pr_lower()` verglichen,
+weil SQLites eingebautes `lower()` nur ASCII kennt und „Müller“ sonst nicht auf
+„müller“ passen würde.
+
 ### TLS ist Pflicht, nicht optional
 
 iOS gibt `getUserMedia` – und damit den Live-Kamera-Scanner – nur in einem
