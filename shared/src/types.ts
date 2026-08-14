@@ -96,3 +96,15 @@ export interface ProductWithRatings extends Product {
   ratings: RatingSummary;
   primaryPhotoId: string | null;
 }
+
+/**
+ * One page of the product list. Paging works on a cursor rather than an offset
+ * so that a product added while scrolling cannot shift the following pages.
+ */
+export interface ProductListPage {
+  products: ProductWithRatings[];
+  /** Pass back as `cursor` to get the next page; `null` on the last one. */
+  nextCursor: string | null;
+  /** Number of products matching the filters, across all pages. */
+  total: number;
+}

@@ -72,16 +72,16 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 
 ## M4 – Produkt-API
 
-- [ ] **[S]** Zod-Schemata für Produktanlage und -änderung in `shared/`
-- [ ] **[M]** EAN-Validierung inklusive Prüfziffer (EAN-13, EAN-8, UPC-A mit Normalisierung auf EAN-13)
-- [ ] **[S]** `POST /api/v1/products` – legt an, meldet bei bestehender EAN `409` mit der vorhandenen Produkt-ID
-- [ ] **[S]** `GET /api/v1/products/by-ean/:ean` – Nachschlagen nach dem Scan
-- [ ] **[S]** `GET /api/v1/products/:id` inklusive eigener Bewertung, Durchschnitt und Anzahl der Bewertungen
-- [ ] **[M]** `GET /api/v1/products` mit Suche (Name, Marke, EAN), Filter (Kategorie, Mindestbewertung, „nur eigene bewertete“), Sortierung und Cursor-Pagination
-- [ ] **[S]** `PATCH /api/v1/products/:id` – Änderungen am gemeinsamen Katalog, `updated_at` pflegen
-- [ ] **[S]** `DELETE /api/v1/products/:id` – nur Admin; entfernt zugehörige Bewertungen, Fotos und Dateien
-- [ ] **[S]** Volltextsuche prüfen: FTS5-Tabelle oder `LIKE` mit Index – Entscheidung dokumentieren
-- [ ] **[S]** Tests: EAN-Prüfziffer, Duplikatanlage, Suche, Pagination, Berechtigungen
+- [x] **[S]** Zod-Schemata für Produktanlage und -änderung in `shared/`
+- [x] **[M]** EAN-Validierung inklusive Prüfziffer (EAN-13, EAN-8, UPC-A mit Normalisierung auf EAN-13)
+- [x] **[S]** `POST /api/v1/products` – legt an, meldet bei bestehender EAN `409` mit der vorhandenen Produkt-ID
+- [x] **[S]** `GET /api/v1/products/by-ean/:ean` – Nachschlagen nach dem Scan
+- [x] **[S]** `GET /api/v1/products/:id` inklusive eigener Bewertung, Durchschnitt und Anzahl der Bewertungen
+- [x] **[M]** `GET /api/v1/products` mit Suche (Name, Marke, EAN), Filter (Kategorie, Mindestbewertung, „nur eigene bewertete“), Sortierung und Cursor-Pagination
+- [x] **[S]** `PATCH /api/v1/products/:id` – Änderungen am gemeinsamen Katalog, `updated_at` pflegen
+- [x] **[S]** `DELETE /api/v1/products/:id` – nur Admin; entfernt zugehörige Bewertungen, Fotos und Dateien
+- [x] **[S]** Volltextsuche prüfen: FTS5-Tabelle oder `LIKE` mit Index – Entscheidung dokumentiert (`LIKE` über `pr_lower()`, siehe README 4.1)
+- [x] **[S]** Tests: EAN-Prüfziffer, Duplikatanlage, Suche, Pagination, Berechtigungen
 
 ## M5 – Bewertungen
 
@@ -100,6 +100,7 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [ ] **[S]** `GET /api/v1/media/:id?size=thumb|full` – authentifiziert, mit `ETag`, `Cache-Control: private`, Range-Unterstützung
 - [ ] **[S]** Aufräumen verwaister Dateien: Prüfbefehl `product-rating fsck --uploads`
 - [ ] **[S]** Atomares Schreiben über `paths.temp`, damit halbe Dateien nicht sichtbar werden
+- [ ] **[S]** Beim Löschen eines Produkts die Bilddateien mitentfernen – `deleteProduct()` liefert die betroffenen Fotozeilen bereits zurück, es fehlt nur das Löschen im Dateisystem
 - [ ] **[S]** Tests: zu große Datei, falscher MIME-Typ, EXIF wird entfernt, Thumbnail entsteht, Löschen räumt Dateien ab
 
 ## M7 – Frontend-Grundgerüst
@@ -120,6 +121,7 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [ ] **[S]** Manuelle EAN-Eingabe mit Prüfziffernvalidierung als gleichwertiger Weg
 - [ ] **[M]** Nach dem Scan: bekanntes Produkt → Detailseite, unbekanntes → Anlegeformular mit vorbelegter EAN
 - [ ] **[M]** Produktformular: Name, Marke, Kategorie, Notizen; Kategorie als Vorschlagsliste aus vorhandenen Werten
+- [ ] **[S]** Route für die Kategorievorschläge nachziehen (`GET /api/v1/products/categories`, vorhandene Werte des Katalogs)
 - [ ] **[M]** Foto aufnehmen oder auswählen (`<input type="file" accept="image/*" capture="environment">`), Vorschau, clientseitige Vorverkleinerung vor dem Upload
 - [ ] **[S]** Upload-Fortschritt und Wiederholung bei Fehlern
 - [ ] **[M]** Sterne-Widget: touchfreundlich, halbe Sterne nicht nötig, 0 Sterne bewusst möglich
@@ -212,6 +214,7 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [ ] Export nach CSV und JSON, Import zum Umzug
 - [ ] Offline-Erfassung mit Sync-Queue (IndexedDB) und Konfliktbehandlung
 - [ ] Statistiken: Bewertungsverteilung, meistbewertete Marken
+- [ ] FTS5-Suche nachrüsten, falls die `LIKE`-Suche mit wachsendem Katalog spürbar langsam wird
 - [ ] TOTP-Zweitfaktor
 - [ ] Optionale Delegation der Authentifizierung an Reverse-Proxy-SSO
 - [ ] Preisverlauf und Einkaufsort je Produkt
