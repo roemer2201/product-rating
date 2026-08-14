@@ -11,14 +11,17 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 
 ## M0 – Projektgerüst
 
-- [ ] **[S]** `package.json` im Wurzelverzeichnis mit npm-Workspaces `server`, `web`, `shared`
-- [ ] **[S]** `.editorconfig`, `.nvmrc` (Node 22), `.npmrc`
-- [ ] **[S]** TypeScript-Basiskonfiguration `tsconfig.base.json`, je Workspace ein erbendes `tsconfig.json`
-- [ ] **[S]** ESLint + Prettier einrichten, Skripte `lint`, `format`, `typecheck`
-- [ ] **[S]** Vitest einrichten, Skript `test`, ein Rauchtest je Workspace
-- [ ] **[S]** `shared/` anlegen: Paketgerüst, Export-Barrel, erste gemeinsame Typen (`Product`, `Rating`, `Photo`, `User`)
-- [ ] **[S]** Wurzel-Skripte `dev`, `build`, `start` verdrahten (concurrently)
+- [x] **[S]** `package.json` im Wurzelverzeichnis mit npm-Workspaces `server`, `web`, `shared`
+- [x] **[S]** `.editorconfig`, `.nvmrc` (Node 22), `.npmrc`
+- [x] **[S]** TypeScript-Basiskonfiguration `tsconfig.base.json`, je Workspace ein erbendes `tsconfig.json`
+- [x] **[S]** ESLint + Prettier einrichten, Skripte `lint`, `format`, `typecheck`
+- [x] **[S]** Vitest einrichten, Skript `test`, ein Rauchtest je Workspace
+- [x] **[S]** `shared/` anlegen: Paketgerüst, Export-Barrel, erste gemeinsame Typen (`Product`, `Rating`, `Photo`, `User`)
+- [x] **[S]** Wurzel-Skripte `dev`, `build`, `start` verdrahten (concurrently)
 - [ ] **[S]** `LICENSE` wählen und ergänzen (Vorschlag: MIT oder AGPL-3.0 – Entscheidung des Projektinhabers)
+- [ ] **[S]** TypeScript auf 7.x heben, sobald `typescript-eslint` es unterstützt (aktuell Peer-Bereich `>=4.8.4 <6.1.0`, deshalb auf `~5.9.3` festgelegt)
+- [ ] **[S]** Verbleibende `esbuild`-Meldung aus `npm audit` beobachten (nur Dev-Server unter Windows betroffen, transitiv über `vite`/`tsup` gepinnt)
+- [ ] **[S]** `jsdom` und Testing Library ergänzen, sobald es Komponenten zu testen gibt (mit M7)
 
 ## M1 – Konfiguration
 
