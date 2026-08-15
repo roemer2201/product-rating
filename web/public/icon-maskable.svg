@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="product-rating">
+  <!--
+    The same mark for the `maskable` purpose and for iOS.
+
+    Two differences to icon.svg: the background fills the whole square, because
+    Android and iOS cut their own shape out of it, and the mark is scaled down
+    so it stays inside the safe zone — the circle of 80 % diameter that every
+    mask is guaranteed to leave visible.
+  -->
+  <rect width="512" height="512" fill="#2f5fd0" />
+  <g fill="#ffffff" transform="translate(256 256) scale(0.85) translate(-256 -256)">
+    <path d="M 256 96 L 275.3 155.4 L 337.8 155.4 L 287.2 192.2 L 306.5 251.6 L 256 214.9 L 205.5 251.6 L 224.8 192.2 L 174.2 155.4 L 236.7 155.4 Z" />
+    <rect x="104" y="284" width="16" height="120" rx="8" />
+    <rect x="136.6" y="284" width="32" height="120" rx="8" />
+    <rect x="185.1" y="284" width="16" height="120" rx="8" />
+    <rect x="217.7" y="284" width="16" height="120" rx="8" />
+    <rect x="250.3" y="284" width="44" height="120" rx="8" />
+    <rect x="310.9" y="284" width="16" height="120" rx="8" />
+    <rect x="343.4" y="284" width="32" height="120" rx="8" />
+    <rect x="392" y="284" width="16" height="120" rx="8" />
+  </g>
+</svg>

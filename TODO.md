@@ -143,13 +143,16 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 
 ## M9 – PWA und iOS
 
-- [ ] **[S]** `vite-plugin-pwa` einrichten, Manifest (`display: standalone`, `theme_color`, `background_color`, Start-URL)
-- [ ] **[S]** Icons erzeugen: 192, 512, maskable, `apple-touch-icon` 180
-- [ ] **[S]** iOS-Metatags, `viewport-fit=cover`, `env(safe-area-inset-*)` im Layout
-- [ ] **[S]** Service Worker: App-Shell vorcachen, API-Antworten nicht blind cachen
-- [ ] **[S]** Sichtbare Aktualisierungsaufforderung bei neuer Version
-- [ ] **[S]** Offline-Hinweisseite statt Browser-Fehlerseite
+- [x] **[S]** `vite-plugin-pwa` einrichten, Manifest (`display: standalone`, `theme_color`, `background_color`, Start-URL)
+- [x] **[S]** Icons erzeugen: 192, 512, maskable, `apple-touch-icon` 180
+- [x] **[S]** iOS-Metatags, `viewport-fit=cover`, `env(safe-area-inset-*)` im Layout
+- [x] **[S]** Service Worker: App-Shell vorcachen, API-Antworten nicht blind cachen
+- [x] **[S]** Sichtbare Aktualisierungsaufforderung bei neuer Version
+- [x] **[S]** Offline-Hinweisseite statt Browser-Fehlerseite
 - [ ] **[M]** Auf einem echten iPhone prüfen: Installation, Scanner, Kamera-Upload, Sitzung überlebt Neustart, Safe-Area-Layout
+- [ ] **[S]** In den Proxy-Beispielen (M12) sicherstellen, dass `sw.js` und `index.html` nicht mit langer Lebensdauer gecacht werden, `/assets/` dagegen schon – sonst bleiben Geräte auf einem alten Bundle stehen
+- [ ] **[S]** Aktualisierungshinweis auch außerhalb von `AppLayout` zeigen (Anmeldemaske, Registrierung) – dort hängt er derzeit nicht im Baum
+- [ ] **[S]** Beim Übernehmen einer neuen Version vor ungespeicherten Eingaben warnen, statt nur nicht von selbst neu zu laden
 
 ## M10 – Docker
 

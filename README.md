@@ -90,7 +90,9 @@ unterscheidet drei Fälle: solange die Sitzung geprüft wird, wartet der Schirm;
 ist der Server nicht erreichbar, erscheint ein Hinweis mit Wiederholung –
 Unerreichbarkeit ist kein Abmelden; nur ein eindeutiges „niemand angemeldet“
 führt zur Anmeldemaske, zusammen mit der ursprünglich gewünschten Adresse, zu
-der es nach dem Anmelden zurückgeht.
+der es nach dem Anmelden zurückgeht. Der zweite Fall zerfällt seit dem Service
+Worker noch einmal: weiß das Gerät selbst, dass es offline ist, steht dort die
+Offline-Erklärung statt „der Server meldet einen Fehler“.
 
 **Fehlerbehandlung.** Der API-Client (`web/src/lib/api.ts`) ist die einzige
 Stelle, die HTTP kennt. Jede fehlgeschlagene Anfrage – auch eine abgerissene
@@ -132,6 +134,68 @@ ist Wartezeit für nichts. Das ist eine Höflichkeit, keine Prüfung: kann der
 Browser das Format nicht dekodieren (HEIC außerhalb von Safari), geht das
 Original hoch und `sharp` erledigt es. Der Fortschrittsbalken braucht
 `XMLHttpRequest`; `fetch` kann den Fortschritt eines Requestbodys nicht melden.
+
+### 2.2 PWA: Installation, Offline-Verhalten und Aktualisierung
+
+Manifest und Service Worker erzeugt `vite-plugin-pwa` (Workbox) aus der
+Konfiguration in `web/vite.config.ts`. Die App meldet sich als
+`display: standalone`, deutschsprachig, im Hochformat.
+
+**Icons.** Handgepflegt sind nur zwei SVG-Dateien in `web/public/`: `icon.svg`
+mit abgerundeten Ecken für alles, was das Symbol unverändert anzeigt, und
+`icon-maskable.svg` randlos und kleiner gezeichnet, weil Android und iOS ihre
+eigene Form daraus schneiden – sichtbar bleibt garantiert nur der innere Kreis
+mit 80 % Durchmesser. Alles Übrige entsteht daraus mit `npm run icons`
+(`web/scripts/generate-icons.ts`, rendert mit `sharp`): 192 und 512 Pixel je
+Variante sowie das `apple-touch-icon` mit 180 Pixeln. Die PNG-Dateien liegen im
+Repository, damit ein Produktionsbau ohne das native Modul auskommt.
+
+**iOS.** Vom Manifest liest iOS beim Hinzufügen zum Home-Bildschirm nichts:
+Standalone-Modus, Name unter dem Symbol und Symbol selbst kommen aus den
+`apple-*`-Metatags in `web/index.html`. Für die Statusleiste steht dort
+`default` und nicht `black-translucent` – letzteres erzwingt weiße Symbole, die
+auf der hellen Kopfzeile verschwinden. Die Farbe der Leiste kommt aus
+`theme-color`, das zweimal mit `media`-Abfrage gesetzt ist, weil das Manifest
+nur eine Farbe kennt. `viewport-fit=cover` und `env(safe-area-inset-*)` sorgen
+dafür, dass die untere Navigationsleiste nicht unter dem Home-Indikator liegt.
+`format-detection: telephone=no` verhindert, dass Safari eine 13-stellige EAN in
+einen Telefonlink verwandelt.
+
+**Was gecacht wird – und was nicht.** Vorgehalten wird die App-Shell: HTML, JS,
+CSS, Icons, Manifest, zusammen knapp 500 kB. Bewusst **nicht** dabei:
+
+- **`/api/v1/…`** – überhaupt keine `runtimeCaching`-Regel. Ein veralteter
+  Katalog wäre lästig, ein veraltetes `GET /auth/me` würde das falsche Konto
+  anzeigen, und Fotos kommen über eine authentifizierte Route mit
+  `Cache-Control: private`. Was sich zu behalten lohnt, hält TanStack Query im
+  Speicher.
+- **Das WebAssembly des Decoders** (gut ein Megabyte) – es wird erst beim Start
+  der Kamera geholt, und offline nützt ein gelesener Barcode ohnehin nichts,
+  weil die EAN im Katalog nachgeschlagen werden muss.
+
+Jede Adresse der App wird offline aus der zwischengespeicherten `index.html`
+beantwortet (`navigateFallback`), `/api/` ausdrücklich nicht – eine Anfrage, die
+den Server erreichen muss, soll als Anfrage scheitern und nicht HTML bekommen.
+Damit startet die App ohne Netz, statt die Fehlerseite des Browsers zu zeigen;
+sie erklärt dann selbst, was fehlt: ein Streifen über der Navigation, solange
+nur nichts gespeichert werden kann, und ein ganzer Schirm, wenn gar nichts
+geladen werden konnte.
+
+**Aktualisierung.** `registerType: 'prompt'`: eine neue Version übernimmt nicht
+von selbst, sondern wartet und meldet sich sichtbar („Neue Version verfügbar“,
+`web/src/components/UpdatePrompt.tsx`). Zwei Gründe – ein Neuladen mitten im
+Anlegen eines Produkts wirft das Formular weg, und auf dem iOS-Home-Bildschirm
+wird eine App nie wirklich geschlossen, weshalb der Browser von sich aus tagelang
+nicht nach einer neuen Version fragen würde. Genau dagegen fragt die App
+zusätzlich selbst: stündlich und jedes Mal, wenn sie in den Vordergrund kommt.
+Nur der erste Service Worker übernimmt sofort (`clientsClaim`), damit die App
+schon nach dem ersten Besuch einen Verbindungsabbruch übersteht.
+
+**Für den Reverse Proxy heißt das:** `sw.js` und `index.html` dürfen nicht mit
+langer Lebensdauer zwischengespeichert werden – sonst bleiben Geräte auf einem
+alten Bundle stehen. Die Dateien unter `/assets/` tragen einen Hash im Namen und
+dürfen dauerhaft gecacht werden. Die Beispielkonfigurationen (Abschnitt 7.3)
+setzen das um.
 
 ---
 
@@ -643,6 +707,9 @@ npm test                    # Vitest
 npm run lint && npm run typecheck
 npm run build               # Produktions-Bundle nach dist/
 npm run package:deb         # Debian-Paket bauen
+
+npm run icons  --workspace @product-rating/web   # Icons aus den SVG-Quellen
+npm run preview --workspace @product-rating/web  # Bau auf :4173 ausliefern
 ```
 
 `npm test` läuft in zwei Vitest-Projekten: `node` für `server/` und `shared/`,
@@ -650,6 +717,14 @@ npm run package:deb         # Debian-Paket bauen
 lässt sich mit `npx vitest run --project web` starten. Die Tests der Oberfläche
 ersetzen nur `fetch` und laufen sonst durch den echten API-Client und den echten
 Query-Cache, damit auch die Übersetzung der Fehler mit geprüft wird.
+
+Der Service Worker existiert nur im gebauten Zustand – im Dev-Server ist er
+abgeschaltet, sonst würde er genau die Dateien zwischenspeichern, die Vite bei
+jeder Änderung austauscht. Wer ihn ausprobieren will, nimmt `npm run build` und
+`npm run preview`; der Preview-Server hat denselben API-Proxy wie der
+Dev-Server, und `http://localhost:4173` gilt dem Browser als sicherer Kontext,
+sodass Service Worker und Kamera ohne TLS funktionieren. Die Herkunft gehört
+dann zusätzlich in `server.trusted_origins`.
 
 Schemaänderungen laufen immer über `server/src/db/schema.ts` plus
 `npm run db:generate`; die erzeugte SQL-Datei unter

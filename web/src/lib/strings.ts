@@ -142,6 +142,23 @@ export const strings = {
     text: 'Diese Adresse gehört zu keiner Ansicht der App.',
   },
 
+  /* ------------------------------------------------------- offline and PWA */
+
+  offline: {
+    /** The strip in the running app; short, it sits above the navigation. */
+    banner: 'Offline – Änderungen lassen sich gerade nicht speichern.',
+    title: 'Keine Verbindung',
+    text: 'Dieses Gerät ist offline. Der Katalog liegt auf dem Server, deshalb geht es erst weiter, wenn die Verbindung zurück ist.',
+    hint: 'Die App selbst ist geladen und startet auch ohne Netz.',
+  },
+
+  update: {
+    title: 'Neue Version verfügbar',
+    text: 'Sie wird beim nächsten Neuladen übernommen.',
+    reload: 'Jetzt neu laden',
+    later: 'Später',
+  },
+
   /* --------------------------------------------------------------- scanner */
 
   scan: {

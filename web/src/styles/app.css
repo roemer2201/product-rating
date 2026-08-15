@@ -194,6 +194,61 @@ a {
   gap: 0.0625rem;
 }
 
+/* --- Notices above the navigation ----------------------------------------- */
+
+/*
+ * Where the app says something about itself rather than about the screen: that
+ * the phone is offline, that a new version is ready. At the bottom because
+ * that is where the thumb already is, and above the navigation so it never
+ * covers the way out.
+ */
+.toast-stack {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 40rem;
+  margin: 0 auto;
+  padding-right: calc(var(--space-4) + env(safe-area-inset-right));
+  padding-bottom: calc(var(--nav-height) + var(--space-3) + env(safe-area-inset-bottom));
+  padding-left: calc(var(--space-4) + env(safe-area-inset-left));
+  /* An empty stack covers the screen and must not swallow its taps. */
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-nav);
+  font-size: 0.9375rem;
+  pointer-events: auto;
+}
+
+.toast--warning {
+  border-color: var(--color-star);
+  background: var(--color-surface-muted);
+}
+
+.toast__title {
+  font-weight: 650;
+}
+
+.toast__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
 /* --- Forms ---------------------------------------------------------------- */
 
 .auth-layout {

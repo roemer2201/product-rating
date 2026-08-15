@@ -5,6 +5,93 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-15 – M9: PWA und iOS
+
+**Umfang**
+
+- `web/vite.config.ts`: `vite-plugin-pwa` (Workbox) mit Manifest und Service
+  Worker. `registerType: 'prompt'`, `injectRegister: false` – registriert wird
+  aus der Oberfläche, die den wartenden Worker ohnehin in der Hand braucht.
+  Vorgehalten wird die App-Shell (`js`, `css`, `html`, `svg`, `png`,
+  `webmanifest`; 14 Einträge, 484 kB), `navigateFallback` auf `index.html` mit
+  `/api/` in der Sperrliste, `cleanupOutdatedCaches`, `clientsClaim`. Dazu ein
+  `preview`-Block mit demselben API-Proxy wie der Dev-Server – der Service
+  Worker existiert nur im Bau, also braucht es einen Weg, ihn auszuprobieren.
+- `web/public/`: `icon.svg` (abgerundet) und `icon-maskable.svg` (randlos, Marke
+  auf 85 % skaliert) als einzige handgepflegte Icons, dazu die daraus erzeugten
+  `icon-192/512`, `icon-maskable-192/512` und `apple-touch-icon` (180).
+- `web/scripts/generate-icons.ts` plus `npm run icons`: rastert die SVG-Quellen
+  mit `sharp`. Die PNG liegen im Repository, damit ein Produktionsbau ohne das
+  native Modul auskommt; das Skript läuft mit Node 22 direkt als TypeScript und
+  steht bewusst außerhalb der `tsconfig.json` des Web-Workspaces.
+- `web/index.html`: `apple-mobile-web-app-*`, `apple-touch-icon`, zwei
+  `theme-color` mit `media`-Abfrage, `format-detection: telephone=no`.
+- `web/src/components/UpdatePrompt.tsx`: Registrierung des Workers und die
+  sichtbare Aufforderung „Neue Version verfügbar“. Fragt zusätzlich stündlich
+  und bei jedem Wechsel in den Vordergrund nach einer neuen Version.
+- `web/src/lib/online.ts` und `web/src/components/OfflineNotice.tsx`:
+  `useOnlineStatus()` über `useSyncExternalStore`, dazu ein Streifen über der
+  Navigation und ein ganzer Schirm für den Fall, dass nichts geladen werden
+  konnte. `RequireAuth` benutzt Letzteren, wenn die Sitzungsabfrage scheitert
+  *und* das Gerät sich als offline meldet.
+- `web/src/styles/app.css`: `.toast-stack` über der Navigationsleiste, mit
+  `env(safe-area-inset-*)` und ohne Tastenfang, solange nichts darin steht.
+- Testseitig: `web/src/testing/pwaRegister.ts` als Ersatz für
+  `virtual:pwa-register/react` (per Alias in `vitest.config.ts`, denn das Plugin
+  gehört nicht in den Testlauf) und `web/src/testing/online.ts`, das
+  `navigator.onLine` beantwortbar macht; beides räumt `setup.ts` selbst auf.
+- 372 Tests grün (12 neue); `lint`, `typecheck`, `format:check` und `build`
+  fehlerfrei.
+
+**Real geprüft** (Chromium bei 390×844, gebauter Stand hinter `vite preview`
+gegen die laufende API, hell und dunkel – 35 Prüfungen, alle bestanden)
+
+- Manifest und iOS-Metatags am ausgelieferten Dokument, alle fünf Icon-Dateien
+  mit `200` und richtigem Content-Type.
+- Der Service Worker übernimmt schon beim ersten Besuch; im Cache liegen
+  App-Shell, JS und CSS, **kein** `.wasm` und **keine** `/api/`-Antwort.
+- Offline neu geladen: die App startet aus dem Cache und zeigt „Keine
+  Verbindung“ statt der Fehlerseite des Browsers; „Erneut versuchen“ bringt sie
+  zurück. Der Streifen erscheint und verschwindet mit der Verbindung.
+- Der ganze Aktualisierungsweg mit zwei echten Bauständen: neue Version wird
+  ohne Neuladen gemeldet, wartet dabei nachweislich (`registration.waiting`),
+  „Später“ legt die Frage weg, beim nächsten Start ist sie wieder da, „Jetzt neu
+  laden“ macht die neue Version aktiv – und die Anmeldung überlebt das.
+- Scanner mit Kamera-Attrappe: das WebAssembly wird trotz Service Worker sauber
+  aus dem Netz nachgeladen.
+
+**Dabei gefundene Fehler**
+
+| Fund | Ursache | Behebung |
+|---|---|---|
+| Kein Service Worker übernahm die Seite beim ersten Besuch | `registerType: 'prompt'` setzt weder `skipWaiting` noch `clientsClaim`; die erste Installation wartete damit bis zum nächsten Start der App | `clientsClaim: true` – das betrifft nur den ersten Worker, spätere warten weiterhin auf die Zustimmung |
+
+**Getroffene Entscheidungen**
+
+| Thema | Entscheidung | Begründung |
+|---|---|---|
+| Aktualisierung | `prompt` statt `autoUpdate` | Ein Neuladen mitten im Anlegen eines Produkts wirft das Formular weg; die Übernahme ist eine Entscheidung des Nutzers |
+| Suche nach neuen Versionen | Stündlich und bei jedem Wechsel in den Vordergrund | Eine App auf dem iOS-Home-Bildschirm wird nie wirklich geschlossen; ohne eigenes Nachfragen bliebe sie tagelang auf dem alten Bundle |
+| Erste Installation | `clientsClaim`, aber kein `skipWaiting` | Offline-Fähigkeit ab dem ersten Besuch, ohne dass eine spätere Version ungefragt übernimmt |
+| API im Cache | Gar keine `runtimeCaching`-Regel | Ein veraltetes `GET /auth/me` zeigt das falsche Konto; Fotos sind `Cache-Control: private`. Was sich lohnt, hält TanStack Query im Speicher |
+| WebAssembly des Decoders | Nicht vorgehalten | Ein Megabyte für den Fall, dass jemand offline scannt – wobei die EAN offline ohnehin nicht nachgeschlagen werden kann |
+| Offline-Hinweis | Eigene Ansicht statt einer statischen `offline.html` | Der Fallback lädt die echte App; eine zweite HTML-Datei wäre eine zweite Oberfläche mit eigenem Aussehen und eigener Sprache |
+| `navigator.onLine` | Nur zum Erklären, nie zum Entscheiden | Der Wert sagt „es gibt ein Netz“, nicht „der Server ist erreichbar“; eine Anfrage zu unterdrücken wäre falsch, eine fehlgeschlagene zu deuten ist richtig |
+| Statusleiste unter iOS | `default` statt `black-translucent` | `black-translucent` erzwingt weiße Symbole, die auf der hellen Kopfzeile verschwinden |
+| Icons | Zwei SVG-Quellen, PNG erzeugt und eingecheckt | Eine Änderung an der Marke betrifft eine Datei; der Produktionsbau bleibt frei von `sharp` |
+| Ort der Hinweise | In `AppLayout`, nicht um den Router herum | Beide brauchen den Platz über der Navigationsleiste; auf der Anmeldemaske meldet sich ein offenes Gerät ohnehin über die scheiternde Anfrage |
+
+**Nicht erledigt**
+
+Der Punkt „auf einem echten iPhone prüfen“ bleibt offen – dafür braucht es ein
+Gerät, das hier niemand hat. Alles, was ohne iPhone prüfbar war, ist geprüft;
+was iOS eigen ist (Hinzufügen zum Home-Bildschirm, Safe-Area am echten Notch,
+Kamera-Upload aus der Standalone-App, Sitzung nach einem Neustart des Telefons),
+steht weiter in TODO.md. Dazu gehört auch die aus M8 stammende Frage nach der
+Kamerawahl unter Safari.
+
+---
+
 ## 2026-08-15 – M8: Frontend-Funktionen
 
 **Umfang**
