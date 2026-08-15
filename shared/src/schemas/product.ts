@@ -21,6 +21,13 @@ export const PRODUCT_SEARCH_MAX_LENGTH = 100;
 export const PRODUCT_LIST_DEFAULT_LIMIT = 25;
 export const PRODUCT_LIST_MAX_LIMIT = 100;
 
+/**
+ * Upper bound on the category suggestions of `GET /api/v1/products/categories`.
+ * A household that has passed two hundred categories is no longer choosing from
+ * a list anyway, and the route stays a single small response either way.
+ */
+export const PRODUCT_CATEGORY_SUGGESTION_LIMIT = 200;
+
 /** Fields the product list can be sorted by. */
 export const PRODUCT_SORT_FIELDS = ['name', 'created', 'updated', 'rating'] as const;
 export type ProductSortField = (typeof PRODUCT_SORT_FIELDS)[number];

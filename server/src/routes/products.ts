@@ -16,6 +16,7 @@ import {
   deleteProduct,
   getProduct,
   getProductByEan,
+  listCategories,
   listProducts,
   updateProduct,
 } from '../services/products.js';
@@ -51,6 +52,17 @@ export function registerProductRoutes(app: FastifyInstance): void {
   app.get('/api/v1/products', { preHandler: app.requireUser }, async (request) => {
     const query = productListQuerySchema.parse(request.query ?? {});
     return listProducts(app.db, currentUser(request).id, query) satisfies ProductListPage;
+  });
+
+  /**
+   * Suggestions for the category field of the product form.
+   *
+   * Registered before `/products/:id` for readability — the router prefers a
+   * static segment over a parameter either way, so `categories` is never read
+   * as an identifier.
+   */
+  app.get('/api/v1/products/categories', { preHandler: app.requireUser }, async () => {
+    return { categories: listCategories(app.db) };
   });
 
   /**

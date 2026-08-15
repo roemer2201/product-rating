@@ -271,6 +271,43 @@ describe('reading products', () => {
   });
 });
 
+describe('category suggestions', () => {
+  it('lists each used category once, sorted, without the empty ones', async () => {
+    seedCatalogue();
+
+    const response = await harness.app.inject({
+      method: 'GET',
+      url: '/api/v1/products/categories',
+      headers: { cookie: annaCookie },
+    });
+
+    expect(response.statusCode).toBe(200);
+    // "Frühstück" is on two products and appears once; the toothpaste has no
+    // category at all and contributes nothing.
+    expect(response.json()).toEqual({ categories: ['Frühstück', 'Getränke'] });
+  });
+
+  it('answers an empty catalogue with an empty list', async () => {
+    const response = await harness.app.inject({
+      method: 'GET',
+      url: '/api/v1/products/categories',
+      headers: { cookie: annaCookie },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ categories: [] });
+  });
+
+  it('refuses anonymous callers', async () => {
+    const response = await harness.app.inject({
+      method: 'GET',
+      url: '/api/v1/products/categories',
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+});
+
 describe('searching and filtering', () => {
   beforeEach(() => {
     seedCatalogue();

@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, or, sql, type SQL } from 'drizzle-orm';
 import { alias, type SQLiteColumn } from 'drizzle-orm/sqlite-core';
 import {
+  PRODUCT_CATEGORY_SUGGESTION_LIMIT,
   toRatingSummary,
   type CreateProductInput,
   type Product,
@@ -161,6 +162,32 @@ export function getProductByEan(db: DbHandle, userId: string, ean: string): Prod
   const row = selectProducts(db, userId).where(eq(products.ean, ean)).get();
   if (row === undefined) throw new NotFoundError('no product with this EAN', { ean });
   return toProductWithRatings(row);
+}
+
+/**
+ * The categories the catalogue already uses, alphabetically.
+ *
+ * A category is free text on the product rather than a table of its own: a
+ * household decides for itself whether it sorts by aisle or by shelf, and a
+ * fixed list would only be in the way. What keeps that from ending in five
+ * spellings of the same word is this list — the product form offers what is
+ * already there, so the second yoghurt gets the category the first one got.
+ *
+ * Sorting happens here rather than in SQL because `SELECT DISTINCT` in SQLite
+ * only orders by columns of its own result set, and a case sensitive order
+ * would put "Tiefkühl" behind "obst". `localeCompare` also gets the umlauts
+ * right, which a byte comparison does not.
+ */
+export function listCategories(db: DbHandle): string[] {
+  return db
+    .selectDistinct({ category: products.category })
+    .from(products)
+    .where(isNotNull(products.category))
+    .all()
+    .map((row) => row.category)
+    .filter((category): category is string => category !== null && category !== '')
+    .sort((left, right) => left.localeCompare(right, 'de'))
+    .slice(0, PRODUCT_CATEGORY_SUGGESTION_LIMIT);
 }
 
 /**

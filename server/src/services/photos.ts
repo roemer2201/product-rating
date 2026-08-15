@@ -197,7 +197,11 @@ export async function processImage(config: AppConfig, input: Buffer): Promise<Pr
     // still refuses anything that cannot be decoded.
     format = (await sharp(input, { failOn: 'error' }).metadata()).format;
   } catch {
-    throw new ValidationError('the uploaded file is not a readable image');
+    // Named field and all: the client shows its message next to the picker,
+    // and "not readable" is a different sentence than "wrong type".
+    throw new ValidationError('the uploaded file is not a readable image', {
+      field: PHOTO_FIELD,
+    });
   }
 
   const candidates = mimeCandidates(format);
