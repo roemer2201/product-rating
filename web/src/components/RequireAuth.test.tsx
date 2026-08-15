@@ -4,6 +4,7 @@ import { Route, Routes } from 'react-router';
 import { RequireAuth } from '@/components/RequireAuth';
 import { strings } from '@/lib/strings';
 import { mockFetch, testUser } from '@/testing/fetchMock';
+import { setOnline } from '@/testing/online';
 import { renderWithProviders } from '@/testing/render';
 
 /**
@@ -56,5 +57,16 @@ describe('RequireAuth', () => {
     expect(await screen.findByText(strings.errors.network)).toBeInTheDocument();
     expect(screen.queryByText('Anmeldemaske')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: strings.common.retry })).toBeInTheDocument();
+  });
+
+  it('blames the missing network rather than the server when the phone is offline', async () => {
+    mockFetch([{ path: '/auth/me', networkError: true }]);
+    setOnline(false);
+
+    renderGate();
+
+    expect(await screen.findByText(strings.offline.title)).toBeInTheDocument();
+    expect(screen.queryByText(strings.errors.network)).not.toBeInTheDocument();
+    expect(screen.queryByText('Anmeldemaske')).not.toBeInTheDocument();
   });
 });

@@ -62,6 +62,8 @@ web/                    React-PWA
   src/components/       UI-Bausteine
   src/lib/api.ts        typisierter API-Client
   src/lib/scanner.ts    zxing-wasm-Kapselung
+  public/               Icons: zwei SVG-Quellen, daraus erzeugte PNG
+  scripts/              generate-icons.ts (Rasterung der Icons)
 shared/                 Gemeinsame Typen und Zod-Schemata für Server und Web
 config/config.example.toml
 packaging/debian/       control, rules, postinst, prerm, postrm, conffiles
@@ -84,9 +86,11 @@ npm run build            # Produktions-Bundle
 npm start                # gebauten Server starten
 ```
 
-Dazu `npm run migrate` und `npm run db:generate` (seit M2) sowie
-`npm run fsck -- --uploads` (seit M6). Noch nicht vorhanden, kommt mit dem
-jeweiligen Meilenstein: `npm run package:deb` (M11).
+Dazu `npm run migrate` und `npm run db:generate` (seit M2), `npm run fsck --
+--uploads` (seit M6) sowie im Web-Workspace `npm run icons` (Icons aus den
+SVG-Quellen) und `npm run preview` (gebaute App auf :4173, der einzige Weg, den
+Service Worker auszuprobieren) – beide seit M9. Noch nicht vorhanden, kommt mit
+dem jeweiligen Meilenstein: `npm run package:deb` (M11).
 
 Vor jedem Commit mindestens `npm run lint`, `npm run typecheck` und `npm test`
 laufen lassen und Fehlschläge berichten, nicht stillschweigend übergehen.

@@ -8,6 +8,8 @@ node_modules/
 dist/
 build/
 *.tsbuildinfo
+# Service worker of the Vite dev server (vite-plugin-pwa)
+web/dev-dist/
 
 # Local runtime data (database, uploads, temp files)
 data/

@@ -1,5 +1,7 @@
 import { Outlet, useNavigate } from 'react-router';
 import { BottomNav } from '@/components/BottomNav';
+import { OfflineBanner } from '@/components/OfflineNotice';
+import { UpdatePrompt } from '@/components/UpdatePrompt';
 import { useLogout, useSession } from '@/lib/queries';
 import { strings } from '@/lib/strings';
 
@@ -10,6 +12,11 @@ import { strings } from '@/lib/strings';
  * Logging out lives in the header rather than only on the settings page — it is
  * the one action that has to work from anywhere, and until the settings page
  * exists (M8) it would otherwise have no home at all.
+ *
+ * The two notices sit here rather than around the whole router: both are about
+ * the app someone is using, and both need the room above the navigation that
+ * only this layout knows about. On the login screen an offline phone announces
+ * itself through the failing request anyway.
  */
 
 export function AppLayout() {
@@ -52,6 +59,11 @@ export function AppLayout() {
       <main className="app-main">
         <Outlet />
       </main>
+
+      <div className="toast-stack">
+        <OfflineBanner />
+        <UpdatePrompt />
+      </div>
 
       <BottomNav />
     </div>

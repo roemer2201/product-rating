@@ -1,6 +1,8 @@
 import { Navigate, Outlet, useLocation } from 'react-router';
 import { ErrorScreen, LoadingScreen } from '@/components/Feedback';
+import { OfflineScreen } from '@/components/OfflineNotice';
 import { errorMessage } from '@/lib/api';
+import { useOnlineStatus } from '@/lib/online';
 import { useSession } from '@/lib/queries';
 import { strings } from '@/lib/strings';
 
@@ -14,6 +16,11 @@ import { strings } from '@/lib/strings';
  * as being logged out and must not throw away the session. Only a definite
  * "nobody is logged in" leads to the login form, with the address the user
  * wanted so they land there after signing in.
+ *
+ * The failed lookup has a second reading since the service worker exists: with
+ * the app shell cached, the app now also starts with no network at all, and
+ * this is the screen that gets there first. A phone that knows it is offline is
+ * told so instead of being handed "the server reports an error".
  */
 
 /** Passed to the login screen so it knows where to return to. */
@@ -24,9 +31,20 @@ export interface RedirectState {
 export function RequireAuth() {
   const session = useSession();
   const location = useLocation();
+  const online = useOnlineStatus();
 
   if (session.isPending) {
     return <LoadingScreen text={strings.session.checking} />;
+  }
+
+  if (session.isError && !online) {
+    return (
+      <OfflineScreen
+        onRetry={() => {
+          void session.refetch();
+        }}
+      />
+    );
   }
 
   if (session.isError) {

@@ -2,8 +2,32 @@
 <html lang="de">
   <head>
     <meta charset="UTF-8" />
+    <!-- `viewport-fit=cover` lets the layout reach into the rounded corners of
+         an iPhone; the insets are given back through `env(safe-area-inset-*)`
+         in app.css. -->
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
+    <meta name="description" content="Produkte scannen, fotografieren und bewerten" />
+    <!-- Safari would otherwise turn a 13 digit EAN into a phone number link. -->
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- The status bar continues the header, in both themes. The manifest can
+         only carry one colour, so the second one is stated here. -->
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1c1e22" media="(prefers-color-scheme: dark)" />
+
+    <!-- iOS reads none of the manifest for a home screen app: standalone mode,
+         the name below the icon and the icon itself all come from these tags.
+         `default` for the status bar rather than `black-translucent`, which
+         forces white glyphs and makes them disappear on the light header. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Produkte" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
     <title>product-rating</title>
   </head>
   <body>

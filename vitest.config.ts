@@ -23,6 +23,11 @@ export default defineConfig({
         resolve: {
           alias: {
             '@': fileURLToPath(new URL('./web/src', import.meta.url)),
+            // Provided by `vite-plugin-pwa` during a build. The plugin is not
+            // part of the test run, so the import resolves to a stub instead.
+            'virtual:pwa-register/react': fileURLToPath(
+              new URL('./web/src/testing/pwaRegister.ts', import.meta.url),
+            ),
           },
         },
         test: {
