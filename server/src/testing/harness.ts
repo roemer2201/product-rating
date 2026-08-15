@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../app.js';
 import { parseConfig, type AppConfig } from '../config/index.js';
@@ -40,7 +41,14 @@ export async function createTestApp(options: CreateTestAppOptions = {}): Promise
   const database = createTestDatabase();
   const config = parseConfig({
     ...options.config,
-    paths: { database: database.path, ...(options.config?.paths ?? {}) },
+    // Uploads and temporary files land next to the throwaway database, so
+    // `close()` takes them along and no test writes into a real deployment.
+    paths: {
+      database: database.path,
+      uploads: join(database.directory, 'uploads'),
+      temp: join(database.directory, 'tmp'),
+      ...(options.config?.paths ?? {}),
+    },
     auth: { ...TEST_ARGON2, ...(options.config?.auth ?? {}) },
   });
 

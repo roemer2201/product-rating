@@ -93,15 +93,18 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 
 ## M6 – Fotos
 
-- [ ] **[M]** Multipart-Upload mit Größenlimit und MIME-Whitelist aus der Konfiguration
-- [ ] **[M]** Verarbeitung mit `sharp`: HEIC/JPEG/PNG einlesen, EXIF entfernen, Ausrichtung korrigieren, Detailbild (`detail_px`) und Thumbnail (`thumbnail_px`) schreiben
-- [ ] **[S]** Speicherlayout unter `paths.uploads` festlegen (Unterverzeichnisse nach Produkt-ID-Präfix, generierte Dateinamen)
-- [ ] **[S]** `POST /api/v1/products/:id/photos`, `DELETE /api/v1/photos/:id`, `PUT /api/v1/photos/:id/primary`
-- [ ] **[S]** `GET /api/v1/media/:id?size=thumb|full` – authentifiziert, mit `ETag`, `Cache-Control: private`, Range-Unterstützung
-- [ ] **[S]** Aufräumen verwaister Dateien: Prüfbefehl `product-rating fsck --uploads`
-- [ ] **[S]** Atomares Schreiben über `paths.temp`, damit halbe Dateien nicht sichtbar werden
-- [ ] **[S]** Beim Löschen eines Produkts die Bilddateien mitentfernen – `deleteProduct()` liefert die betroffenen Fotozeilen bereits zurück, es fehlt nur das Löschen im Dateisystem
-- [ ] **[S]** Tests: zu große Datei, falscher MIME-Typ, EXIF wird entfernt, Thumbnail entsteht, Löschen räumt Dateien ab
+- [x] **[M]** Multipart-Upload mit Größenlimit und MIME-Whitelist aus der Konfiguration
+- [x] **[M]** Verarbeitung mit `sharp`: HEIC/JPEG/PNG einlesen, EXIF entfernen, Ausrichtung korrigieren, Detailbild (`detail_px`) und Thumbnail (`thumbnail_px`) schreiben
+- [x] **[S]** Speicherlayout unter `paths.uploads` festlegen (Unterverzeichnisse nach Produkt-ID-Präfix, generierte Dateinamen)
+- [x] **[S]** `POST /api/v1/products/:id/photos`, `DELETE /api/v1/photos/:id`, `PUT /api/v1/photos/:id/primary`
+- [x] **[S]** `GET /api/v1/media/:id?size=thumb|full` – authentifiziert, mit `ETag`, `Cache-Control: private`, Range-Unterstützung
+- [x] **[S]** Aufräumen verwaister Dateien: Prüfbefehl `product-rating fsck --uploads`
+- [x] **[S]** Atomares Schreiben über `paths.temp`, damit halbe Dateien nicht sichtbar werden
+- [x] **[S]** Beim Löschen eines Produkts die Bilddateien mitentfernen – `deleteProduct()` liefert die betroffenen Fotozeilen bereits zurück, es fehlt nur das Löschen im Dateisystem
+- [x] **[S]** Tests: zu große Datei, falscher MIME-Typ, EXIF wird entfernt, Thumbnail entsteht, Löschen räumt Dateien ab
+- [x] **[S]** Fotoliste in die Einzelabfrage eines Produkts aufnehmen (`ProductDetail.photos`) – ohne sie kennt der Client nur `primaryPhotoId` und könnte weitere Fotos weder löschen noch zum Hauptbild machen
+- [ ] **[S]** Rate-Limit auf den Upload (README 4 nennt es unter „Härtung“, umgesetzt ist bisher nur das Login-Limit); braucht einen neuen Schlüssel `uploads.rate_limit_per_minute`
+- [ ] **[S]** Verwaiste Fotos beim Löschen eines Kontos: Konten werden nur deaktiviert, ein späteres echtes Löschen müsste die Dateien mitnehmen
 
 ## M7 – Frontend-Grundgerüst
 

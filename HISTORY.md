@@ -5,6 +5,73 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-15 – M6: Fotos
+
+**Umfang**
+
+- `shared/src/schemas/photo.ts`: `PHOTO_FIELD` (Name des Multipart-Feldes),
+  `PHOTO_SIZES`/`photoSizeSchema` und `mediaQuerySchema`. Neuer Typ
+  `ProductDetail` in `shared/src/types.ts`.
+- `server/src/services/photos.ts`: Verarbeitung mit `sharp`, Speicherlayout,
+  atomares Schreiben, Ablage- und Löschlogik, Hauptbild und die
+  Konsistenzprüfung `checkUploads()`.
+- `server/src/routes/photos.ts`: `POST /products/:id/photos`,
+  `DELETE /photos/:id`, `PUT /photos/:id/primary` und
+  `GET /media/:id?size=thumb|full` inklusive `ETag`, `304`, `Range`/`206` und
+  `416`.
+- `server/src/app.ts`: `@fastify/multipart` mit `limits` aus der Konfiguration
+  (eine Datei, `max_file_size_mb`), Registrierung der Fotorouten.
+- `server/src/routes/products.ts`: Einzelabfragen liefern zusätzlich `photos`;
+  das Löschen eines Produkts entfernt jetzt auch die Bilddateien.
+- `server/src/fsck.ts` plus `npm run fsck`: `--uploads`, `--repair`, `--help`,
+  Exit-Code 1 bei Befunden. Der richtige CLI-Rahmen folgt in M13.
+- `server/src/testing/harness.ts`: Uploads und Temp liegen im Wegwerf-Verzeichnis
+  der Testdatenbank.
+- Neue Abhängigkeiten: `sharp` (0.35.x – 0.34.x hat eine offene
+  libvips-Meldung) und `@fastify/multipart`.
+- Keine Schemaänderung, also keine neue Migration – `photos` steht seit M2.
+- 247 Tests grün (38 neue); `lint`, `typecheck`, `format:check` und `build`
+  fehlerfrei. Zusätzlich real gegen eine laufende Instanz geprüft: Upload eines
+  2400×1600-JPEG mit EXIF/GPS und Orientierung 6, als `image/heic` und
+  `IMG_4711.HEIC` deklariert – gespeichert als WebP 1067×1600 ohne EXIF,
+  Thumbnail 267×400; `ETag`/`304`, `Range` mit `206` und `416`, anonym `401`;
+  abgelehnt wurden 3 MB bei Limit 2 MB, eine PHP-Datei mit `image/png`-Etikett
+  und ein GIF; fremder Origin `403`; Hauptbildwechsel; Löschen von Foto und
+  Produkt räumt Dateien und Verzeichnisse ab; `fsck` mit und ohne `--repair`.
+
+**Getroffene Entscheidungen**
+
+| Thema | Entscheidung | Begründung |
+|---|---|---|
+| Ausgabeformat | Immer WebP, das Original wird nicht aufbewahrt | Ein Format hält Speicherlayout und Cache-Header einfach; WebP versteht auch Safari auf iOS, HEIC dagegen kein Browser. Das Original aufzuheben würde Platz kosten und die EXIF-Daten wieder ins Haus holen |
+| Typprüfung | Gegen das von `sharp` erkannte Format, nicht gegen die Angabe des Clients | Dateiname und MIME-Typ sind frei wählbar; geprüft wird, was in den Bytes steht |
+| `failOn` | `'error'` statt der strengeren Voreinstellung | Fotos echter Telefone lösen regelmäßig Warnungen aus; ein abgelehntes gültiges Foto wäre der teurere Fehler |
+| Speicherlayout | `<2 Zeichen der Produkt-ID>/<produkt-id>/<foto-id>.webp`, Thumbnail als `<foto-id>.thumb.webp` | Der Präfix verteilt einen sechsstelligen Katalog auf 256 Verzeichnisse; alles zu einem Produkt liegt beisammen und ist in einem Schritt entfernt |
+| `photos.filename` | Enthält den relativen Pfad des Detailbilds, das Thumbnail wird daraus abgeleitet | Eine Spalte, eine Wahrheit; die Ableitungsregel steht an einer Stelle im Code |
+| Atomares Schreiben | Über `paths.temp` plus `rename`, bei `EXDEV` Fallback auf Kopieren | `paths.temp` darf auf einem anderen Dateisystem liegen; ohne Fallback wäre jeder Upload dort ein Fehlschlag |
+| Reihenfolge beim Anlegen | Erst die Dateien, dann die Zeile; scheitert das Einfügen, werden die Dateien zurückgenommen | Eine Datei ohne Zeile ist Müll, den `fsck` findet – eine Zeile ohne Datei wäre ein kaputtes Bild in der App |
+| Reihenfolge beim Löschen | Erst die Zeile, dann die Dateien | Umgekehrt wäre bei einer scheiternden Transaktion das Bild weg und der Datensatz da |
+| Hauptbild | Eigenschaft des Produkts, nicht des Kontos; das erste Foto wird es automatisch | Die Kachel zeigt genau ein Bild. Beim Löschen rückt das älteste verbliebene nach, statt einen Nachfolger zu markieren – die Produktabfrage tut das ohnehin schon |
+| Eigentum | Löschen und Hauptbildwechsel nur für Eigentümer und Administratoren, Hochladen für jedes Konto | Der Katalog ist gemeinsam, das Foto nicht |
+| Medienzugriff | Jedes angemeldete Konto darf jedes Bild lesen | Der Katalog ist gemeinsam; eine Produktkachel ohne Bild wäre sinnlos. Geschützt ist der Weg dorthin, nicht das einzelne Bild |
+| Caching | `ETag` ist die Foto-ID plus Größe, `max-age` ein Jahr, `immutable`, `private` | Der Inhalt hinter einer ID ändert sich nie – ein neues Foto ist eine neue ID. `private`, weil es eine Sitzung gebraucht hat |
+| `Range` | Nur ein einzelner `bytes=`-Bereich, mehrere werden als ganze Datei beantwortet | Erlaubt nach RFC 9110 und für Bilder völlig ausreichend; `multipart/byteranges` wäre Aufwand ohne Nutzen |
+| `ProductDetail.photos` | Fotoliste nur in der Einzelabfrage, die Liste behält `primaryPhotoId` | Ohne Liste wären weitere Fotos weder zu löschen noch zum Hauptbild zu machen; in der Katalogliste wäre sie eine Abfrage je Produkt für ein Bild, das niemand sieht |
+| `fsck` | Meldet in beide Richtungen, löscht nur mit `--repair` | Eine verwaiste Datei kostet Platz, eine zu Unrecht gelöschte ein Foto. Fehlende Dateien bleiben auch nach einem Repair ein Befund – dagegen hilft nur ein Backup |
+| `sharp`-Version | 0.35.x statt 0.34.x | Für 0.34.x ist eine libvips-Meldung offen (`npm audit`, hoch) |
+
+**Offen**
+
+- Ein Rate-Limit für Uploads fehlt; README nennt es unter „Härtung“, umgesetzt
+  ist bisher nur das Login-Limit. Als Punkt in M6 vermerkt.
+- Mehrere Fotos je Produkt sind technisch möglich (das Datenmodell kann es, die
+  Routen auch), die Oberfläche in M8 zeigt zunächst nur das Hauptbild. Sortierung
+  mehrerer Fotos bleibt im Backlog.
+- Docker und Debian-Paket brauchen `sharp` je Architektur – als bekannter
+  Fallstrick in CLAUDE.md vermerkt, umzusetzen in M10/M11.
+
+---
+
 ## 2026-08-15 – M5: Bewertungen
 
 **Umfang**

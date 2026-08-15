@@ -2,7 +2,7 @@ import { cpSync } from 'node:fs';
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: ['src/index.ts', 'src/migrate.ts'],
+  entry: ['src/index.ts', 'src/migrate.ts', 'src/fsck.ts'],
   outDir: 'dist',
   format: ['esm'],
   target: 'node22',

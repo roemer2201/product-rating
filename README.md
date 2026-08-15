@@ -41,7 +41,7 @@ Prozess, Daten in SQLite, Fotos als Dateien auf der Platte.
         │ HTTP (127.0.0.1:8080)
 [product-rating: Fastify-API + statisches Frontend]
         ├── <paths.database>   SQLite (WAL-Modus)
-        └── <paths.uploads>    Originalfotos + Thumbnails
+        └── <paths.uploads>    Detailbilder + Thumbnails (WebP)
 ```
 
 Beide Speicherorte sind frei konfigurierbar (siehe Abschnitt 6).
@@ -209,6 +209,59 @@ jeweiligen Produkts. Ein `GROUP BY` über die gesamte Tabelle wäre in der Liste
 gleich schnell, müsste aber auch dann alles zusammenzählen, wenn nur ein
 einzelnes Produkt gefragt ist – und genau das ist die häufigste Anfrage nach
 einem Scan.
+
+### 4.3 Routen zu Fotos
+
+Hochladen darf jedes angemeldete Konto – der Katalog ist gemeinsam. Ein Foto
+gehört aber dem Konto, das es aufgenommen hat: Löschen und Zum-Hauptbild-Machen
+bleiben ihm und den Administratoren vorbehalten.
+
+| Route | Rolle | Zweck |
+|---|---|---|
+| `POST /api/v1/products/:id/photos` | angemeldet | Foto hochladen (`multipart/form-data`, Feld `photo`) |
+| `DELETE /api/v1/photos/:id` | Eigentümer, admin | Foto samt Dateien entfernen |
+| `PUT /api/v1/photos/:id/primary` | Eigentümer, admin | Foto zum Hauptbild des Produkts machen |
+| `GET /api/v1/media/:id?size=thumb\|full` | angemeldet | Bild ausliefern; Standard `full` |
+
+**Verarbeitung.** Weder der Dateiname noch der vom Client angegebene MIME-Typ
+werden geglaubt; maßgeblich ist das Format, das `sharp` in den Bytes findet, und
+nur das wird gegen `uploads.allowed_mime` geprüft. Jedes Bild wird neu kodiert –
+das entfernt EXIF-Daten samt GPS-Position, wendet die Ausrichtung an, die ein
+iPhone nur als Metadatum notiert, und macht aus einer präparierten Bilddatei
+gewöhnliche Pixel. Geschrieben werden zwei Ableitungen, beide als **WebP**:
+`full` mit der Kantenlänge `uploads.detail_px` und `thumb` mit
+`uploads.thumbnail_px`. Das Original wird nicht aufbewahrt. Ein Format für alles
+hält Speicherlayout und Cache-Header einfach, und WebP versteht jeder Browser,
+auf den diese Anwendung zielt – anders als HEIC vom iPhone.
+
+**Speicherlayout.** Unterhalb von `paths.uploads` liegen die Dateien als
+`<zwei Zeichen der Produkt-ID>/<produkt-id>/<foto-id>.webp`, das Thumbnail
+daneben als `<foto-id>.thumb.webp`. Der Präfix verteilt einen sechsstelligen
+Katalog auf 256 Verzeichnisse, statt alles in eines zu legen. Dateinamen erzeugt
+der Server; was der Client seine Datei genannt hat, erreicht die Platte nie.
+Geschrieben wird über `paths.temp` und einen abschließenden `rename`, damit nie
+eine halbe Datei sichtbar ist.
+
+**Hauptbild.** Das erste Foto eines Produkts wird automatisch zum Hauptbild,
+weitere nur auf ausdrückliche Anforderung. „Hauptbild“ ist eine Eigenschaft des
+Produkts, nicht des Kontos, deshalb setzt `PUT …/primary` das Kennzeichen der
+übrigen Fotos zurück. Wird das Hauptbild gelöscht, rückt das älteste verbliebene
+Foto nach – ein Produkt verliert sein Bild also nicht.
+
+**Auslieferung.** `GET /api/v1/media/:id` verlangt eine Sitzung wie jede andere
+Route; es gibt bewusst kein statisches Verzeichnis im Webroot und keine
+erratbaren Direktlinks. Jedes angemeldete Konto darf jedes Bild lesen, denn der
+Katalog ist gemeinsam. Der Inhalt hinter einer ID ändert sich nie – ein neues
+Foto ist eine neue ID –, deshalb ist das `ETag` die ID selbst, die Antwort trägt
+`Cache-Control: private, max-age=31536000, immutable` und beantwortet ein
+passendes `If-None-Match` mit `304`. `Range`-Anfragen werden unterstützt
+(`206` mit `Content-Range`, `416` bei einem Bereich hinter dem Dateiende).
+
+**Grenzen.** `uploads.max_file_size_mb` bricht den Upload ab, während er läuft;
+die Datei wird also nicht erst vollständig in den Speicher gelesen. Das
+Limit muss zum Reverse Proxy passen (`client_max_body_size` bei nginx,
+`LimitRequestBody` bei Apache) – sonst lehnt der Proxy ab, bevor die Anwendung
+antworten kann.
 
 ### TLS ist Pflicht, nicht optional
 
@@ -467,6 +520,12 @@ Unter `/usr/share/doc/product-rating/examples/` (im Repo: `packaging/examples/`)
   vorher wird ein Datenbank-Snapshot angelegt.
 - **Monitoring:** `/healthz` (Prozess und DB-Erreichbarkeit), strukturierte
   JSON-Logs nach stdout, Datei oder syslog.
+- **Konsistenzprüfung:** `product-rating fsck --uploads` vergleicht das
+  Upload-Verzeichnis in beide Richtungen mit der Fototabelle: Dateien, zu denen
+  keine Zeile mehr existiert, und Zeilen, deren Datei fehlt. Gemeldet wird
+  immer, gelöscht nur mit `--repair` – eine verwaiste Datei kostet Platz, eine
+  zu Unrecht gelöschte ein Foto. Bis der CLI-Rahmen steht (M13) liegt derselbe
+  Befehl als `npm run fsck -- --uploads` vor.
 
 ---
 

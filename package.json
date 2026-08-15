@@ -20,6 +20,7 @@
     "build": "npm run build --workspaces --if-present",
     "start": "npm run start --workspace @product-rating/server",
     "migrate": "npm run migrate --workspace @product-rating/server",
+    "fsck": "npm run fsck --workspace @product-rating/server",
     "db:generate": "npm run db:generate --workspace @product-rating/server",
     "test": "vitest run",
     "test:watch": "vitest",
