@@ -67,7 +67,7 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [x] **[S]** Passwortwechsel für den eigenen Account (mit Prüfung des alten Passworts, invalidiert andere Sessions)
 - [x] **[S]** CSRF-Absicherung: Origin-/Referer-Prüfung für alle schreibenden Routen
 - [x] **[S]** Tests: Login-Erfolg/-Fehlschlag, Rate-Limit, abgelaufene Session, Registrierung mit gültigem/ungültigem/verbrauchtem Code, Rollenprüfung
-- [ ] **[S]** Sitzungsliste lesbarer machen: User-Agent zu „iPhone · Safari“ verdichten (mit der Einstellungsseite in M8)
+- [x] **[S]** Sitzungsliste lesbarer machen: User-Agent zu „iPhone · Safari“ verdichten (mit der Einstellungsseite in M8)
 - [ ] **[S]** Anmeldeversuche zusätzlich ins Log mit einheitlichem Ereignisnamen, sobald strukturiertes Logging steht (M13)
 
 ## M4 – Produkt-API
@@ -115,27 +115,31 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [x] **[M]** Login-Seite, Registrierung mit Einladungscode, „nicht angemeldet“-Weiterleitung
 - [x] **[S]** Oberflächentexte zentral in `web/src/lib/strings.ts`
 - [x] **[S]** Grundstyling festlegen (eigenes CSS mit Custom Properties, siehe README 2), dunkles und helles Thema
-- [ ] **[S]** Abmelden zusätzlich auf der Einstellungsseite anbieten – bis M8 liegt es nur in der Kopfzeile
+- [x] **[S]** Abmelden zusätzlich auf der Einstellungsseite anbieten – bis M8 liegt es nur in der Kopfzeile
 - [ ] **[S]** Fokus nach einem Seitenwechsel auf die neue Überschrift setzen, damit Screenreader den Wechsel mitbekommen (mit dem Barrierefreiheitsdurchgang)
 
 ## M8 – Frontend-Funktionen
 
-- [ ] **[L]** Scanner-Ansicht: Kamerastream, `zxing-wasm`-Decoder, Erkennungsrahmen, Rückmeldung per Vibration und Ton
-- [ ] **[S]** Kamera-Auswahl (Rückkamera bevorzugt), Torch-Schalter, wenn verfügbar
-- [ ] **[S]** Fehlerfälle sauber erklären: kein secure context, Berechtigung verweigert, keine Kamera
-- [ ] **[S]** Manuelle EAN-Eingabe mit Prüfziffernvalidierung als gleichwertiger Weg
-- [ ] **[M]** Nach dem Scan: bekanntes Produkt → Detailseite, unbekanntes → Anlegeformular mit vorbelegter EAN
-- [ ] **[M]** Produktformular: Name, Marke, Kategorie, Notizen; Kategorie als Vorschlagsliste aus vorhandenen Werten
-- [ ] **[S]** Route für die Kategorievorschläge nachziehen (`GET /api/v1/products/categories`, vorhandene Werte des Katalogs)
-- [ ] **[M]** Foto aufnehmen oder auswählen (`<input type="file" accept="image/*" capture="environment">`), Vorschau, clientseitige Vorverkleinerung vor dem Upload
-- [ ] **[S]** Upload-Fortschritt und Wiederholung bei Fehlern
-- [ ] **[M]** Sterne-Widget: touchfreundlich, halbe Sterne nicht nötig, 0 Sterne bewusst möglich
-- [ ] **[M]** Produktliste: Suchfeld, Filter, Sortierung, unendliches Nachladen, Thumbnails
-- [ ] **[M]** Produktdetailseite: Foto groß, eigene Bewertung, Durchschnitt, Bearbeiten, Löschen
-- [ ] **[S]** Ansicht „Meine Bewertungen“ auf Basis von `GET /api/v1/ratings/mine`, sortierbar nach Datum, Sternen und Name
-- [ ] **[S]** Leere Zustände und Ladeskelette
-- [ ] **[S]** Einstellungsseite: Passwort ändern, eigene Sessions, Abmelden
-- [ ] **[S]** Adminbereich: Nutzer, Einladungen erzeugen und teilen
+- [x] **[L]** Scanner-Ansicht: Kamerastream, `zxing-wasm`-Decoder, Erkennungsrahmen, Rückmeldung per Vibration und Ton
+- [x] **[S]** Kamera-Auswahl (Rückkamera bevorzugt), Torch-Schalter, wenn verfügbar
+- [x] **[S]** Fehlerfälle sauber erklären: kein secure context, Berechtigung verweigert, keine Kamera
+- [x] **[S]** Manuelle EAN-Eingabe mit Prüfziffernvalidierung als gleichwertiger Weg
+- [x] **[M]** Nach dem Scan: bekanntes Produkt → Detailseite, unbekanntes → Anlegeformular mit vorbelegter EAN
+- [x] **[M]** Produktformular: Name, Marke, Kategorie, Notizen; Kategorie als Vorschlagsliste aus vorhandenen Werten
+- [x] **[S]** Route für die Kategorievorschläge nachziehen (`GET /api/v1/products/categories`, vorhandene Werte des Katalogs)
+- [x] **[M]** Foto aufnehmen oder auswählen (`<input type="file" accept="image/*" capture="environment">`), Vorschau, clientseitige Vorverkleinerung vor dem Upload
+- [x] **[S]** Upload-Fortschritt und Wiederholung bei Fehlern
+- [x] **[M]** Sterne-Widget: touchfreundlich, halbe Sterne nicht nötig, 0 Sterne bewusst möglich
+- [x] **[M]** Produktliste: Suchfeld, Filter, Sortierung, unendliches Nachladen, Thumbnails
+- [x] **[M]** Produktdetailseite: Foto groß, eigene Bewertung, Durchschnitt, Bearbeiten, Löschen
+- [x] **[S]** Ansicht „Meine Bewertungen“ auf Basis von `GET /api/v1/ratings/mine`, sortierbar nach Datum, Sternen und Name
+- [x] **[S]** Leere Zustände und Ladeskelette
+- [x] **[S]** Einstellungsseite: Passwort ändern, eigene Sessions, Abmelden
+- [x] **[S]** Adminbereich: Nutzer, Einladungen erzeugen und teilen
+- [ ] **[S]** „Alle anderen Sitzungen abmelden“ auf der Einstellungsseite anbieten – `DELETE /api/v1/auth/sessions` und der Client-Aufruf existieren seit M3, nur die Schaltfläche fehlt
+- [ ] **[S]** Kamerawahl auf dem iPhone prüfen: Safari liefert für die Rückkameras mehrere Einträge mit gleichem Label, eine Unterscheidung nach Brennweite fehlt (mit dem Gerätetest in M9)
+- [ ] **[S]** Suchbegriff und Filter des Katalogs beim Zurücknavigieren erhalten – aktuell sind sie Zustand der Ansicht und gehen beim Wechsel auf ein Produkt verloren
+- [ ] **[S]** Ton und Vibration beim Treffer abschaltbar machen, sobald es eine Stelle für persönliche Einstellungen gibt
 
 ## M9 – PWA und iOS
 
@@ -227,4 +231,5 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [ ] Preisverlauf und Einkaufsort je Produkt
 - [ ] Teilen einer Produktansicht per zeitlich begrenztem Link
 - [ ] Barrierefreiheitsdurchgang (Fokusreihenfolge, Kontraste, Screenreader)
+- [ ] Mehrere Fotos gleichzeitig auswählen und hochladen (die Ansicht nimmt bewusst eines nach dem anderen)
 - [ ] PostgreSQL als alternatives Backend, falls jemals nötig

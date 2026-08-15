@@ -5,6 +5,81 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-15 – M8: Frontend-Funktionen
+
+**Umfang**
+
+- `server/`: `GET /api/v1/products/categories` liefert die im Katalog
+  verwendeten Kategorien als Vorschlagsliste. Sortiert wird in der Anwendung
+  statt in SQL – `SELECT DISTINCT` ordnet in SQLite nur nach Spalten des eigenen
+  Ergebnisses, und `localeCompare` bekommt die Umlaute richtig. Dazu bekommt der
+  abgelehnte Upload „kein lesbares Bild“ nun `details.field`, damit die Oberfläche
+  ihn vom falschen Format und von der Größengrenze unterscheiden kann.
+- `web/src/lib/scanner.ts`: Kamera und Decoder. `zxing-wasm` statt
+  `BarcodeDetector`, das WebAssembly-Modul aus dem eigenen Bundle statt vom CDN,
+  geladen per dynamischem Import erst beim Start der Kamera. Gelesen werden
+  EAN-13, EAN-8 und UPC-A; jeder Treffer läuft zusätzlich durch `normaliseEan()`.
+  Kamerawahl mit Vorzug für die Rückseite, Torch-Schalter, sechs unterschiedene
+  Fehlerfälle, Rückmeldung per Vibration und kurzem Ton.
+- `web/src/lib/image.ts`: Verkleinerung auf 2048 Pixel vor dem Upload, mit
+  Rückfall auf das Original, wenn der Browser das Format nicht dekodieren kann.
+- `web/src/lib/api.ts`: Upload über `XMLHttpRequest` mit Fortschritt und
+  Abbruch – `fetch` kann den Fortschritt eines Requestbodys nicht melden.
+  Fehlerbehandlung und deutsche Meldung bleiben identisch zum übrigen Client.
+- `web/src/lib/queries.ts`: Hooks für Produkte (inklusive Cursor-Pagination über
+  `useInfiniteQuery`), Bewertungen, Fotos, Sitzungen, Einladungen und Konten.
+- `web/src/lib/format.ts`: Datum, Durchschnitt, relative Zeit und die
+  Verdichtung des User-Agent zu „iPhone · Safari“.
+- Neue Komponenten: `BarcodeScanner`, `ProductForm`, `ProductCard`,
+  `PhotoManager`, `RatingEditor`, `StarRating`, `LoadMore`, dazu `EmptyState`
+  und Ladeskelette in `Feedback`, `TextAreaField`/`SelectField` in `Field`.
+- Neue Ansichten: `/products/new`, `/products/:id`, `/admin`; ausgebaut wurden
+  Katalog, Scanner, eigene Bewertungen und Einstellungen. Die Platzhalter aus M7
+  sind damit verschwunden.
+- 360 Tests grün (69 neue); `lint`, `typecheck`, `format:check` und `build`
+  fehlerfrei. Bundle 402 kB (gzip 120 kB) plus 38 kB Decoder-Chunk und 1,1 MB
+  WebAssembly, die erst beim Scannen geladen werden.
+- Zusätzlich real geprüft: API und Vite-Dev-Server, Chromium bei 390×844 in hell
+  und dunkel, 32 Prüfungen – Anmeldung mit Rücksprung, Prüfziffer, unbekannte
+  EAN → Formular, Anlage → Produktseite, Bewertung speichern und nach dem
+  Neuladen wiederfinden, Foto auswählen, Vorschau, Upload mit Fortschritt,
+  Auslieferung über `/api/v1/media/`, Katalogsuche über die Marke, leerer
+  Filterzustand, Kategorievorschlag, eigene Bewertungen, Sitzungsliste,
+  Einladung erzeugen und Link kopieren, Kamerastart mit Fake-Device, dunkles
+  Thema. Darunter die Probe, die jsdom nicht leisten kann: ein im Browser
+  gezeichneter echter EAN-13 wird vom mitgelieferten WebAssembly gelesen.
+
+**Dabei gefundene Fehler**
+
+| Fund | Ursache | Behebung |
+|---|---|---|
+| „Gespeichert.“ erschien nach dem Bewerten nie | Der `RatingEditor` hing am `updatedAt` der Bewertung; jedes Speichern erzeugte einen neuen Key und hängte die Komponente samt ihrer Erfolgsmeldung neu ein | Key auf die Produkt-ID – die Route bleibt beim Wechsel der ID montiert, dagegen muss er schützen, nicht gegen das Speichern |
+| Sitzungen zeigten „Linux · Safari“ für einen Chrome | Jeder Chrome trägt `Safari/` im User-Agent; `HeadlessChrome/` und `Chromium/` passten nicht auf `\bChrome/` und fielen deshalb auf Safari durch | Wortgrenze vor `Chrome` entfernt |
+| Foto-Kacheln waren ein paar Pixel hoch | `width`/`height` am `<img>` sind Präsentationsattribute und setzen die CSS-Höhe – sie schlagen `aspect-ratio` | Attribute entfernt; die Kachel ist ohnehin in CSS festgelegt |
+
+**Getroffene Entscheidungen**
+
+| Thema | Entscheidung | Begründung |
+|---|---|---|
+| Decoder | `zxing-wasm`, Modul im eigenen Bundle | iOS Safari hat kein `BarcodeDetector`; ein CDN verbietet die Festlegung „kein ausgehender Netzverkehr im Betrieb“ |
+| Ladezeitpunkt | Dynamischer Import beim Start der Kamera | Drei von vier Ansichten dekodieren nie; das gute Megabyte gehört nicht in den Start |
+| Symbologien | EAN-13, EAN-8, UPC-A – kein UPC-E | UPC-E kommt als acht Ziffern an, die keine gültige EAN-8 sind; eine still falsch gespeicherte Nummer wäre schlimmer als ein nicht gelesener Code |
+| Kamerastart | Nur auf Tastendruck | Kostet Akku und schaltet die Anzeigeleuchte ein; eine Ansicht, die das beim Betreten tut, wird gemieden |
+| Eingabe von Hand | Gleichrangig auf demselben Schirm, nicht hinter einem Fehler | Es gibt Barcodes, die keine Kamera liest – zerknitterte Tüte, dunkler Keller, abgeschaltete Kamera |
+| Suchbereich | Nur das mittlere Band des Bildes wird dekodiert | Entspricht dem Rahmen auf dem Schirm und ist ein Viertel der Arbeit je Versuch |
+| Nach dem Scan | Eine Mutation statt einer Query | Der Scanner fragt genau einmal und will die Antwort in der Hand, um zu entscheiden, wohin er springt; `404` ist hier die normale Antwort |
+| Sterne | Sechs echte Radios, verborgen hinter den Glyphen | Pfeiltasten, Tabstopp und Ansage kommen so vom Browser statt aus gepflegtem Code; 0 Sterne ist eine eigene Option, kein „nicht bewertet“ |
+| Speichern der Bewertung | Erst auf Knopfdruck, nicht beim Tippen auf einen Stern | Ein Streifen über einen Stern beim Scrollen darf kein Urteil überschreiben |
+| Verkleinern im Browser | Höflichkeit, keine Prüfung | Der Server kodiert ohnehin neu; scheitert die Dekodierung im Browser, geht das Original hoch – ein fehlgeschlagener Spareffekt darf nie das Foto kosten |
+| Kategorien | Freitext mit `<datalist>` statt Auswahlliste | Ein Haushalt erfindet seine Kategorien selbst, soll aber nicht „Getränke“, „getraenke“ und „Getränk“ nebeneinander bekommen |
+| Filterzustand | Zustand der Ansicht, nicht der Adresse | Niemand setzt ein Lesezeichen auf „Haferflocken, mindestens vier Sterne“; eine Adresse, die sich bei jedem Tastendruck ändert, füllt den Zurück-Knopf mit Suchbegriffen |
+| Cache-Invalidierung | Grob: eine Bewertung verwirft alle Listen | Ein Durchschnitt ändert Sortierung und zwei Filter; die Buchführung für Genauigkeit kostet mehr als die gesparten Anfragen |
+| Nachladen | Beobachter am Listenende **und** Schaltfläche | Scrollen ist eine Daumengeste; wer mit der Tastatur unterwegs ist, braucht etwas zum Drücken |
+| Adminbereich | Aus den Einstellungen, nicht aus der Navigation | Wird benutzt, wenn jemand in den Haushalt kommt oder geht – ein paar Mal im Leben einer Installation |
+| Einladung teilen | Link in die Zwischenablage, nicht der nackte Code | Der Link trägt den Code ins Formular; getippt wird er dann nirgends |
+
+---
+
 ## 2026-08-15 – M7: Frontend-Grundgerüst
 
 **Umfang**

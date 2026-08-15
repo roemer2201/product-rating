@@ -1,0 +1,334 @@
+import { useState } from 'react';
+import { Navigate } from 'react-router';
+import { passwordSchema, type Invite, type User } from '@product-rating/shared';
+import { EmptyState, ErrorNotice, SkeletonList } from '@/components/Feedback';
+import { Field } from '@/components/Field';
+import { errorMessage } from '@/lib/api';
+import { formatDate } from '@/lib/format';
+import {
+  useCreateInvite,
+  useInvites,
+  useResetPassword,
+  useRevokeInvite,
+  useSession,
+  useUpdateUser,
+  useUsers,
+} from '@/lib/queries';
+import { strings } from '@/lib/strings';
+
+/**
+ * Users and invites, for administrators.
+ *
+ * Reached from the settings rather than from the bottom navigation: it is used
+ * when someone joins the household or leaves it, which is a handful of times in
+ * the life of an instance. The navigation belongs to what is used daily.
+ */
+
+/** The share link, so an invite can be sent as one tap instead of a code to type. */
+function inviteLink(code: string): string {
+  return `${window.location.origin}/register?invite=${encodeURIComponent(code)}`;
+}
+
+const INVITE_STATUS: Record<Invite['status'], string> = {
+  open: strings.admin.inviteStatusOpen,
+  used: strings.admin.inviteStatusUsed,
+  expired: strings.admin.inviteStatusExpired,
+};
+
+export function AdminPage() {
+  const session = useSession();
+  const user = session.data;
+
+  const users = useUsers();
+  const invites = useInvites();
+  const createInvite = useCreateInvite();
+  const revokeInvite = useRevokeInvite();
+  const updateUser = useUpdateUser();
+
+  const resetPassword = useResetPassword();
+
+  const [note, setNote] = useState('');
+  const [copied, setCopied] = useState<string | null>(null);
+  const [copyFailed, setCopyFailed] = useState(false);
+  /** The account whose password is being set, and the value typed for it. */
+  const [resetting, setResetting] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+
+  // Nothing here is readable without the role anyway — the server refuses every
+  // one of these routes — but a screen full of 403s is a poor way to say so.
+  if (session.isPending) return <SkeletonList rows={3} />;
+  if (user == null || user.role !== 'admin') return <Navigate to="/settings" replace />;
+
+  const onCopy = async (code: string): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(inviteLink(code));
+      setCopied(code);
+      setCopyFailed(false);
+    } catch {
+      // No clipboard permission, or an insecure context: the link is on screen
+      // and can be selected by hand.
+      setCopyFailed(true);
+    }
+  };
+
+  const toggleRole = (entry: User): void => {
+    updateUser.mutate({
+      id: entry.id,
+      input: { role: entry.role === 'admin' ? 'user' : 'admin' },
+    });
+  };
+
+  const toggleDisabled = (entry: User): void => {
+    updateUser.mutate({ id: entry.id, input: { disabled: entry.disabledAt === null } });
+  };
+
+  const submitReset = (id: string): void => {
+    const parsed = passwordSchema.safeParse(newPassword);
+    if (!parsed.success) return;
+
+    resetPassword.mutate(
+      { id, input: { newPassword: parsed.data } },
+      {
+        onSuccess: () => {
+          setResetting(null);
+          setNewPassword('');
+        },
+      },
+    );
+  };
+
+  return (
+    <section>
+      <h1 className="page__title">{strings.admin.title}</h1>
+
+      <section className="section">
+        <h2 className="section__title">{strings.admin.invitesTitle}</h2>
+        <p className="section__intro">{strings.admin.invitesIntro}</p>
+
+        {createInvite.error !== null && <ErrorNotice message={errorMessage(createInvite.error)} />}
+        {revokeInvite.error !== null && <ErrorNotice message={errorMessage(revokeInvite.error)} />}
+        {copyFailed && <p className="field__hint">{strings.common.copyFailed}</p>}
+
+        <div className="form">
+          <Field
+            label={strings.admin.inviteNote}
+            name="note"
+            value={note}
+            onChange={(event) => {
+              setNote(event.target.value);
+            }}
+            hint={strings.admin.inviteNoteHint}
+            maxLength={200}
+            optional
+          />
+
+          <button
+            type="button"
+            className="button button--primary"
+            onClick={() => {
+              createInvite.mutate(note.trim() === '' ? {} : { note: note.trim() }, {
+                onSuccess: () => {
+                  setNote('');
+                },
+              });
+            }}
+            disabled={createInvite.isPending}
+          >
+            {createInvite.isPending ? strings.admin.inviteCreating : strings.admin.inviteCreate}
+          </button>
+        </div>
+
+        {invites.isPending ? (
+          <SkeletonList rows={2} />
+        ) : invites.error !== null ? (
+          <ErrorNotice
+            message={errorMessage(invites.error)}
+            onRetry={() => {
+              void invites.refetch();
+            }}
+          />
+        ) : invites.data.length === 0 ? (
+          <EmptyState text={strings.admin.invitesEmpty} />
+        ) : (
+          <ul className="admin-list">
+            {invites.data.map((invite) => (
+              <li className="admin-row" key={invite.code}>
+                <div className="admin-row__body">
+                  <code className="admin-row__code">{invite.code}</code>
+                  <span className="admin-row__meta">
+                    <span className={`badge badge--${invite.status}`}>
+                      {INVITE_STATUS[invite.status]}
+                    </span>{' '}
+                    {strings.admin.inviteExpires(formatDate(invite.expiresAt))}
+                    {invite.usedBy !== null && ` · ${strings.admin.inviteUsedBy(invite.usedBy)}`}
+                  </span>
+                  {invite.note !== null && <span className="admin-row__note">{invite.note}</span>}
+                </div>
+
+                {invite.status === 'open' && (
+                  <div className="admin-row__actions">
+                    <button
+                      type="button"
+                      className="button button--quiet"
+                      onClick={() => void onCopy(invite.code)}
+                    >
+                      {copied === invite.code
+                        ? strings.common.copied
+                        : strings.admin.inviteCopyLink}
+                    </button>
+                    <button
+                      type="button"
+                      className="button button--quiet button--danger"
+                      onClick={() => {
+                        revokeInvite.mutate(invite.code);
+                      }}
+                      disabled={revokeInvite.isPending}
+                    >
+                      {strings.admin.inviteRevoke}
+                    </button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="section">
+        <h2 className="section__title">{strings.admin.usersTitle}</h2>
+
+        {updateUser.error !== null && <ErrorNotice message={errorMessage(updateUser.error)} />}
+
+        {users.isPending ? (
+          <SkeletonList rows={2} />
+        ) : users.error !== null ? (
+          <ErrorNotice
+            message={errorMessage(users.error)}
+            onRetry={() => {
+              void users.refetch();
+            }}
+          />
+        ) : users.data.length === 0 ? (
+          <EmptyState text={strings.admin.usersEmpty} />
+        ) : (
+          <ul className="admin-list">
+            {resetPassword.isSuccess && resetting === null && (
+              <li className="notice" role="status">
+                {strings.admin.userResetDone}
+              </li>
+            )}
+            {users.data.map((entry) => {
+              const self = entry.id === user.id;
+
+              return (
+                <li className="admin-row" key={entry.id}>
+                  <div className="admin-row__body">
+                    <span className="admin-row__name">
+                      {entry.username}
+                      {self && <span className="badge">{strings.admin.userSelf}</span>}
+                      {entry.disabledAt !== null && (
+                        <span className="badge badge--expired">{strings.admin.userDisabled}</span>
+                      )}
+                    </span>
+                    <span className="admin-row__meta">
+                      {entry.role === 'admin'
+                        ? strings.settings.roleAdmin
+                        : strings.settings.roleUser}{' '}
+                      · {strings.settings.memberSince(formatDate(entry.createdAt))}
+                    </span>
+                  </div>
+
+                  {/* Locking yourself out of your own instance is not a feature. */}
+                  {!self && (
+                    <div className="admin-row__actions">
+                      <button
+                        type="button"
+                        className="button button--quiet"
+                        onClick={() => {
+                          toggleRole(entry);
+                        }}
+                        disabled={updateUser.isPending}
+                      >
+                        {entry.role === 'admin'
+                          ? strings.admin.userMakeUser
+                          : strings.admin.userMakeAdmin}
+                      </button>
+                      <button
+                        type="button"
+                        className="button button--quiet"
+                        onClick={() => {
+                          setResetting(resetting === entry.id ? null : entry.id);
+                          setNewPassword('');
+                        }}
+                        aria-expanded={resetting === entry.id}
+                      >
+                        {strings.admin.userResetPassword}
+                      </button>
+                      <button
+                        type="button"
+                        className="button button--quiet button--danger"
+                        onClick={() => {
+                          toggleDisabled(entry);
+                        }}
+                        disabled={updateUser.isPending}
+                      >
+                        {entry.disabledAt === null
+                          ? strings.admin.userDisable
+                          : strings.admin.userEnable}
+                      </button>
+                    </div>
+                  )}
+
+                  {resetting === entry.id && (
+                    <div className="admin-row__form">
+                      {resetPassword.error !== null && (
+                        <ErrorNotice message={errorMessage(resetPassword.error)} />
+                      )}
+
+                      <Field
+                        label={strings.fields.newPassword}
+                        name="newPassword"
+                        type="password"
+                        value={newPassword}
+                        onChange={(event) => {
+                          setNewPassword(event.target.value);
+                        }}
+                        autoComplete="new-password"
+                        required
+                      />
+
+                      <div className="form__actions">
+                        <button
+                          type="button"
+                          className="button button--primary"
+                          onClick={() => {
+                            submitReset(entry.id);
+                          }}
+                          disabled={resetPassword.isPending || newPassword === ''}
+                        >
+                          {resetPassword.isPending
+                            ? strings.common.saving
+                            : strings.admin.userResetSubmit}
+                        </button>
+                        <button
+                          type="button"
+                          className="button"
+                          onClick={() => {
+                            setResetting(null);
+                          }}
+                          disabled={resetPassword.isPending}
+                        >
+                          {strings.common.cancel}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+    </section>
+  );
+}

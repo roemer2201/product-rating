@@ -2,14 +2,42 @@ import {
   MutationCache,
   QueryCache,
   QueryClient,
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
+  type UseInfiniteQueryResult,
   type UseMutationResult,
   type UseQueryResult,
 } from '@tanstack/react-query';
-import type { LoginInput, RegisterInput, User } from '@product-rating/shared';
-import { ApiError, api, type MyRatingsParams, type ProductListParams } from '@/lib/api';
+import type {
+  ChangePasswordInput,
+  CreateInviteInput,
+  CreateProductInput,
+  Invite,
+  LoginInput,
+  Photo,
+  Product,
+  ProductDetail,
+  ProductListPage,
+  Rating,
+  RatingListPage,
+  RatingSummary,
+  RegisterInput,
+  ResetPasswordInput,
+  SessionInfo,
+  UpdateProductInput,
+  UpdateUserInput,
+  UpsertRatingInput,
+  User,
+} from '@product-rating/shared';
+import {
+  ApiError,
+  api,
+  type MyRatingsParams,
+  type ProductListParams,
+  type UploadOptions,
+} from '@/lib/api';
 
 /**
  * Server state: query keys, cache times and the hooks around the session.
@@ -19,8 +47,11 @@ import { ApiError, api, type MyRatingsParams, type ProductListParams } from '@/l
  * The keys live here rather than next to the screens so that a mutation in one
  * corner of the app can invalidate a list in another without importing it.
  *
- * Product, rating and photo hooks follow with the screens in M8 — the keys for
- * them are already defined so both sides agree from the start.
+ * Invalidation is coarse on purpose: a changed rating drops every product list
+ * and every rating list rather than the entries that provably moved. A rating
+ * changes an average, an average changes a sort order and two filters, and the
+ * whole catalogue is a few hundred rows on a home server — the bookkeeping to
+ * be precise about it would cost more than the requests it saves.
  */
 
 /**
@@ -52,6 +83,7 @@ export const queryKeys = {
     list: (params: ProductListParams) => ['products', 'list', params] as const,
     byId: (id: string) => ['products', 'detail', id] as const,
     byEan: (ean: string) => ['products', 'ean', ean] as const,
+    categories: ['products', 'categories'] as const,
   },
   ratings: {
     all: ['ratings'] as const,
@@ -170,5 +202,350 @@ export function useLogout(): UseMutationResult<void, Error, void> {
       client.clear();
       client.setQueryData(queryKeys.session, null);
     },
+  });
+}
+
+/* ------------------------------------------------------------- catalogue */
+
+/**
+ * One page of the catalogue after another.
+ *
+ * The cursor comes from the previous page rather than from a counter: a product
+ * someone else adds while the list is being scrolled cannot then push a row
+ * onto the next page and make it appear twice.
+ */
+export function useProductList(
+  params: ProductListParams,
+): UseInfiniteQueryResult<{ pages: ProductListPage[] }, Error> {
+  return useInfiniteQuery({
+    queryKey: queryKeys.products.list(params),
+    queryFn: ({ pageParam, signal }) =>
+      api.products.list(
+        { ...params, ...(pageParam === undefined ? {} : { cursor: pageParam }) },
+        signal,
+      ),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    staleTime: CACHE_TIMES.catalogue,
+  });
+}
+
+export function useProduct(id: string): UseQueryResult<ProductDetail, Error> {
+  return useQuery({
+    queryKey: queryKeys.products.byId(id),
+    queryFn: async () => (await api.products.get(id)).product,
+    staleTime: CACHE_TIMES.catalogue,
+  });
+}
+
+/** The categories in use, for the suggestion list of the product form. */
+export function useCategories(): UseQueryResult<string[], Error> {
+  return useQuery({
+    queryKey: queryKeys.products.categories,
+    queryFn: async () => (await api.products.categories()).categories,
+    // Suggestions may lag a little; a category added elsewhere is not urgent.
+    staleTime: CACHE_TIMES.own,
+  });
+}
+
+/**
+ * Looks up a scanned EAN: the product, or `null` if the catalogue does not have
+ * it yet.
+ *
+ * A mutation rather than a query, although it only reads. The scanner asks
+ * exactly once, at a moment it chooses, and wants the answer in its hand to
+ * decide where to go next — a query would answer through a re-render and leave
+ * the screen to work out which of several states it is in. `404` is a normal
+ * answer here: "not in the catalogue" is the question being asked.
+ */
+export function useEanLookup(): UseMutationResult<ProductDetail | null, Error, string> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (ean: string) => {
+      try {
+        return (await api.products.byEan(ean)).product;
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) return null;
+        throw error;
+      }
+    },
+    onSuccess: (product) => {
+      // The detail screen is the next stop; give it its data straight away.
+      if (product !== null) client.setQueryData(queryKeys.products.byId(product.id), product);
+    },
+  });
+}
+
+export function useCreateProduct(): UseMutationResult<Product, Error, CreateProductInput> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: CreateProductInput) => (await api.products.create(input)).product,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.products.all });
+    },
+  });
+}
+
+export function useUpdateProduct(
+  id: string,
+): UseMutationResult<Product, Error, UpdateProductInput> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: UpdateProductInput) => (await api.products.update(id, input)).product,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.products.all });
+      void client.invalidateQueries({ queryKey: queryKeys.ratings.all });
+    },
+  });
+}
+
+export function useDeleteProduct(): UseMutationResult<void, Error, string> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.products.remove(id);
+    },
+    onSuccess: (_result, id) => {
+      client.removeQueries({ queryKey: queryKeys.products.byId(id) });
+      void client.invalidateQueries({ queryKey: queryKeys.products.all });
+      void client.invalidateQueries({ queryKey: queryKeys.ratings.all });
+    },
+  });
+}
+
+/* --------------------------------------------------------------- ratings */
+
+export interface UpsertRatingVariables {
+  productId: string;
+  input: UpsertRatingInput;
+}
+
+export function useUpsertRating(): UseMutationResult<
+  { rating: Rating; ratings: RatingSummary },
+  Error,
+  UpsertRatingVariables
+> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ productId, input }: UpsertRatingVariables) =>
+      api.ratings.upsert(productId, input),
+    onSuccess: (result, { productId }) => {
+      // The open detail screen gets the new state without a round trip; the
+      // lists behind it are refetched because an average moves sort and filter.
+      client.setQueryData<ProductDetail>(queryKeys.products.byId(productId), (current) =>
+        current === undefined
+          ? current
+          : { ...current, ownRating: result.rating, ratings: result.ratings },
+      );
+      void client.invalidateQueries({ queryKey: queryKeys.products.all });
+      void client.invalidateQueries({ queryKey: queryKeys.ratings.all });
+    },
+  });
+}
+
+export function useDeleteRating(): UseMutationResult<{ ratings: RatingSummary }, Error, string> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (productId: string) => api.ratings.remove(productId),
+    onSuccess: (result, productId) => {
+      client.setQueryData<ProductDetail>(queryKeys.products.byId(productId), (current) =>
+        current === undefined ? current : { ...current, ownRating: null, ratings: result.ratings },
+      );
+      void client.invalidateQueries({ queryKey: queryKeys.products.all });
+      void client.invalidateQueries({ queryKey: queryKeys.ratings.all });
+    },
+  });
+}
+
+/** The caller's own ratings, paged like the catalogue. */
+export function useMyRatings(
+  params: MyRatingsParams,
+): UseInfiniteQueryResult<{ pages: RatingListPage[] }, Error> {
+  return useInfiniteQuery({
+    queryKey: queryKeys.ratings.mine(params),
+    queryFn: ({ pageParam, signal }) =>
+      api.ratings.mine(
+        { ...params, ...(pageParam === undefined ? {} : { cursor: pageParam }) },
+        signal,
+      ),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    staleTime: CACHE_TIMES.own,
+  });
+}
+
+/* ----------------------------------------------------------------- photos */
+
+export interface UploadPhotoVariables {
+  productId: string;
+  file: Blob;
+  options?: UploadOptions;
+}
+
+export function useUploadPhoto(): UseMutationResult<Photo, Error, UploadPhotoVariables> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ productId, file, options }: UploadPhotoVariables) =>
+      (await api.photos.upload(productId, file, options ?? {})).photo,
+    onSuccess: (_photo, { productId }) => {
+      void client.invalidateQueries({ queryKey: queryKeys.products.byId(productId) });
+      // The card in the list shows the primary photo, which may have just
+      // appeared for the first time.
+      void client.invalidateQueries({ queryKey: queryKeys.products.all });
+      void client.invalidateQueries({ queryKey: queryKeys.ratings.all });
+    },
+  });
+}
+
+export interface PhotoVariables {
+  photoId: string;
+  productId: string;
+}
+
+export function useDeletePhoto(): UseMutationResult<void, Error, PhotoVariables> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ photoId }: PhotoVariables) => {
+      await api.photos.remove(photoId);
+    },
+    onSuccess: (_result, { productId }) => {
+      void client.invalidateQueries({ queryKey: queryKeys.products.byId(productId) });
+      void client.invalidateQueries({ queryKey: queryKeys.products.all });
+      void client.invalidateQueries({ queryKey: queryKeys.ratings.all });
+    },
+  });
+}
+
+export function useSetPrimaryPhoto(): UseMutationResult<Photo, Error, PhotoVariables> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ photoId }: PhotoVariables) => (await api.photos.setPrimary(photoId)).photo,
+    onSuccess: (_photo, { productId }) => {
+      void client.invalidateQueries({ queryKey: queryKeys.products.byId(productId) });
+      void client.invalidateQueries({ queryKey: queryKeys.products.all });
+      void client.invalidateQueries({ queryKey: queryKeys.ratings.all });
+    },
+  });
+}
+
+/* ---------------------------------------------------------------- account */
+
+export function useOwnSessions(): UseQueryResult<SessionInfo[], Error> {
+  return useQuery({
+    queryKey: queryKeys.ownSessions,
+    queryFn: async () => (await api.auth.sessions()).sessions,
+    staleTime: CACHE_TIMES.own,
+  });
+}
+
+export function useRevokeSession(): UseMutationResult<void, Error, string> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.auth.revokeSession(id);
+    },
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.ownSessions });
+    },
+  });
+}
+
+export function useChangePassword(): UseMutationResult<
+  { revokedSessions: number },
+  Error,
+  ChangePasswordInput
+> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: ChangePasswordInput) => api.auth.changePassword(input),
+    onSuccess: () => {
+      // Changing the password ends every other session; the list has changed.
+      void client.invalidateQueries({ queryKey: queryKeys.ownSessions });
+    },
+  });
+}
+
+/* ----------------------------------------------------------- administration */
+
+export function useInvites(): UseQueryResult<Invite[], Error> {
+  return useQuery({
+    queryKey: queryKeys.invites,
+    queryFn: async () => (await api.invites.list()).invites,
+    staleTime: CACHE_TIMES.admin,
+  });
+}
+
+export function useCreateInvite(): UseMutationResult<Invite, Error, CreateInviteInput> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: CreateInviteInput) => (await api.invites.create(input)).invite,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.invites });
+    },
+  });
+}
+
+export function useRevokeInvite(): UseMutationResult<void, Error, string> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (code: string) => {
+      await api.invites.revoke(code);
+    },
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.invites });
+    },
+  });
+}
+
+export function useUsers(): UseQueryResult<User[], Error> {
+  return useQuery({
+    queryKey: queryKeys.users,
+    queryFn: async () => (await api.users.list()).users,
+    staleTime: CACHE_TIMES.admin,
+  });
+}
+
+export interface UpdateUserVariables {
+  id: string;
+  input: UpdateUserInput;
+}
+
+export function useUpdateUser(): UseMutationResult<User, Error, UpdateUserVariables> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, input }: UpdateUserVariables) =>
+      (await api.users.update(id, input)).user,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.users });
+    },
+  });
+}
+
+export interface ResetPasswordVariables {
+  id: string;
+  input: ResetPasswordInput;
+}
+
+export function useResetPassword(): UseMutationResult<
+  { revokedSessions: number },
+  Error,
+  ResetPasswordVariables
+> {
+  return useMutation({
+    mutationFn: ({ id, input }: ResetPasswordVariables) => api.users.resetPassword(id, input),
   });
 }

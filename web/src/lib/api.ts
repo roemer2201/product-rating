@@ -103,12 +103,23 @@ export class ApiError extends Error {
    * alone is enough for a usable message.
    */
   static async fromResponse(response: Response): Promise<ApiError> {
+    let text = '';
+    try {
+      text = await response.text();
+    } catch {
+      // A connection that died mid-body; the status still says enough.
+    }
+    return ApiError.fromBody(response.status, text);
+  }
+
+  /** The same, for the upload which is an `XMLHttpRequest` and has no `Response`. */
+  static fromBody(status: number, text: string): ApiError {
     let code = 'unknown_error';
     let serverMessage: string | undefined;
     let details: Record<string, unknown> | undefined;
 
     try {
-      const body = (await response.json()) as ErrorBody;
+      const body = JSON.parse(text) as ErrorBody;
       if (body.error !== undefined) {
         code = body.error.code ?? code;
         serverMessage = body.error.message;
@@ -118,7 +129,7 @@ export class ApiError extends Error {
       // Not JSON — keep the status and move on.
     }
 
-    return new ApiError({ status: response.status, code, details, serverMessage });
+    return new ApiError({ status, code, details, serverMessage });
   }
 }
 
@@ -193,6 +204,92 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 const path = (...segments: string[]): string =>
   segments.map((segment) => encodeURIComponent(segment)).join('/');
 
+/** What an upload reports back while it is running. */
+export interface UploadOptions {
+  /** Name of the upload part; the server generates the name on disk itself. */
+  filename?: string | undefined;
+  /** Share of the body that has left the device, between 0 and 1. */
+  onProgress?: ((fraction: number) => void) | undefined;
+  signal?: AbortSignal | undefined;
+}
+
+/**
+ * A `POST` with a body whose progress can be watched.
+ *
+ * The one place in the client that is not `fetch`: uploading a photo over a
+ * phone connection takes long enough that a bar has to move, and `fetch` cannot
+ * report how far a request body has got. Everything else — the credentials, the
+ * error envelope, the German message — is kept identical to `request()`, so a
+ * failed upload is the same `ApiError` as any other failure.
+ */
+function uploadRequest<T>(path: string, body: FormData, options: UploadOptions = {}): Promise<T> {
+  const { onProgress, signal } = options;
+
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${API_BASE}${path}`);
+    xhr.responseType = 'text';
+    xhr.setRequestHeader('accept', 'application/json');
+
+    const abort = (): void => {
+      xhr.abort();
+    };
+
+    const finish = (): void => {
+      signal?.removeEventListener('abort', abort);
+    };
+
+    if (onProgress !== undefined) {
+      xhr.upload.addEventListener('progress', (event) => {
+        // Without a known length there is nothing honest to show.
+        if (event.lengthComputable && event.total > 0) onProgress(event.loaded / event.total);
+      });
+    }
+
+    xhr.addEventListener('load', () => {
+      finish();
+      const text = typeof xhr.response === 'string' ? xhr.response : '';
+
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(ApiError.fromBody(xhr.status, text));
+        return;
+      }
+
+      // The upload answers `201` with a body; be tolerant of an empty one.
+      try {
+        resolve((text === '' ? undefined : JSON.parse(text)) as T);
+      } catch (error) {
+        reject(new ApiError({ status: xhr.status, code: 'unknown_error', cause: error }));
+      }
+    });
+
+    xhr.addEventListener('error', () => {
+      finish();
+      reject(ApiError.network(new Error('upload failed')));
+    });
+
+    xhr.addEventListener('timeout', () => {
+      finish();
+      reject(ApiError.network(new Error('upload timed out')));
+    });
+
+    xhr.addEventListener('abort', () => {
+      finish();
+      reject(new DOMException('upload aborted', 'AbortError'));
+    });
+
+    if (signal !== undefined) {
+      if (signal.aborted) {
+        reject(new DOMException('upload aborted', 'AbortError'));
+        return;
+      }
+      signal.addEventListener('abort', abort, { once: true });
+    }
+
+    xhr.send(body);
+  });
+}
+
 /** Query of `GET /api/v1/products`; every parameter may be left out. */
 export type ProductListParams = {
   q?: string | undefined;
@@ -242,8 +339,14 @@ export const api = {
   },
 
   products: {
-    list: (params: ProductListParams = {}) =>
-      request<ProductListPage>(`/products${buildQuery(params)}`),
+    list: (params: ProductListParams = {}, signal?: AbortSignal) =>
+      request<ProductListPage>(
+        `/products${buildQuery(params)}`,
+        signal === undefined ? {} : { signal },
+      ),
+
+    /** Categories already in use, for the suggestion list of the product form. */
+    categories: () => request<{ categories: string[] }>('/products/categories'),
 
     get: (id: string) => request<{ product: ProductDetail }>(`/${path('products', id)}`),
 
@@ -278,24 +381,28 @@ export const api = {
         method: 'DELETE',
       }),
 
-    mine: (params: MyRatingsParams = {}) =>
-      request<RatingListPage>(`/ratings/mine${buildQuery(params)}`),
+    mine: (params: MyRatingsParams = {}, signal?: AbortSignal) =>
+      request<RatingListPage>(
+        `/ratings/mine${buildQuery(params)}`,
+        signal === undefined ? {} : { signal },
+      ),
   },
 
   photos: {
     /**
-     * Uploads one image. Progress reporting needs `XMLHttpRequest` and arrives
-     * with the upload screen in M8; `fetch` cannot report it.
+     * Uploads one image, reporting how far the body has got. The name is only
+     * a label on the part: the server distrusts it and generates its own.
      */
-    upload: (productId: string, file: Blob, filename?: string) => {
+    upload: (productId: string, file: Blob, options: UploadOptions = {}) => {
       const form = new FormData();
-      if (filename === undefined) form.append(PHOTO_FIELD, file);
-      else form.append(PHOTO_FIELD, file, filename);
+      if (options.filename === undefined) form.append(PHOTO_FIELD, file);
+      else form.append(PHOTO_FIELD, file, options.filename);
 
-      return request<{ photo: Photo }>(`/${path('products', productId, 'photos')}`, {
-        method: 'POST',
-        body: form,
-      });
+      return uploadRequest<{ photo: Photo }>(
+        `/${path('products', productId, 'photos')}`,
+        form,
+        options,
+      );
     },
 
     remove: (id: string) => request<{ ok: true }>(`/${path('photos', id)}`, { method: 'DELETE' }),
