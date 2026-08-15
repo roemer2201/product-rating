@@ -126,6 +126,18 @@ describe('configuration loading', () => {
     expect(loaded.config.paths.database).toBe('/srv/pr/app.db');
   });
 
+  it('resolves the frontend directory but leaves it empty when unset', () => {
+    writeConfig('etc/config.toml', '[server]\nstatic_dir = "../web"\n');
+    const withDirectory = loadConfig({
+      env: {},
+      cwd: root,
+      argv: ['--config', join(root, 'etc/config.toml')],
+    });
+
+    expect(withDirectory.config.server.static_dir).toBe(join(root, 'web'));
+    expect(loadConfig({ env: {}, cwd: root }).config.server.static_dir).toBe('');
+  });
+
   it('resolves relative paths against the working directory without a file', () => {
     const loaded = loadConfig({ env: { PR_PATHS__UPLOADS: 'photos' }, cwd: root });
 

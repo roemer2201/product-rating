@@ -1,0 +1,46 @@
+# What the build context does not need. Everything listed here is either
+# rebuilt inside the image, belongs to a running instance, or would only make
+# the context bigger and every layer less reusable.
+
+# Rebuilt in the build stage, and native modules from another architecture
+# would be the wrong ones anyway.
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+web/dev-dist/
+*.tsbuildinfo
+
+# History and local tooling.
+.git/
+.gitignore
+.github/
+.claude/
+.editorconfig
+.vscode/
+.idea/
+
+# Local instance: configuration, secret, database, photos.
+config/config.toml
+data/
+*.db
+*.db-wal
+*.db-shm
+*.env
+!*.env.example
+secret.env
+*.log
+logs/
+
+# Build results of the other deployment path.
+packaging/build/
+*.deb
+*.buildinfo
+*.changes
+
+# The image builds itself; its own files are not part of the context.
+docker/docker-compose*.yml
+docker/Caddyfile.example
+
+.DS_Store
+Thumbs.db

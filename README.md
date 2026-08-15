@@ -46,6 +46,17 @@ Prozess, Daten in SQLite, Fotos als Dateien auf der Platte.
 
 Beide Speicherorte sind frei konfigurierbar (siehe Abschnitt 6).
 
+Die Oberfläche liefert der Server selbst aus, sobald `server.static_dir` auf das
+gebaute Bundle zeigt (Container: `/app/web`, Debian-Paket:
+`/opt/product-rating/web`). Damit sieht der Browser eine einzige Herkunft –
+genau das, worauf Session-Cookie und Origin-Prüfung aufbauen –, und der Reverse
+Proxy braucht nur eine `proxy_pass`-Regel statt eines zweiten Wurzelverzeichnisses.
+Dateien unter `/assets/` tragen einen Inhalts-Hash im Namen und werden mit
+`immutable` für ein Jahr ausgeliefert, alles andere – `index.html`, `sw.js`,
+Manifest, Icons – mit `no-cache`, damit eine neue Version wirklich ankommt. Bleibt
+`static_dir` leer, ist die Anwendung reine API; so läuft die Entwicklung, wo der
+Vite-Server die Oberfläche ausliefert.
+
 ### Technologie-Entscheidungen
 
 | Ebene          | Wahl                                    | Begründung |
@@ -502,6 +513,7 @@ Alle dort eingetragenen Werte entsprechen den Standardwerten.
 | `base_url` | URL | `http://127.0.0.1:8080` | Öffentliche Adresse, für absolute Links und Cookies |
 | `trust_proxy` | Wahrheitswert | `false` | `X-Forwarded-*` auswerten, nur hinter vertrauenswürdigem Proxy |
 | `trusted_origins` | Liste von URLs | `[]` | Zusätzlich für schreibende Anfragen erlaubte Herkünfte; `base_url` gilt immer |
+| `static_dir` | Pfad | `""` | Verzeichnis der gebauten Weboberfläche, relativ zur Konfigurationsdatei aufgelöst; leer heißt „nur API“ (Entwicklung) |
 
 **`[paths]`** – relative Pfade werden gegen das Verzeichnis der
 Konfigurationsdatei aufgelöst, ohne Datei gegen das Arbeitsverzeichnis.
@@ -564,6 +576,9 @@ NAS-Mount oder einer separaten Platte. Beim Start prüft die App:
 - `auth.secret_file`: vorhanden, keine Rechte für Gruppe und andere (`0600`),
   Inhalt mindestens 32 Zeichen. Andernfalls bricht der Start mit dem Befehl zum
   Erzeugen der Datei ab.
+- `server.static_dir`, sofern gesetzt: vorhandenes Verzeichnis mit einer
+  `index.html` darin. Angelegt wird es bewusst nicht – es stammt aus dem Bau,
+  ein falscher Pfad ist also ein Fehler und kein fehlendes Verzeichnis.
 
 Das Session-Secret steht **nicht** in der Konfigurationsdatei, sondern in einer
 eigenen Datei mit Rechten `0600` (`secret_file`), die bei der Installation
@@ -585,17 +600,56 @@ Es gibt zwei gleichrangig gepflegte Wege: **Docker** und ein **Debian-Paket**.
 
 ```bash
 git clone https://github.com/roemer2201/product-rating.git
-cd product-rating
-cp config/config.example.toml config/config.toml   # anpassen
-docker compose up -d
+cd product-rating/docker
+PRODUCT_RATING_BASE_URL=https://produkte.example.org \
+BOOTSTRAP_ADMIN_USER=admin BOOTSTRAP_ADMIN_PASSWORD=… \
+  docker compose up -d --build
 ```
 
-- Image mehrstufig gebaut, läuft als nicht-privilegierter Nutzer.
-- Ein Volume `/data` mit `db/`, `uploads/`, `tmp/`; die Konfiguration wird nach
-  `/etc/product-rating/config.toml` gemountet.
-- `HEALTHCHECK` auf `/healthz`.
-- Migrationen laufen beim Start automatisch.
-- Images für `linux/amd64` und `linux/arm64` (Raspberry Pi, ARM-NAS).
+`PRODUCT_RATING_BASE_URL` muss die Adresse sein, unter der der Browser die App
+aufruft – jede schreibende Anfrage wird dagegen geprüft. Ohne Angabe nimmt die
+Compose-Datei `http://127.0.0.1:8080` an, was für einen Test auf demselben
+Rechner reicht. Die beiden `BOOTSTRAP_ADMIN_*`-Variablen legen beim allerersten
+Start das Administratorkonto an und können danach entfallen.
+
+- **Image** mehrstufig gebaut (`docker/Dockerfile`): Bau-Stufe mit allen
+  Abhängigkeiten, Laufzeitstufe nur mit `node_modules` ohne Entwicklungspakete,
+  dem Server-Bundle samt Migrationen und der gebauten Oberfläche unter
+  `/app/web`. Läuft als `node` (uid 1000), nicht als root.
+- **Konfiguration:** Das Image bringt `docker/config.container.toml` als
+  `/etc/product-rating/config.toml` mit. Einzelne Werte werden über
+  `PR_<SEKTION>__<SCHLÜSSEL>` gesetzt; wer mehr ändern will, kopiert diese Datei,
+  passt sie an und mountet sie schreibgeschützt an dieselbe Stelle.
+- **Daten** im Volume `/data` mit `db/`, `uploads/`, `tmp/` und `secret.env`.
+  Das Secret erzeugt der Entrypoint beim ersten Start mit Rechten `0600`,
+  danach überlebt es jedes neue Image.
+- **Entrypoint** (`docker/entrypoint.sh`): Verzeichnisse anlegen, Secret
+  erzeugen, Migrationen ausführen, dann den Server als PID 1 starten – alles
+  idempotent, ein Neustart wiederholt nur, was fehlt. `--help` erklärt die
+  Schalter, `docker compose run --rm app --log-level debug` reicht Argumente an
+  den Server durch.
+- **`HEALTHCHECK`** auf `/healthz`, mit `start_period`, die den Migrationen Zeit
+  lässt.
+- **Reverse Proxy:** Die Compose-Datei veröffentlicht den Port nur auf
+  `127.0.0.1`. Soll der Proxy ebenfalls im Container laufen, nimmt
+  `docker/docker-compose.caddy.yml` samt `docker/Caddyfile.example` Caddy dazu
+  und lässt es das Zertifikat selbst besorgen.
+
+**Zwei Architekturen.** `better-sqlite3` und `sharp` enthalten native Module, das
+Image wird deshalb je Architektur gebaut. Mit `buildx` in einem Durchgang:
+
+```bash
+docker buildx create --use --name product-rating   # einmalig
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -f docker/Dockerfile -t <registry>/product-rating:<version> --push .
+```
+
+Der Build-Kontext ist das Wurzelverzeichnis des Repositories, nicht `docker/`.
+Ohne `--push` behält buildx das Ergebnis im Cache; ein Multi-Arch-Image lässt
+sich nicht in den lokalen Docker-Speicher laden. Für nur eine Architektur reicht
+`docker build -f docker/Dockerfile -t product-rating .`. Der Bau für eine fremde
+Architektur läuft über QEMU (`docker run --privileged --rm tonistiigi/binfmt
+--install all`) und dauert entsprechend länger.
 
 ### 7.2 Debian-Paket
 
@@ -707,6 +761,7 @@ npm test                    # Vitest
 npm run lint && npm run typecheck
 npm run build               # Produktions-Bundle nach dist/
 npm run package:deb         # Debian-Paket bauen
+docker build -f docker/Dockerfile -t product-rating .   # Image bauen
 
 npm run icons  --workspace @product-rating/web   # Icons aus den SVG-Quellen
 npm run preview --workspace @product-rating/web  # Bau auf :4173 ausliefern
@@ -726,6 +781,16 @@ Dev-Server, und `http://localhost:4173` gilt dem Browser als sicherer Kontext,
 sodass Service Worker und Kamera ohne TLS funktionieren. Die Herkunft gehört
 dann zusätzlich in `server.trusted_origins`.
 
+In der Entwicklung ist `server.static_dir` leer, der Server also reine API. Wer
+den gebauten Gesamtstand ohne Container sehen will – Oberfläche und API auf
+einer Herkunft, so wie im Betrieb –, baut einmal und startet den Server mit
+gesetztem Verzeichnis:
+
+```bash
+npm run build
+PR_SERVER__STATIC_DIR="${PWD}/web/dist" npm start
+```
+
 Schemaänderungen laufen immer über `server/src/db/schema.ts` plus
 `npm run db:generate`; die erzeugte SQL-Datei unter
 `server/src/db/migrations/` wird eingecheckt. Vor jeder Migration einer
@@ -740,7 +805,8 @@ web/        React-PWA
 shared/     gemeinsame Typen und Zod-Schemata
 config/     config.example.toml
 packaging/  debian/, examples/ (nginx, apache2, caddy, traefik, logrotate, backup)
-docker/     Dockerfile, docker-compose.yml, Entrypoint
+docker/     Dockerfile, Entrypoint, Container-Konfiguration, Compose-Dateien
+            (einzeln und mit Caddy davor)
 ```
 
 Weitere Dokumente: [CLAUDE.md](CLAUDE.md) (Arbeitsanweisungen und

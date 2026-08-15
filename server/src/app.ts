@@ -6,6 +6,7 @@ import type { AppDatabase } from './db/index.js';
 import { registerAuth, SESSION_CLEANUP_INTERVAL_MS } from './plugins/auth.js';
 import { registerCsrfGuard } from './plugins/csrf.js';
 import { registerErrorHandler } from './plugins/errorHandler.js';
+import { registerStaticFrontend } from './plugins/staticFrontend.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerInviteRoutes } from './routes/invites.js';
 import { registerPhotoRoutes } from './routes/photos.js';
@@ -69,7 +70,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     throwFileSizeLimit: true,
   });
 
-  registerErrorHandler(app);
+  // Before the error handler: the frontend decides what an unknown address
+  // means, and that decision belongs in the not-found handler.
+  const appShell = await registerStaticFrontend(app);
+
+  registerErrorHandler(app, appShell);
   registerCsrfGuard(app);
   registerAuth(app);
 

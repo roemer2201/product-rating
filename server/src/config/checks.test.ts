@@ -78,6 +78,35 @@ describe('start-up checks', () => {
         expect((error as ConfigError).details.join('\n')).toContain('is not a file');
       }
     });
+
+    it('accepts a frontend directory with the app shell in it', () => {
+      mkdirSync(join(root, 'web'));
+      writeFileSync(join(root, 'web/index.html'), '<!doctype html>', 'utf8');
+
+      expect(() =>
+        ensureRuntimeDirectories(config({ server: { static_dir: join(root, 'web') } })),
+      ).not.toThrow();
+    });
+
+    it('reports a frontend directory that does not exist', () => {
+      try {
+        ensureRuntimeDirectories(config({ server: { static_dir: join(root, 'web') } }));
+        expect.unreachable('expected a ConfigError');
+      } catch (error) {
+        expect((error as ConfigError).details.join('\n')).toContain('server.static_dir');
+      }
+    });
+
+    it('reports a frontend directory without the app shell', () => {
+      mkdirSync(join(root, 'web'));
+
+      try {
+        ensureRuntimeDirectories(config({ server: { static_dir: join(root, 'web') } }));
+        expect.unreachable('expected a ConfigError');
+      } catch (error) {
+        expect((error as ConfigError).details.join('\n')).toContain('index.html');
+      }
+    });
   });
 
   describe('session secret', () => {

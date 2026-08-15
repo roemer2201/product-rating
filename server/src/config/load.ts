@@ -34,6 +34,10 @@ function resolveConfigPaths(config: AppConfig, baseDir: string): AppConfig {
 
   return {
     ...config,
+    server: {
+      ...config.server,
+      static_dir: config.server.static_dir === '' ? '' : absolute(config.server.static_dir),
+    },
     paths: {
       database: absolute(config.paths.database),
       uploads: absolute(config.paths.uploads),

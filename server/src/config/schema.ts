@@ -9,6 +9,12 @@ import { z } from 'zod';
  * instead of silently falling back to a default.
  */
 
+/**
+ * Document of the single page application. `server.static_dir` has to contain
+ * it; it is also the fallback for every address of the client.
+ */
+export const APP_SHELL = 'index.html';
+
 export const LOG_LEVELS = ['error', 'warn', 'info', 'debug'] as const;
 export const LOG_FORMATS = ['json', 'pretty'] as const;
 export const LOG_DESTINATIONS = ['stdout', 'file', 'syslog'] as const;
@@ -26,6 +32,12 @@ const serverSection = z.strictObject({
    * the Vite dev server, otherwise it stays empty.
    */
   trusted_origins: z.array(z.url()).default([]),
+  /**
+   * Directory holding the built web client. Empty means API only, which is
+   * what development wants: there the Vite dev server delivers the interface.
+   * A deployment points it at the bundle (container, Debian package).
+   */
+  static_dir: z.string().default(''),
 });
 
 const pathsSection = z.strictObject({

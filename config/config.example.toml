@@ -26,6 +26,11 @@ trust_proxy = false
 # Zusätzliche Herkünfte, die schreibende Anfragen stellen dürfen (CSRF-Prüfung).
 # base_url ist immer erlaubt. In der Entwicklung: ["http://localhost:5173"].
 trusted_origins = []
+# Verzeichnis mit der gebauten Weboberfläche, die der Server selbst ausliefert.
+# Leer heißt: nur API. In der Entwicklung bleibt das so, dort liefert der
+# Vite-Server die Oberfläche aus. Container: "/app/web", Debian-Paket:
+# "/opt/product-rating/web".
+static_dir = ""
 
 [paths]
 # Speicherorte für Datenbank, Fotos und temporäre Dateien. Frei wählbar,

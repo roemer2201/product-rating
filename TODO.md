@@ -150,19 +150,23 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [x] **[S]** Sichtbare Aktualisierungsaufforderung bei neuer Version
 - [x] **[S]** Offline-Hinweisseite statt Browser-Fehlerseite
 - [ ] **[M]** Auf einem echten iPhone prüfen: Installation, Scanner, Kamera-Upload, Sitzung überlebt Neustart, Safe-Area-Layout
-- [ ] **[S]** In den Proxy-Beispielen (M12) sicherstellen, dass `sw.js` und `index.html` nicht mit langer Lebensdauer gecacht werden, `/assets/` dagegen schon – sonst bleiben Geräte auf einem alten Bundle stehen
+- [ ] **[S]** In den Proxy-Beispielen (M12) sicherstellen, dass `sw.js` und `index.html` nicht mit langer Lebensdauer gecacht werden, `/assets/` dagegen schon – sonst bleiben Geräte auf einem alten Bundle stehen. Seit M10 setzt die Anwendung diese Header selbst; die Beispiele dürfen sie also nur durchreichen und nicht überschreiben
 - [ ] **[S]** Aktualisierungshinweis auch außerhalb von `AppLayout` zeigen (Anmeldemaske, Registrierung) – dort hängt er derzeit nicht im Baum
 - [ ] **[S]** Beim Übernehmen einer neuen Version vor ungespeicherten Eingaben warnen, statt nur nicht von selbst neu zu laden
 
 ## M10 – Docker
 
-- [ ] **[M]** Mehrstufiges `Dockerfile` (Build-Stufe, schlanke Laufzeitstufe, nicht-privilegierter Nutzer)
-- [ ] **[S]** Entrypoint: Verzeichnisse anlegen, Secret erzeugen, falls nicht vorhanden, Migrationen ausführen (`node dist/migrate.js`)
-- [ ] **[S]** `docker-compose.yml` mit Volume `/data` und gemounteter Konfiguration
-- [ ] **[S]** `HEALTHCHECK` auf `/healthz`
-- [ ] **[S]** `.dockerignore`
-- [ ] **[S]** Multi-Arch-Build für `linux/amd64` und `linux/arm64` dokumentieren
-- [ ] **[S]** Compose-Beispiel mit Caddy als vorgelagertem TLS-Proxy
+- [x] **[M]** Mehrstufiges `Dockerfile` (Build-Stufe, schlanke Laufzeitstufe, nicht-privilegierter Nutzer)
+- [x] **[S]** Entrypoint: Verzeichnisse anlegen, Secret erzeugen, falls nicht vorhanden, Migrationen ausführen (`node dist/migrate.js`)
+- [x] **[S]** `docker-compose.yml` mit Volume `/data` und gemounteter Konfiguration
+- [x] **[S]** `HEALTHCHECK` auf `/healthz`
+- [x] **[S]** `.dockerignore`
+- [x] **[S]** Multi-Arch-Build für `linux/amd64` und `linux/arm64` dokumentieren
+- [x] **[S]** Compose-Beispiel mit Caddy als vorgelagertem TLS-Proxy
+- [x] **[M]** Auslieferung der gebauten Oberfläche durch den Server selbst (`server.static_dir`, `@fastify/static`, App-Shell-Fallback, Cache-Regeln) – ohne sie wäre das Image nur die API, während README 2 „API und Frontend in einem Prozess“ zusagt
+- [ ] **[M]** Image real bauen und starten: `docker build`, `docker compose up`, Anmeldung, Scan, Foto-Upload, Neustart mit vorhandenem Volume, `docker compose pull && up -d` als Update – in der Entwicklungsumgebung stand kein Docker-Daemon zur Verfügung, geprüft wurde bisher nur der Laufzeitpfad ohne Container (Entrypoint, gebautes Bundle, Auslieferung, `npm prune --omit=dev`)
+- [ ] **[S]** Multi-Arch-Bau auf `linux/arm64` einmal durchführen und die Prebuilds von `better-sqlite3` und `sharp` bestätigen
+- [ ] **[S]** Image-Größe prüfen: `npm prune --omit=dev` lässt auch die Laufzeitabhängigkeiten des Web-Workspaces (React, Router, `zxing-wasm`) im Baum, obwohl das Image nur das gebaute Bundle braucht; dazu die Frage, ob die Sourcemaps in der Laufzeitstufe bleiben
 
 ## M11 – Debian-Paket
 
@@ -215,6 +219,7 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [ ] **[M]** Release-Workflow: Debian-Pakete (amd64, arm64) und Container-Images bauen und anhängen
 - [ ] **[S]** Versionsschema festlegen (SemVer) und `CHANGELOG` oder `HISTORY.md` als Quelle bestimmen
 - [ ] **[S]** Sicherheitsdurchsicht vor dem ersten Release: Header, Cookies, Limits, Dateirechte
+- [ ] **[S]** Content-Security-Policy und die übrigen Sicherheits-Header setzen – README 4 nennt sie unter „Härtung“, umgesetzt ist bisher keiner; seit M10 liefert die Anwendung das HTML selbst aus, also gehört die Regel in den Server und nicht nur in die Proxy-Beispiele
 - [ ] **[S]** Installationsanleitung anhand einer Neuinstallation gegenprüfen
 
 ---

@@ -14,6 +14,7 @@ describe('config schema', () => {
       base_url: 'http://127.0.0.1:8080',
       trust_proxy: false,
       trusted_origins: [],
+      static_dir: '',
     });
     expect(config.uploads.allowed_mime).toContain('image/jpeg');
     expect(config.auth.session_ttl_days).toBe(90);
