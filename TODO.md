@@ -85,11 +85,11 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 
 ## M5 – Bewertungen
 
-- [ ] **[S]** `PUT /api/v1/products/:id/rating` – anlegen oder aktualisieren (Upsert), 0–5 Sterne, optionaler Kommentar
-- [ ] **[S]** `DELETE /api/v1/products/:id/rating` – eigene Bewertung entfernen
-- [ ] **[S]** Aggregation: Durchschnitt und Anzahl je Produkt, effizient in der Listenabfrage
-- [ ] **[S]** `GET /api/v1/ratings/mine` – eigene Bewertungen, sortierbar
-- [ ] **[S]** Tests: Upsert-Verhalten, Grenzwerte 0 und 5, ungültige Werte, Fremdbewertung nicht änderbar
+- [x] **[S]** `PUT /api/v1/products/:id/rating` – anlegen oder aktualisieren (Upsert), 0–5 Sterne, optionaler Kommentar
+- [x] **[S]** `DELETE /api/v1/products/:id/rating` – eigene Bewertung entfernen
+- [x] **[S]** Aggregation: Durchschnitt und Anzahl je Produkt, effizient in der Listenabfrage (korrelierte Unterabfragen über `ratings_product_user_unique`, siehe README 4.2)
+- [x] **[S]** `GET /api/v1/ratings/mine` – eigene Bewertungen, sortierbar
+- [x] **[S]** Tests: Upsert-Verhalten, Grenzwerte 0 und 5, ungültige Werte, Fremdbewertung nicht änderbar
 
 ## M6 – Fotos
 
@@ -127,6 +127,7 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [ ] **[M]** Sterne-Widget: touchfreundlich, halbe Sterne nicht nötig, 0 Sterne bewusst möglich
 - [ ] **[M]** Produktliste: Suchfeld, Filter, Sortierung, unendliches Nachladen, Thumbnails
 - [ ] **[M]** Produktdetailseite: Foto groß, eigene Bewertung, Durchschnitt, Bearbeiten, Löschen
+- [ ] **[S]** Ansicht „Meine Bewertungen“ auf Basis von `GET /api/v1/ratings/mine`, sortierbar nach Datum, Sternen und Name
 - [ ] **[S]** Leere Zustände und Ladeskelette
 - [ ] **[S]** Einstellungsseite: Passwort ändern, eigene Sessions, Abmelden
 - [ ] **[S]** Adminbereich: Nutzer, Einladungen erzeugen und teilen
@@ -214,6 +215,7 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [ ] Export nach CSV und JSON, Import zum Umzug
 - [ ] Offline-Erfassung mit Sync-Queue (IndexedDB) und Konfliktbehandlung
 - [ ] Statistiken: Bewertungsverteilung, meistbewertete Marken
+- [ ] Fremde Bewertungen sichtbar machen: wer im Haushalt hat wie viele Sterne vergeben – bisher liefert die API nur Durchschnitt, Anzahl und die eigene Bewertung
 - [ ] FTS5-Suche nachrüsten, falls die `LIKE`-Suche mit wachsendem Katalog spürbar langsam wird
 - [ ] TOTP-Zweitfaktor
 - [ ] Optionale Delegation der Authentifizierung an Reverse-Proxy-SSO

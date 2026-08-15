@@ -63,6 +63,9 @@ export interface SeedRating {
   userId: string;
   stars: number;
   comment?: string | null;
+  /** Pin the timestamps where a test sorts or pages by rating date. */
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface SeedData {
@@ -114,6 +117,8 @@ export function seedDatabase(db: AppDatabase, data: SeedData): SeedData {
       userId: rating.userId,
       stars: rating.stars,
       comment: rating.comment ?? null,
+      ...(rating.createdAt === undefined ? {} : { createdAt: rating.createdAt }),
+      ...(rating.updatedAt === undefined ? {} : { updatedAt: rating.updatedAt }),
     };
     db.insert(ratings).values(row).run();
     seeded.ratings.push(row);
