@@ -5,6 +5,78 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-15 – M10: Docker
+
+**Umfang**
+
+- `server/src/plugins/staticFrontend.ts` plus der neue Schlüssel
+  `server.static_dir`: der Server liefert die gebaute Oberfläche selbst aus
+  (`@fastify/static`). Dateien unter `/assets/` tragen einen Inhalts-Hash und
+  gehen mit `public, max-age=31536000, immutable` hinaus, alles andere –
+  `index.html`, `sw.js`, Manifest, Icons – mit `no-cache`. Unbekannte Adressen
+  beantwortet der Not-Found-Handler mit der App-Shell, aber nur bei `GET`/`HEAD`
+  auf ein Dokument und nie unter `/api/` oder `/healthz`.
+- `server/src/config/`: `static_dir` im Zod-Schema, in der Pfadauflösung (relativ
+  zur Konfigurationsdatei) und in den Startprüfungen – gesetzt muss das
+  Verzeichnis existieren und eine `index.html` enthalten, angelegt wird es
+  bewusst nicht.
+- `docker/Dockerfile`: zwei Stufen auf `node:22-bookworm-slim`. Bau-Stufe mit
+  `npm ci`, `npm run build` und `npm prune --omit=dev`; Laufzeitstufe mit
+  `node_modules`, Server-Bundle samt Migrationen, der Oberfläche unter
+  `/app/web`, `USER node`, `EXPOSE 8080`, `VOLUME /data` und `HEALTHCHECK` auf
+  `/healthz`.
+- `docker/entrypoint.sh` nach den Skript-Konventionen (Header mit
+  Programmablaufplan, `--help`, Silent/Verbose, alle Parameter zusätzlich als
+  Umgebungsvariable): Verzeichnisse anlegen, Secret mit `0600` erzeugen,
+  Migrationen anwenden, dann den Server per `exec` als PID 1 starten.
+- `docker/config.container.toml` als mitgeliefertes
+  `/etc/product-rating/config.toml`: `host = "0.0.0.0"`, Daten unter `/data`,
+  `static_dir = "/app/web"`, Log nach stdout.
+- `docker/docker-compose.yml` (Volume `product-rating-data`, Port nur auf
+  `127.0.0.1`, `init`, `no-new-privileges`, Health-Check, Durchreichen von
+  `PR_SERVER__BASE_URL` und `BOOTSTRAP_ADMIN_*`) sowie
+  `docker/docker-compose.caddy.yml` mit `docker/Caddyfile.example` für Caddy als
+  vorgelagerten TLS-Proxy.
+- `.dockerignore`, README 2, 6.1, 6.2, 7.1 und 9 (Multi-Arch-Bau mit `buildx`,
+  Container-Konfiguration, `PR_SERVER__STATIC_DIR` für den gebauten Stand ohne
+  Container).
+- 385 Tests grün (13 neue); `lint`, `typecheck` und `build` fehlerfrei.
+
+**Real geprüft** (ohne Container – in der Entwicklungsumgebung lief kein
+Docker-Daemon; geprüft wurde derselbe Laufzeitpfad, den das Image benutzt)
+
+- `entrypoint.sh` gegen das gebaute Bundle: Verzeichnisse angelegt, Secret mit
+  `-rw-------` erzeugt, Migration angewandt, Server gestartet. Zweiter Lauf
+  behält Secret und Schema („nothing to do“), `SIGTERM` beendet sauber.
+- Auslieferung: `/` und eine Client-Adresse liefern die App-Shell mit
+  `no-cache`, `/assets/index-*.js` mit `immutable`, `sw.js` mit `no-cache`,
+  `manifest.webmanifest` mit `application/manifest+json`, `/api/v1/nope` bleibt
+  ein JSON-`not_found`, `/healthz` antwortet weiter selbst.
+- `npm prune --omit=dev` samt entfernter Workspace-Links: Server startet,
+  liefert aus, `fsck` läuft, `sharp`, `@node-rs/argon2` und `better-sqlite3`
+  laden – der Schritt, auf dem die Laufzeitstufe des Images aufbaut, trägt also.
+
+**Offen** – das Image selbst ist ungebaut und ungetestet; das steht als eigener
+Punkt in TODO.md (M10), zusammen mit dem arm64-Bau und der Frage, ob die
+Sourcemaps in der Laufzeitstufe bleiben.
+
+**Getroffene Entscheidungen**
+
+| Thema | Entscheidung | Begründung |
+|---|---|---|
+| Oberfläche im Container | Vom Server selbst ausgeliefert statt aus einem zweiten Container | README 2 sagt „API und Frontend in einem Prozess“ zu; eine Herkunft ist genau das, worauf Session-Cookie und Origin-Prüfung bauen, und der Proxy braucht nur eine Regel |
+| Schalter dafür | Konfigurationsschlüssel `server.static_dir`, leer als Standard | Kein Pfad im Code, und die Entwicklung bleibt reine API, wo Vite die Oberfläche ausliefert |
+| App-Shell-Fallback | Nur `GET`/`HEAD` mit `Accept: text/html`, nie unter `/api/` | Ein fehlendes Bild muss als `404` scheitern, und ein Client, der JSON erwartet, darf kein HTML mit `200` bekommen |
+| Cache-Regeln | `/assets/` unbefristet, alles andere `no-cache` | Nur die Dateien mit Inhalts-Hash im Namen dürfen ewig liegen bleiben; bei `sw.js` und `index.html` hieße das, dass eine neue Version nie ankommt |
+| Konfiguration im Image | Eigene Datei `config.container.toml` als `/etc/product-rating/config.toml`, nicht per Umgebungsvariablen im `Dockerfile` | Umgebungsvariablen schlagen die Konfigurationsdatei; wären die Container-Standards Variablen, könnte eine eingehängte eigene Datei sie nicht mehr übersteuern |
+| Rechte im Container | `USER node` (uid 1000), keine Vorbereitung als root | Der Entrypoint braucht kein root: `/data` gehört im Image bereits `node`, und ein benanntes Volume erbt diese Rechte. Ein Bind-Mount muss auf dem Host übergeben werden – der Entrypoint sagt das im Fehlerfall dazu |
+| Laufzeitabhängigkeiten | `npm prune --omit=dev` statt zweitem `npm install` | Die Lock-Datei bleibt die einzige Wahrheit, und die nativen Module sind schon für die Zielarchitektur gebaut |
+| Init-Prozess | Kein `tini` im Image, `init: true` in der Compose-Datei | Der Server läuft dank `exec` als PID 1 und behandelt `SIGTERM` selbst; die Zombie-Ernte ist nur Rückversicherung und gehört in die Betriebsdatei |
+| Logging des Entrypoints | stdout/stderr statt `logger` | Im Container gibt es keinen syslog-Dienst; was das Hauptprogramm schreibt, ist das Log, das `docker logs` und jeder Log-Treiber sehen |
+| Secret im Container | Vom Entrypoint mit `node crypto` erzeugt, im Volume | Das Laufzeit-Image hat kein `openssl`, und im Volume überlebt das Secret jedes neue Image – sonst wären nach einem Update alle Sitzungen ungültig |
+
+---
+
 ## 2026-08-15 – M9: PWA und iOS
 
 **Umfang**

@@ -1,6 +1,7 @@
 import type { FastifyError, FastifyInstance } from 'fastify';
 import { ZodError } from 'zod';
 import { ServiceError } from '../services/errors.js';
+import { wantsAppShell, type AppShellSender } from './staticFrontend.js';
 
 /**
  * Turns service errors, Zod failures and anything unexpected into a single
@@ -18,8 +19,19 @@ export interface ErrorBody {
   };
 }
 
-export function registerErrorHandler(app: FastifyInstance): void {
+/**
+ * An instance has exactly one not-found handler, and with a frontend in the
+ * same process it has two jobs: an unknown address of the client leads to the
+ * app shell, everything else to the JSON error. `appShell` is `null` when no
+ * frontend is configured (see `registerStaticFrontend`).
+ */
+export function registerErrorHandler(app: FastifyInstance, appShell: AppShellSender | null): void {
   app.setNotFoundHandler((request, reply) => {
+    if (appShell !== null && wantsAppShell(request)) {
+      appShell(request, reply);
+      return;
+    }
+
     void reply.code(404).send({
       error: { code: 'not_found', message: `route ${request.method} ${request.url} not found` },
     } satisfies ErrorBody);

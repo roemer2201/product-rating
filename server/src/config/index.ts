@@ -1,5 +1,6 @@
 export { ConfigError, formatZodIssues } from './errors.js';
 export {
+  APP_SHELL,
   CONFIG_SECTIONS,
   configSchema,
   getKeySchema,

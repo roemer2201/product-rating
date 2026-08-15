@@ -1,0 +1,81 @@
+# product-rating - single instance for a server or a NAS at home.
+#
+#   cd docker
+#   PRODUCT_RATING_BASE_URL=https://produkte.example.org docker compose up -d
+#
+# The address the browser uses has to end up in base_url, otherwise every
+# writing request fails the origin check. Without a value the compose file
+# assumes the local test on http://127.0.0.1:8080.
+#
+# TLS is not part of this file: the port is published on the loopback of the
+# host, and a reverse proxy in front terminates the connection. For a setup
+# where the proxy is a container as well, see docker-compose.caddy.yml.
+
+# Project name, so containers, network and volumes are not named after the
+# directory this file happens to live in.
+name: product-rating
+
+services:
+  app:
+    image: product-rating:latest
+    # Remove the build section once an image is pulled from a registry.
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: product-rating
+    restart: unless-stopped
+
+    # Reaps orphaned processes; the server itself runs as PID 1 and handles
+    # SIGTERM, so this is only insurance.
+    init: true
+
+    environment:
+      # Every key of the configuration can be set this way, section and key in
+      # upper case and separated by two underscores.
+      PR_SERVER__BASE_URL: ${PRODUCT_RATING_BASE_URL:-http://127.0.0.1:8080}
+      # Enable as soon as a reverse proxy sits in front, so log entries and the
+      # login rate limit see the real client address.
+      # PR_SERVER__TRUST_PROXY: "true"
+      # First administrator, handed through from the calling shell. It is only
+      # evaluated while the instance has no account at all, so it may stay set
+      # - and unset it stays empty, which the application ignores.
+      BOOTSTRAP_ADMIN_USER: ${BOOTSTRAP_ADMIN_USER:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+
+    ports:
+      # Only reachable from the host; the proxy in front connects here.
+      - '127.0.0.1:8080:8080'
+
+    volumes:
+      - data:/data
+      # Own configuration, if the environment variables above are not enough.
+      # Start from docker/config.container.toml - it holds the paths the image
+      # expects - and keep it read only.
+      # - ./config.container.toml:/etc/product-rating/config.toml:ro
+
+    # The image brings its own HEALTHCHECK; it is repeated here so that
+    # "depends_on: condition: service_healthy" can be used in a larger setup.
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          'fetch(process.env.PRODUCT_RATING_HEALTH_URL).then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))',
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  # A named volume rather than a bind mount: docker creates it with the
+  # ownership of /data in the image, so the unprivileged container user can
+  # write from the first start. A bind mount works too, but the directory on
+  # the host has to belong to uid 1000 (chown -R 1000:1000 <directory>).
+  data:
+    name: product-rating-data

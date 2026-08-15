@@ -1,0 +1,46 @@
+# Caddy in front of product-rating, used by docker-compose.caddy.yml.
+#
+# Caddy obtains and renews the certificate itself and redirects HTTP to HTTPS
+# without further configuration. The domain comes from the environment variable
+# PRODUCT_RATING_DOMAIN of the compose file.
+#
+# A full example for a Caddy outside of docker follows in M12 under
+# packaging/examples/caddy/.
+
+{$PRODUCT_RATING_DOMAIN} {
+	# "app" is the service name of the compose file; docker resolves it inside
+	# the project network. The application listens on plain HTTP - TLS ends
+	# here.
+	reverse_proxy app:8080 {
+		# Caddy sets X-Forwarded-For, X-Forwarded-Proto and X-Forwarded-Host on
+		# its own. The application only evaluates them with
+		# PR_SERVER__TRUST_PROXY=true, which the compose file sets.
+		health_uri /healthz
+	}
+
+	# Photos are re-encoded to WebP and are the largest thing that travels
+	# here. The value has to be at least uploads.max_file_size_mb of the
+	# application (15 MB by default), otherwise the upload fails in the proxy
+	# and the interface only sees a broken connection.
+	request_body {
+		max_size 20MB
+	}
+
+	encode zstd gzip
+
+	header {
+		# The application is only reachable over HTTPS; a year is the usual
+		# value. Add "preload" only if the domain is really meant to be
+		# submitted to the preload list.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "same-origin"
+		# The interface is not meant to be embedded anywhere.
+		X-Frame-Options "DENY"
+	}
+
+	log {
+		output stderr
+		format console
+	}
+}

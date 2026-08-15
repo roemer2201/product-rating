@@ -1,0 +1,43 @@
+# product-rating - configuration baked into the container image
+#
+# The image ships this file as /etc/product-rating/config.toml. It differs from
+# config/config.example.toml only where the container needs it to: the data
+# lives in the volume /data and the server listens on every interface of the
+# container network, not on its loopback.
+#
+# To change something, either override single keys with environment variables
+# (PR_<SECTION>__<KEY>, see docker-compose.yml) or copy this file, adjust it and
+# mount it over /etc/product-rating/config.toml. Everything not listed here
+# keeps its built-in default; the full list is in config/config.example.toml.
+
+[server]
+# Inside the container there is nothing else to protect: the port is only
+# reachable through what "docker run -p" or compose publishes, and the compose
+# file publishes it on the loopback of the host.
+host = "0.0.0.0"
+port = 8080
+# Has to match the address the browser uses, otherwise every writing request
+# fails the origin check. Set through PR_SERVER__BASE_URL in docker-compose.yml.
+base_url = "http://127.0.0.1:8080"
+# Enable together with a reverse proxy in front, so client addresses in the log
+# and the login rate limit refer to the real client and not to the proxy.
+trust_proxy = false
+# The built web client, delivered by the server itself.
+static_dir = "/app/web"
+
+[paths]
+database = "/data/db/app.db"
+uploads = "/data/uploads"
+temp = "/data/tmp"
+
+[auth]
+# Created by the entrypoint on first start, with mode 0600, and kept in the
+# volume so it survives a new image.
+secret_file = "/data/secret.env"
+
+[log]
+# Container logs are what the process writes to stdout; a file inside the
+# container would be invisible to "docker logs" and grow unnoticed.
+level = "info"
+format = "json"
+destination = "stdout"

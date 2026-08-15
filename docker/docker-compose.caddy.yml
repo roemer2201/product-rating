@@ -1,0 +1,90 @@
+# product-rating with Caddy in front, which obtains and renews the certificate
+# on its own.
+#
+#   cd docker
+#   PRODUCT_RATING_DOMAIN=produkte.example.org \
+#   PRODUCT_RATING_BASE_URL=https://produkte.example.org \
+#     docker compose -f docker-compose.caddy.yml up -d
+#
+# Requirements for the automatic certificate: the domain resolves to this host
+# and ports 80 and 443 reach it from the internet. For a purely local instance
+# use a domain from a DNS provider Caddy can solve a DNS challenge with, or an
+# internal certificate ("tls internal" in the Caddyfile).
+#
+# The application itself is not published on the host here - only Caddy talks
+# to it, over the internal network of the compose project.
+
+# Project name, so containers, network and volumes are not named after the
+# directory this file happens to live in.
+name: product-rating
+
+services:
+  app:
+    image: product-rating:latest
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: product-rating
+    restart: unless-stopped
+    init: true
+
+    environment:
+      # The public address, and it has to be the one the browser uses:
+      # everything writing is checked against it.
+      PR_SERVER__BASE_URL: ${PRODUCT_RATING_BASE_URL:?set PRODUCT_RATING_BASE_URL, e.g. https://produkte.example.org}
+      # Caddy sets X-Forwarded-For and X-Forwarded-Proto; with this the log and
+      # the login rate limit see the client instead of the proxy.
+      PR_SERVER__TRUST_PROXY: 'true'
+      # First administrator, only evaluated while the instance has no account.
+      BOOTSTRAP_ADMIN_USER: ${BOOTSTRAP_ADMIN_USER:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+
+    volumes:
+      - data:/data
+
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          'fetch(process.env.PRODUCT_RATING_HEALTH_URL).then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))',
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+    security_opt:
+      - no-new-privileges:true
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: product-rating-caddy
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+
+    environment:
+      PRODUCT_RATING_DOMAIN: ${PRODUCT_RATING_DOMAIN:?set PRODUCT_RATING_DOMAIN, e.g. produkte.example.org}
+
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+
+    volumes:
+      - ./Caddyfile.example:/etc/caddy/Caddyfile:ro
+      # Certificates and the account key. Without this volume Caddy asks the
+      # certificate authority again after every restart and runs into its rate
+      # limit.
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  data:
+    name: product-rating-data
+  caddy-data:
+  caddy-config:

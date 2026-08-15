@@ -1,7 +1,7 @@
 import { accessSync, constants, mkdirSync, readFileSync, statSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { ConfigError } from './errors.js';
-import type { AppConfig } from './schema.js';
+import { APP_SHELL, type AppConfig } from './schema.js';
 
 /** Shortest accepted session secret, in characters. */
 export const MIN_SECRET_LENGTH = 32;
@@ -71,9 +71,37 @@ function checkDatabaseFile(path: string): string | null {
 }
 
 /**
+ * Checks the directory with the built web client. Unlike the data directories
+ * it is never created: it comes from the build, so a wrong path is a mistake
+ * in the configuration and not something to paper over with an empty
+ * directory. An empty value means "API only" and is not a problem.
+ */
+function checkStaticDirectory(path: string): string | null {
+  if (path === '') return null;
+
+  try {
+    if (!statSync(path).isDirectory()) {
+      return `server.static_dir: ${path} exists but is not a directory`;
+    }
+  } catch (error) {
+    return `server.static_dir: ${path} cannot be read (${reason(error)})`;
+  }
+
+  try {
+    statSync(join(path, APP_SHELL));
+  } catch {
+    return `server.static_dir: ${path} does not contain ${APP_SHELL}; is the web client built?`;
+  }
+
+  return null;
+}
+
+/**
  * Makes sure database, uploads, temp and — when logging to a file — the log
  * directory exist and are writable. Missing directories are created; anything
  * that cannot be fixed aborts the start-up with the full list of problems.
+ * The frontend directory is checked alongside them, so one start-up reports
+ * every path problem at once.
  */
 export function ensureRuntimeDirectories(config: AppConfig): void {
   const requirements: DirectoryRequirement[] = [
@@ -89,6 +117,7 @@ export function ensureRuntimeDirectories(config: AppConfig): void {
   const problems = [
     ...requirements.map((requirement) => checkDirectory(requirement)),
     checkDatabaseFile(config.paths.database),
+    checkStaticDirectory(config.server.static_dir),
   ].filter((problem): problem is string => problem !== null);
 
   if (problems.length > 0) {
