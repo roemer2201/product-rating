@@ -5,6 +5,61 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-15 – M5: Bewertungen
+
+**Umfang**
+
+- `shared/src/schemas/rating.ts`: `upsertRatingSchema` (ganze Zahl 0–5,
+  optionaler Kommentar bis 1000 Zeichen) und `myRatingsQuerySchema` mit
+  Sortierung, Seitengröße und Cursor. Neue Typen `RatedProduct` und
+  `RatingListPage` in `shared/src/types.ts`.
+- `shared/src/rating.ts`: `roundAverageStars()` und `toRatingSummary()`, damit
+  Produkt- und Bewertungsdienst denselben gerundeten Durchschnitt ausgeben.
+- `shared/src/schemas/sort.ts`: `SORT_ORDERS` als eine Quelle für die
+  Sortierrichtung; `PRODUCT_SORT_ORDERS` verweist darauf.
+- `server/src/services/pagination.ts`: Keyset-Pagination aus M4 herausgelöst –
+  Cursor kodieren, dekodieren, Vergleichsbedingung, Standardrichtung. Produkt-
+  und Bewertungsliste teilen sich jetzt eine Implementierung.
+- `server/src/services/ratings.ts`: Upsert, Löschen, Zusammenfassung je Produkt
+  und die Liste der eigenen Bewertungen.
+- `server/src/routes/ratings.ts`: die drei Routen aus dem Meilenstein, alle
+  hinter `requireUser`.
+- `server/src/db/testing.ts`: `SeedRating` nimmt Zeitstempel entgegen, damit
+  Sortier- und Seitentests nicht von der Ausführungsgeschwindigkeit abhängen.
+- Keine Schemaänderung, also keine neue Migration – `ratings` steht seit M2
+  inklusive `UNIQUE (product_id, user_id)` und `CHECK (stars between 0 and 5)`.
+- 209 Tests grün (22 neue); `lint`, `typecheck`, `format:check` fehlerfrei.
+  Zusätzlich real gegen eine laufende Instanz geprüft: Anlegen mit `201`,
+  Ersetzen mit `200` bei gleichbleibendem `created_at`, geleerter Kommentar,
+  abgelehnte Werte 6 und 2,5, unbekanntes Produkt, fremder Origin, zweites
+  Konto über Einladung, Durchschnitt 2,5 aus 0 und 5 Sternen, Löschen der
+  eigenen Bewertung ohne Wirkung auf die fremde, zweites Löschen mit `404`,
+  `ratings/mine` und ein Cursor aus anderer Sortierung.
+
+**Getroffene Entscheidungen**
+
+| Thema | Entscheidung | Begründung |
+|---|---|---|
+| Adressierung | `PUT/DELETE /products/:id/rating` statt einer eigenen Bewertungs-ID | Die Bewertung ist durch Produkt und Konto eindeutig; eine fremde Bewertung lässt sich so gar nicht ansprechen, statt sie nachträglich abzuweisen |
+| Upsert | Ein `insert … on conflict do update`, danach Rücklesen | Zwei Geräte, die gleichzeitig speichern, würden sonst am eindeutigen Index scheitern; gelesen wird zurück, weil auf dem Konfliktweg ID und `created_at` der vorhandenen Zeile gelten |
+| Statuscode | `201` beim ersten Urteil, `200` beim Ersetzen | Ein `PUT` ist wiederholbar; der Unterschied sagt der Oberfläche, ob eine Bewertung neu entstanden ist |
+| Kommentar | `PUT` ersetzt die Bewertung ganz, ein fehlender Kommentar löscht den alten | Sonst wäre dieselbe Anfrage nicht wiederholbar und ein Kommentar nie zu entfernen |
+| Null Sterne | Gültiger Wert, „nicht bewertet“ ist das Fehlen der Zeile | Null ist ein Urteil; das war schon im Datenmodell so festgelegt |
+| Antwort beim Schreiben | Zusätzlich Durchschnitt und Anzahl des Produkts | Die Detailseite aktualisiert die Zusammenfassung ohne zweite Anfrage |
+| Aggregation | Korrelierte Unterabfragen bleiben, kein `GROUP BY`-Join | Sie laufen über `ratings_product_user_unique` (führende Spalte `product_id`); ein gruppierter Join müsste die ganze Tabelle zusammenzählen, auch beim Nachschlagen eines einzelnen Produkts nach dem Scan |
+| Eigene Liste | Eigene Route statt nur `products?ratedByMe=true` | Nur hier lässt sich nach eigener Sternzahl und Bewertungsdatum sortieren; die Einträge behalten die Produktform, damit die Oberfläche dieselbe Kachel verwenden kann |
+| `total` der eigenen Liste | Direkt aus `ratings` gezählt | Die Liste kennt keine Filter, der Zähler nutzt `ratings_user_id_idx` |
+| Pagination | Gemeinsames Modul für Katalog und Bewertungen | Zwei Kopien derselben Cursor-Logik wären zwei Stellen, an denen ein Sortierwechsel unbemerkt Zeilen überspringt |
+
+**Offen**
+
+- Die API zeigt weiterhin nur Durchschnitt, Anzahl und die eigene Bewertung.
+  Wer im Haushalt was vergeben hat, ist bewusst nicht sichtbar; als
+  Backlog-Punkt vermerkt.
+- Für „Meine Bewertungen“ fehlt die Oberfläche; als Punkt in M8 vermerkt.
+
+---
+
 ## 2026-08-14 – M4: Produkt-API
 
 **Umfang**

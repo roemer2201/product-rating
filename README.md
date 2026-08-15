@@ -161,6 +161,55 @@ Kleinschreibung werden über die Anwendungsfunktion `pr_lower()` verglichen,
 weil SQLites eingebautes `lower()` nur ASCII kennt und „Müller“ sonst nicht auf
 „müller“ passen würde.
 
+### 4.2 Routen zu Bewertungen
+
+Eine Bewertung gehört immer dem angemeldeten Konto. Die Routen sprechen „meine
+Bewertung dieses Produkts“ an – eine fremde Bewertung lässt sich darüber gar
+nicht adressieren, Eigentum wird also nicht nachträglich geprüft.
+
+| Route | Rolle | Zweck |
+|---|---|---|
+| `PUT /api/v1/products/:id/rating` | angemeldet | Eigene Bewertung anlegen oder ersetzen; `201` beim ersten Mal, danach `200` |
+| `DELETE /api/v1/products/:id/rating` | angemeldet | Eigene Bewertung entfernen |
+| `GET /api/v1/ratings/mine` | angemeldet | Eigene Bewertungen mit Sortierung und Cursor-Pagination |
+
+**Körper von `PUT`:** `{ "stars": 0…5, "comment": "…" }`. `stars` ist eine ganze
+Zahl; null Sterne sind ein bewusstes Urteil und keine fehlende Bewertung –
+„nicht bewertet“ drückt sich dadurch aus, dass es keine Bewertung gibt. Der
+Kommentar ist optional und höchstens 1000 Zeichen lang. `PUT` ersetzt die
+Bewertung vollständig, ein weggelassener Kommentar löscht also einen früher
+gespeicherten. Dieselbe Anfrage zweimal hinterlässt denselben einen Datensatz:
+`created_at` bleibt beim ersten Urteil, `updated_at` wandert mit.
+
+Beide schreibenden Routen liefern zusätzlich den neuen Stand des Produkts mit
+(`{ "rating": …, "ratings": { "average": …, "count": … } }`), damit die
+Detailseite die Zusammenfassung ohne zweite Anfrage aktualisieren kann.
+
+**Parameter von `GET /api/v1/ratings/mine`:**
+
+| Parameter | Werte | Bedeutung |
+|---|---|---|
+| `sort` | `rated`, `stars`, `name` | Standard `rated`, also wann zuletzt bewertet wurde |
+| `order` | `asc`, `desc` | Standard: `asc` bei `name`, sonst `desc` |
+| `limit` | 1–100 | Standard 25 |
+| `cursor` | Zeichenkette | `nextCursor` der vorherigen Seite |
+
+Die Antwort ist `{ ratings, nextCursor, total }`. Jeder Eintrag ist das ganze
+Produkt samt eigener Bewertung und Gesamtdurchschnitt, sodass sich dieselbe
+Kachel wie im Katalog verwenden lässt. Gegenüber
+`GET /api/v1/products?ratedByMe=true` kann diese Route zusätzlich nach der
+eigenen Sternzahl und dem Bewertungsdatum sortieren; der Cursor arbeitet wie
+beim Katalog über (Sortierwert, ID).
+
+**Aggregation.** Durchschnitt und Anzahl reisen als korrelierte Unterabfragen
+mit der Produktzeile mit – eine Abfrage für die ganze Liste, kein Nachladen je
+Produkt. Beide laufen über den Index `ratings_product_user_unique`, dessen
+führende Spalte `product_id` ist, und lesen damit nur die Bewertungen des
+jeweiligen Produkts. Ein `GROUP BY` über die gesamte Tabelle wäre in der Liste
+gleich schnell, müsste aber auch dann alles zusammenzählen, wenn nur ein
+einzelnes Produkt gefragt ist – und genau das ist die häufigste Anfrage nach
+einem Scan.
+
 ### TLS ist Pflicht, nicht optional
 
 iOS gibt `getUserMedia` – und damit den Live-Kamera-Scanner – nur in einem

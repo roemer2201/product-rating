@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { normaliseEan } from '../ean.js';
+import { SORT_ORDERS, type SortOrder } from './sort.js';
 
 /**
  * Validation schemas for the shared product catalogue.
@@ -24,8 +25,8 @@ export const PRODUCT_LIST_MAX_LIMIT = 100;
 export const PRODUCT_SORT_FIELDS = ['name', 'created', 'updated', 'rating'] as const;
 export type ProductSortField = (typeof PRODUCT_SORT_FIELDS)[number];
 
-export const PRODUCT_SORT_ORDERS = ['asc', 'desc'] as const;
-export type ProductSortOrder = (typeof PRODUCT_SORT_ORDERS)[number];
+export const PRODUCT_SORT_ORDERS = SORT_ORDERS;
+export type ProductSortOrder = SortOrder;
 
 /**
  * Any of the three accepted symbologies, normalised to thirteen digits. The

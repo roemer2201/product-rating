@@ -8,6 +8,7 @@ import { registerErrorHandler } from './plugins/errorHandler.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerInviteRoutes } from './routes/invites.js';
 import { registerProductRoutes } from './routes/products.js';
+import { registerRatingRoutes } from './routes/ratings.js';
 import { registerUserRoutes } from './routes/users.js';
 import { RateLimiter } from './services/rateLimit.js';
 
@@ -66,6 +67,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   registerInviteRoutes(app);
   registerUserRoutes(app);
   registerProductRoutes(app);
+  registerRatingRoutes(app);
 
   if (options.sessionCleanup !== false) {
     // Expired sessions are swept at start-up and once a day afterwards. The

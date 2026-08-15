@@ -1,16 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { and, asc, desc, eq, or, sql, type SQL } from 'drizzle-orm';
 import { alias, type SQLiteColumn } from 'drizzle-orm/sqlite-core';
-import { z } from 'zod';
 import {
-  PRODUCT_SORT_FIELDS,
-  PRODUCT_SORT_ORDERS,
+  toRatingSummary,
   type CreateProductInput,
   type Product,
   type ProductListPage,
   type ProductListQuery,
   type ProductSortField,
-  type ProductSortOrder,
   type ProductWithRatings,
   type Rating,
   type UpdateProductInput,
@@ -25,7 +22,14 @@ import {
   type ProductRow,
   type RatingRow,
 } from '../db/index.js';
-import { ConflictError, NotFoundError, ValidationError } from './errors.js';
+import { ConflictError, NotFoundError } from './errors.js';
+import {
+  decodeCursor,
+  defaultOrderFor,
+  encodeCursor,
+  keysetCondition,
+  type CursorKey,
+} from './pagination.js';
 
 /**
  * The shared product catalogue.
@@ -44,9 +48,21 @@ import { ConflictError, NotFoundError, ValidationError } from './errors.js';
  * The caller's own rating, joined under its own name. Without the alias the
  * correlated subqueries below would resolve `ratings` to the joined row and
  * report the caller's rating as the average.
+ *
+ * Exported because the list of own ratings (`services/ratings.ts`) sorts by the
+ * caller's stars and rating date and needs the very same join to do so.
  */
-const ownRatings = alias(ratings, 'own_rating');
+export const ownRatings = alias(ratings, 'own_rating');
 
+/**
+ * Average and count per product as correlated subqueries.
+ *
+ * Both run against `ratings_product_user_unique`, whose leading column is
+ * `product_id`, so each one is an index lookup over the few rows of that
+ * product rather than a table scan. A grouped join would compute the aggregate
+ * for the whole table even when a single product is asked for — which is
+ * exactly the request the scanner makes most often.
+ */
 const averageExpression = sql<number | null>`(
   select avg(${ratings.stars}) from ${ratings} where ${ratings.productId} = ${products.id}
 )`;
@@ -66,7 +82,7 @@ const primaryPhotoExpression = sql<string | null>`(
 /** Average of an unrated product, used where SQL cannot sort or compare NULL. */
 const UNRATED_SORT_VALUE = -1;
 
-interface ProductQueryRow {
+export interface ProductQueryRow {
   product: ProductRow;
   own: RatingRow | null;
   average: number | null;
@@ -99,21 +115,17 @@ export function toPublicRating(row: RatingRow): Rating {
   };
 }
 
-function toProductWithRatings(row: ProductQueryRow): ProductWithRatings {
+export function toProductWithRatings(row: ProductQueryRow): ProductWithRatings {
   return {
     ...toPublicProduct(row.product),
     ownRating: row.own === null ? null : toPublicRating(row.own),
-    ratings: {
-      // Two decimals are as much as five stars can meaningfully carry.
-      average: row.average === null ? null : Math.round(row.average * 100) / 100,
-      count: row.ratingCount,
-    },
+    ratings: toRatingSummary(row.average, row.ratingCount),
     primaryPhotoId: row.primaryPhotoId,
   };
 }
 
 /** Selects products together with the caller's rating and the aggregates. */
-function selectProducts(db: DbHandle, userId: string) {
+export function selectProducts(db: DbHandle, userId: string) {
   return db
     .select({
       product: products,
@@ -327,9 +339,6 @@ function filterConditions(query: ProductListQuery): SQL[] {
 
 /* --------------------------------------------------------------- ordering */
 
-/** The value a page is cut at, per sort field. */
-type CursorKey = string | number;
-
 function sortExpression(sort: ProductSortField): SQLiteColumn | SQL {
   switch (sort) {
     case 'name':
@@ -356,72 +365,6 @@ function cursorKeyOf(row: ProductQueryRow, sort: ProductSortField): CursorKey {
   }
 }
 
-/**
- * Keyset condition for everything after the cursor.
- *
- * The identifier breaks ties in ascending direction regardless of the sort
- * order, which is exactly how the `ORDER BY` below is built — otherwise rows
- * sharing a name or a rating could appear twice or not at all.
- */
-function keysetCondition(sort: ProductSortField, order: ProductSortOrder, cursor: Cursor): SQL {
-  const expression = sortExpression(sort);
-  const comparison =
-    order === 'asc' ? sql`${expression} > ${cursor.key}` : sql`${expression} < ${cursor.key}`;
-
-  return sql`(${comparison} or (${expression} = ${cursor.key} and ${products.id} > ${cursor.id}))`;
-}
-
-interface Cursor {
-  key: CursorKey;
-  id: string;
-}
-
-const cursorSchema = z.object({
-  s: z.enum(PRODUCT_SORT_FIELDS),
-  o: z.enum(PRODUCT_SORT_ORDERS),
-  k: z.union([z.string(), z.number()]),
-  i: z.string().min(1),
-});
-
-/**
- * Cursors carry the sorting they were produced with. Changing sort or order
- * mid-scroll would otherwise silently skip or repeat products.
- */
-export function encodeCursor(
-  sort: ProductSortField,
-  order: ProductSortOrder,
-  cursor: Cursor,
-): string {
-  const payload = JSON.stringify({ s: sort, o: order, k: cursor.key, i: cursor.id });
-  return Buffer.from(payload, 'utf8').toString('base64url');
-}
-
-export function decodeCursor(
-  value: string,
-  sort: ProductSortField,
-  order: ProductSortOrder,
-): Cursor {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8'));
-  } catch {
-    throw new ValidationError('cursor is not readable', { field: 'cursor' });
-  }
-
-  const result = cursorSchema.safeParse(parsed);
-  if (!result.success) throw new ValidationError('cursor is not readable', { field: 'cursor' });
-  if (result.data.s !== sort || result.data.o !== order) {
-    throw new ValidationError('cursor belongs to a different sorting', { field: 'cursor' });
-  }
-
-  return { key: result.data.k, id: result.data.i };
-}
-
-/** Ascending for names, newest and best first for everything else. */
-export function defaultOrderFor(sort: ProductSortField): ProductSortOrder {
-  return sort === 'name' ? 'asc' : 'desc';
-}
-
 /* ------------------------------------------------------------------- list */
 
 export function listProducts(
@@ -444,12 +387,13 @@ export function listProducts(
       .where(and(...filters))
       .get()?.value ?? 0;
 
+  const expression = sortExpression(sort);
   const pageFilters = [...filters];
   if (query.cursor !== undefined) {
-    pageFilters.push(keysetCondition(sort, order, decodeCursor(query.cursor, sort, order)));
+    const cursor = decodeCursor(query.cursor, sort, order);
+    pageFilters.push(keysetCondition(expression, order, products.id, cursor));
   }
 
-  const expression = sortExpression(sort);
   const rows = selectProducts(db, userId)
     .where(and(...pageFilters))
     .orderBy(order === 'asc' ? asc(expression) : desc(expression), asc(products.id))

@@ -108,3 +108,21 @@ export interface ProductListPage {
   /** Number of products matching the filters, across all pages. */
   total: number;
 }
+
+/**
+ * A product the caller has rated. Same shape as everywhere else in the product
+ * list, only with the guarantee that `ownRating` is present — the list of own
+ * ratings cannot contain anything else.
+ */
+export interface RatedProduct extends ProductWithRatings {
+  ownRating: Rating;
+}
+
+/** One page of the caller's own ratings, paged like the product list. */
+export interface RatingListPage {
+  ratings: RatedProduct[];
+  /** Pass back as `cursor` to get the next page; `null` on the last one. */
+  nextCursor: string | null;
+  /** Number of own ratings across all pages. */
+  total: number;
+}
