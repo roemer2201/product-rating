@@ -72,9 +72,12 @@ mindestens 44 Pixel hoch, Ränder über `env(safe-area-inset-*)`.
 | Adresse | Ansicht |
 |---|---|
 | `/` | Katalog – Produktliste mit Suche, Filtern und Thumbnails |
-| `/scan` | Scanner, primäre Aktion |
+| `/scan` | Scanner, primäre Aktion; darunter die Eingabe von Hand |
+| `/products/new?ean=…` | Anlegeformular mit vorbelegter EAN |
+| `/products/:id` | Produkt: Foto, Durchschnitt, eigene Bewertung, Bearbeiten, Löschen |
 | `/ratings` | Eigene Bewertungen |
-| `/settings` | Passwort, eigene Sitzungen, Adminbereich |
+| `/settings` | Konto, Passwort, eigene Sitzungen, Abmelden |
+| `/admin` | Nutzer und Einladungen (nur Administratoren) |
 | `/login`, `/register` | Anmeldung und Registrierung mit Einladungscode |
 
 Die Adressen sind wie der übrige Code englisch; deutsch ist ausschließlich, was
@@ -105,6 +108,30 @@ der Anmeldemaske statt vor einem Schirm voller fehlschlagender Anfragen.
 gemeinsamen Katalog (jemand anderes im Haushalt kann etwas geändert haben), eine
 Minute für die eigenen Bewertungen. Eine wegen falscher Eingabe abgelehnte
 Anfrage wird nicht wiederholt, eine abgerissene Verbindung schon.
+
+**Scanner.** `web/src/lib/scanner.ts` kapselt Kamera und Decoder. Gelesen werden
+nur EAN-13, EAN-8 und UPC-A; UPC-E bleibt bewusst außen vor, weil es als acht
+Ziffern ankommt, die *keine* gültige EAN-8 sind. Das WebAssembly-Modul liegt im
+eigenen Bundle und wird niemals von einem CDN geladen – die App macht im Betrieb
+keine ausgehenden Anfragen. Geladen wird es erst beim Start der Kamera
+(dynamischer Import, eigener Chunk), damit die übrigen Ansichten das gute
+Megabyte nicht mitbezahlen. Jeder gelesene Code läuft anschließend noch durch
+`normaliseEan()`: der Katalog speichert ausschließlich, was die eigene
+Prüfung akzeptiert.
+
+Die Kamera startet nicht von selbst, sondern auf Tastendruck – sie kostet Akku
+und schaltet die Anzeigeleuchte des Telefons ein. Jeder Grund, aus dem sie
+ausfällt, hat einen eigenen Satz: fehlendes HTTPS, verweigerte Berechtigung,
+keine Kamera, Kamera belegt. Die Eingabe von Hand steht immer daneben, nicht
+erst hinter einem Fehler.
+
+**Fotos.** Vor dem Upload verkleinert der Browser das Bild auf 2048 Pixel
+Kantenlänge (`web/src/lib/image.ts`) – ein iPhone-Foto von vier Megabyte über
+eine Mobilverbindung zu schicken, damit der Server neun Zehntel davon wegwirft,
+ist Wartezeit für nichts. Das ist eine Höflichkeit, keine Prüfung: kann der
+Browser das Format nicht dekodieren (HEIC außerhalb von Safari), geht das
+Original hoch und `sharp` erledigt es. Der Fortschrittsbalken braucht
+`XMLHttpRequest`; `fetch` kann den Fortschritt eines Requestbodys nicht melden.
 
 ---
 
@@ -172,6 +199,7 @@ vorbehalten, weil es fremde Bewertungen und Fotos mitnimmt.
 | `POST /api/v1/products` | angemeldet | Produkt anlegen; belegte EAN → `409` mit `details.productId` |
 | `GET /api/v1/products` | angemeldet | Liste mit Suche, Filtern, Sortierung und Cursor-Pagination |
 | `GET /api/v1/products/by-ean/:ean` | angemeldet | Nachschlagen nach dem Scan |
+| `GET /api/v1/products/categories` | angemeldet | Bereits verwendete Kategorien als Vorschlagsliste |
 | `GET /api/v1/products/:id` | angemeldet | Produkt inklusive eigener Bewertung, Durchschnitt und Anzahl |
 | `PATCH /api/v1/products/:id` | angemeldet | Name, Marke, Kategorie oder Notizen ändern |
 | `DELETE /api/v1/products/:id` | admin | Produkt samt Bewertungen und Fotos entfernen |

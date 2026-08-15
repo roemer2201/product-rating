@@ -40,10 +40,13 @@ export function mockFetch(routes: readonly FetchRoute[]): Mock {
     }
 
     const status = route.status ?? 200;
+    const body = route.body ?? {};
     return Promise.resolve({
       ok: status >= 200 && status < 300,
       status,
-      json: () => Promise.resolve(route.body ?? {}),
+      json: () => Promise.resolve(body),
+      // Failures are read as text and parsed by the client, so both are needed.
+      text: () => Promise.resolve(JSON.stringify(body)),
     } as Response);
   });
 

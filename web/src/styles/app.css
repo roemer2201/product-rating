@@ -353,20 +353,6 @@ a {
   color: var(--color-text-muted);
 }
 
-.placeholder {
-  padding: var(--space-5) var(--space-4);
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  color: var(--color-text-muted);
-  text-align: center;
-}
-
-.placeholder__note {
-  margin-top: var(--space-2);
-  font-size: 0.8125rem;
-}
-
 .spinner {
   width: 1.75rem;
   height: 1.75rem;
@@ -386,4 +372,586 @@ a {
   .spinner {
     animation-duration: 3s;
   }
+}
+
+/* --- Sections within a screen --------------------------------------------- */
+
+.section {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.section__title {
+  margin-bottom: var(--space-1);
+  font-size: 1.0625rem;
+  font-weight: 650;
+}
+
+.section__intro {
+  margin-bottom: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: 0.9375rem;
+}
+
+.form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin-top: var(--space-2);
+}
+
+.field__input--multiline {
+  min-height: 5rem;
+  padding: var(--space-2) var(--space-3);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.field__input--select {
+  /* Safari otherwise draws its own height and ignores the tap target. */
+  appearance: none;
+  padding-right: var(--space-5);
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentcolor 50%),
+    linear-gradient(135deg, currentcolor 50%, transparent 50%);
+  background-position:
+    calc(100% - 1rem) 55%,
+    calc(100% - 0.7rem) 55%;
+  background-size: 0.3rem 0.3rem;
+  background-repeat: no-repeat;
+}
+
+.checkbox {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  min-height: var(--tap-target);
+  font-size: 0.9375rem;
+}
+
+.checkbox input {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--color-accent);
+}
+
+.button__icon {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.button--danger {
+  border-color: transparent;
+  color: var(--color-danger);
+}
+
+.button--danger.button:not(.button--quiet) {
+  border-color: var(--color-danger);
+}
+
+.danger-zone {
+  margin-top: var(--space-5);
+  padding: var(--space-4);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+}
+
+.danger-zone .section__title,
+.danger-zone .section__intro {
+  color: var(--color-danger);
+}
+
+/* --- Scanner -------------------------------------------------------------- */
+
+.scanner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.scanner__stage {
+  position: relative;
+  overflow: hidden;
+  /* Roughly the shape a barcode is held in; keeps the page from jumping when
+     the stream starts. */
+  aspect-ratio: 4 / 3;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: #000;
+}
+
+.scanner__video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.scanner__idle {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+}
+
+.scanner__idle-icon {
+  width: 3rem;
+  height: 3rem;
+}
+
+/* The band the decoder actually looks at, drawn where it really is. */
+.scanner__frame {
+  position: absolute;
+  top: 27.5%;
+  right: 10%;
+  bottom: 27.5%;
+  left: 10%;
+  border: 2px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 0 100vmax rgb(0 0 0 / 35%);
+}
+
+.scanner__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.scanner__cameras {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* --- Stars ---------------------------------------------------------------- */
+
+.stars-display {
+  color: var(--color-star);
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.stars {
+  display: flex;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+.stars__option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--tap-target);
+  min-height: var(--tap-target);
+  border-radius: var(--radius-md);
+  color: var(--color-star);
+  font-size: 1.75rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.stars__option--zero {
+  color: var(--color-text-muted);
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.stars__option--checked {
+  background: var(--color-accent-soft);
+}
+
+/* Hidden but focusable: the ring has to show up on the label around it. */
+.stars__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.stars__input:focus-visible + .stars__glyph {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+
+/* --- Product list --------------------------------------------------------- */
+
+.list-total {
+  margin: var(--space-3) 0 var(--space-2);
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+
+.product-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.product-card__link {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: inherit;
+  text-decoration: none;
+}
+
+.product-card__thumb {
+  flex: none;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  object-fit: cover;
+}
+
+.product-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.product-card__name {
+  font-weight: 600;
+}
+
+.product-card__brand,
+.product-card__average,
+.product-card__unrated,
+.product-card__comment {
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+
+.product-card__name,
+.product-card__brand,
+.product-card__comment {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.product-card__rating {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+  font-size: 0.875rem;
+}
+
+.load-more {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-4) 0;
+}
+
+/* --- Product detail ------------------------------------------------------- */
+
+.product__photo {
+  display: block;
+  width: 100%;
+  max-height: 60vh;
+  margin-bottom: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-muted);
+  object-fit: contain;
+}
+
+.product__photo--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 4 / 3;
+  color: var(--color-text-muted);
+}
+
+.product__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.product__fact dt {
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+
+.product__fact dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.product__ean,
+.product__meta {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.product__ean-label {
+  font-weight: 600;
+}
+
+.product__notes {
+  white-space: pre-wrap;
+}
+
+/* --- Photos --------------------------------------------------------------- */
+
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.photo-grid__image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  object-fit: cover;
+}
+
+.photo-grid__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.photo-upload {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.photo-upload__preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.photo-upload__image {
+  display: block;
+  width: 100%;
+  max-height: 16rem;
+  border-radius: var(--radius-md);
+  object-fit: contain;
+}
+
+.photo-upload__progress {
+  width: 100%;
+  height: 0.5rem;
+  accent-color: var(--color-accent);
+}
+
+/* --- Badges, sessions, administration ------------------------------------- */
+
+.badge {
+  display: inline-flex;
+  gap: 0.25rem;
+  align-items: center;
+  margin-left: var(--space-2);
+  padding: 0.125rem var(--space-2);
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+.badge__icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.badge--primary,
+.badge--open {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.badge--expired,
+.badge--used {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.session-list,
+.admin-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.session,
+.admin-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.session__body,
+.admin-row__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.session__device,
+.admin-row__name {
+  font-weight: 600;
+}
+
+.session__meta,
+.admin-row__meta,
+.admin-row__note {
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+
+.admin-row__code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9375rem;
+  letter-spacing: 0.05em;
+}
+
+.admin-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+/* --- Filters -------------------------------------------------------------- */
+
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.filters__row {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.filters__row > * {
+  flex: 1;
+  min-width: 0;
+}
+
+/* --- Empty states and skeletons ------------------------------------------- */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-6) var(--space-4);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.skeleton-card {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.skeleton-card__lines {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.skeleton-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.skeleton {
+  display: block;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.skeleton--thumb {
+  width: 3.5rem;
+  height: 3.5rem;
+  flex: none;
+}
+
+.skeleton--line {
+  height: 0.75rem;
+}
+
+.skeleton--short {
+  width: 55%;
+}
+
+.skeleton--image {
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-lg);
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
+
+/* An action of an administration row that needs a field of its own. */
+.admin-row__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
 }

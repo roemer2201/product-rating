@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { api, buildQuery, errorMessage, isApiError, type ApiError } from '@/lib/api';
 import { strings } from '@/lib/strings';
 import { mockFetch, testUser } from '@/testing/fetchMock';
+import { mockUpload } from '@/testing/xhrMock';
 
 describe('buildQuery', () => {
   it('leaves out what is not set', () => {
@@ -65,17 +66,72 @@ describe('request', () => {
     expect(init.body).toBeUndefined();
     expect((init.headers as Record<string, string>)['content-type']).toBeUndefined();
   });
+});
 
-  it('sends the upload as multipart without setting the type itself', async () => {
-    const fetchMock = mockFetch([{ path: '/photos', method: 'POST', body: { photo: {} } }]);
+describe('photo upload', () => {
+  it('sends multipart without setting the type itself', async () => {
+    const upload = mockUpload();
 
-    await api.photos.upload('p1', new Blob(['x'], { type: 'image/jpeg' }), 'IMG_4711.HEIC');
+    const pending = api.photos.upload('p1', new Blob(['x'], { type: 'image/jpeg' }), {
+      filename: 'IMG_4711.HEIC',
+    });
+    upload().respond(201, { photo: { id: 'ph1' } });
 
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('/api/v1/products/p1/photos');
-    expect(init.body).toBeInstanceOf(FormData);
+    await expect(pending).resolves.toEqual({ photo: { id: 'ph1' } });
+    expect(upload().method).toBe('POST');
+    expect(upload().url).toBe('/api/v1/products/p1/photos');
+    expect(upload().body).toBeInstanceOf(FormData);
     // The boundary is the browser's job; a hand written header would break it.
-    expect((init.headers as Record<string, string>)['content-type']).toBeUndefined();
+    expect(upload().headers['content-type']).toBeUndefined();
+  });
+
+  it('reports progress as a share of the body', async () => {
+    const upload = mockUpload();
+    const seen: number[] = [];
+
+    const pending = api.photos.upload('p1', new Blob(['x']), {
+      onProgress: (fraction) => seen.push(fraction),
+    });
+
+    upload().emitProgress(50, 200);
+    upload().emitProgress(200, 200);
+    upload().respond(201, { photo: {} });
+    await pending;
+
+    expect(seen).toEqual([0.25, 1]);
+  });
+
+  it('translates a rejected upload like any other failure', async () => {
+    const upload = mockUpload();
+
+    const pending = api.photos.upload('p1', new Blob(['x']));
+    upload().respond(413, { error: { code: 'payload_too_large', message: 'too big' } });
+
+    const error = await pending.catch((thrown: unknown) => thrown);
+    expect((error as ApiError).status).toBe(413);
+    expect((error as ApiError).message).toBe(strings.errors.tooLarge);
+  });
+
+  it('turns a broken connection during the upload into a network error', async () => {
+    const upload = mockUpload();
+
+    const pending = api.photos.upload('p1', new Blob(['x']));
+    upload().fail();
+
+    const error = await pending.catch((thrown: unknown) => thrown);
+    expect((error as ApiError).isNetworkError).toBe(true);
+  });
+
+  it('aborts when the signal is aborted', async () => {
+    const upload = mockUpload();
+    const controller = new AbortController();
+
+    const pending = api.photos.upload('p1', new Blob(['x']), { signal: controller.signal });
+    controller.abort();
+
+    const error = await pending.catch((thrown: unknown) => thrown);
+    expect((error as DOMException).name).toBe('AbortError');
+    expect(upload().aborted).toBe(true);
   });
 });
 
@@ -165,13 +221,14 @@ describe('ApiError', () => {
   });
 
   it('survives an answer that is not JSON', async () => {
+    // A reverse proxy answering with its own HTML error page.
     vi.stubGlobal(
       'fetch',
       vi.fn(() =>
         Promise.resolve({
           ok: false,
           status: 502,
-          json: () => Promise.reject(new SyntaxError('Unexpected token <')),
+          text: () => Promise.resolve('<html><body>Bad Gateway</body></html>'),
         } as unknown as Response),
       ),
     );

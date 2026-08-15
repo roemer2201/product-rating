@@ -1,9 +1,10 @@
+import type { ReactNode } from 'react';
 import { strings } from '@/lib/strings';
 
 /**
- * The three shapes every screen needs while it waits, fails or has nothing to
- * show. Collected here so a spinner looks the same everywhere and no screen
- * invents its own wording for "please try again".
+ * The shapes every screen needs while it waits, fails or has nothing to show.
+ * Collected here so a spinner looks the same everywhere and no screen invents
+ * its own wording for "please try again".
  */
 
 interface LoadingScreenProps {
@@ -58,23 +59,68 @@ export function ErrorScreen({ message, onRetry }: ErrorScreenProps) {
   );
 }
 
-interface PagePlaceholderProps {
-  title: string;
+interface EmptyStateProps {
   text: string;
+  /** The one thing worth doing from here, if there is one. */
+  action?: ReactNode;
+}
+
+/** A list with nothing in it. Says why, and where to go instead. */
+export function EmptyState({ text, action }: EmptyStateProps) {
+  return (
+    <div className="empty-state">
+      <p>{text}</p>
+      {action}
+    </div>
+  );
+}
+
+interface SkeletonListProps {
+  /** How many rows to draw; match what the real list usually shows. */
+  rows?: number;
 }
 
 /**
- * A screen whose function follows in M8. Having them now keeps every entry of
- * the navigation on a real route instead of a dead link.
+ * The shape of a list before its data arrives.
+ *
+ * A skeleton rather than a spinner for lists: the page does not jump when the
+ * rows appear, which on a phone is the difference between reading and losing
+ * your place. It is hidden from assistive technology and accompanied by a
+ * status message — an outline of grey boxes has nothing to say out loud.
  */
-export function PagePlaceholder({ title, text }: PagePlaceholderProps) {
+export function SkeletonList({ rows = 3 }: SkeletonListProps) {
   return (
-    <section>
-      <h1 className="page__title">{title}</h1>
-      <div className="placeholder">
-        <p>{text}</p>
-        <p className="placeholder__note">{strings.placeholder.note}</p>
+    <>
+      <p className="visually-hidden" role="status">
+        {strings.common.loading}
+      </p>
+      <ul className="skeleton-list" aria-hidden="true">
+        {Array.from({ length: rows }, (_entry, index) => (
+          <li className="skeleton-card" key={index}>
+            <span className="skeleton skeleton--thumb" />
+            <span className="skeleton-card__lines">
+              <span className="skeleton skeleton--line" />
+              <span className="skeleton skeleton--line skeleton--short" />
+            </span>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+/** The same idea for a single block of content, e.g. a detail screen. */
+export function SkeletonBlock() {
+  return (
+    <>
+      <p className="visually-hidden" role="status">
+        {strings.common.loading}
+      </p>
+      <div className="skeleton-block" aria-hidden="true">
+        <span className="skeleton skeleton--image" />
+        <span className="skeleton skeleton--line" />
+        <span className="skeleton skeleton--line skeleton--short" />
       </div>
-    </section>
+    </>
   );
 }
