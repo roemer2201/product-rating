@@ -84,8 +84,9 @@ npm run build            # Produktions-Bundle
 npm start                # gebauten Server starten
 ```
 
-Noch nicht vorhanden, kommen mit dem jeweiligen Meilenstein: `npm run migrate`
-und `npm run db:generate` (M2), `npm run package:deb` (M11).
+Dazu `npm run migrate` und `npm run db:generate` (seit M2) sowie
+`npm run fsck -- --uploads` (seit M6). Noch nicht vorhanden, kommt mit dem
+jeweiligen Meilenstein: `npm run package:deb` (M11).
 
 Vor jedem Commit mindestens `npm run lint`, `npm run typecheck` und `npm test`
 laufen lassen und Fehlschläge berichten, nicht stillschweigend übergehen.

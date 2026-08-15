@@ -243,9 +243,9 @@ export interface DeletedProduct {
   /** Ratings removed along with the product, for the log. */
   removedRatings: number;
   /**
-   * Photo rows removed by the cascade. Their files still have to go; the
-   * upload layout only exists from M6 on, which is where the caller deletes
-   * them.
+   * Photo rows removed by the cascade. Their files are not the database's
+   * business, so the caller hands them to `removePhotoFiles()` once the
+   * deletion has gone through.
    */
   removedPhotos: PhotoRow[];
 }

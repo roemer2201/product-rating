@@ -38,8 +38,12 @@ temp = "/var/lib/product-rating/tmp"
 # Maximale Größe je hochgeladenem Bild. Achtung: Der Reverse Proxy braucht ein
 # passendes Limit (nginx client_max_body_size, Apache LimitRequestBody).
 max_file_size_mb = 15
+# Akzeptierte Eingangsformate. Geprüft wird das Format, das der Server in den
+# Bytes findet, nicht die Angabe des Clients. "image/heic" deckt auch
+# "image/heif" ab; beides ist derselbe Container.
 allowed_mime = ["image/jpeg", "image/png", "image/webp", "image/heic"]
-# Kantenlängen der serverseitig erzeugten Varianten in Pixeln.
+# Kantenlängen der serverseitig erzeugten Varianten in Pixeln. Geschrieben wird
+# immer WebP, das Original wird nicht aufbewahrt.
 thumbnail_px = 400
 detail_px = 1600
 # EXIF-Daten (inklusive GPS-Position) beim Re-Encoding entfernen.

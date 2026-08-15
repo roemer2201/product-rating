@@ -72,7 +72,11 @@ export interface Rating {
   updatedAt: string;
 }
 
-/** A photo belonging to a product, owned by the user who uploaded it. */
+/**
+ * A photo belonging to a product, owned by the user who uploaded it. The path
+ * on disk is deliberately absent: images are only reachable through
+ * `GET /api/v1/media/:id`, never as a direct link into the web root.
+ */
 export interface Photo {
   id: string;
   productId: string;
@@ -95,6 +99,17 @@ export interface ProductWithRatings extends Product {
   ownRating: Rating | null;
   ratings: RatingSummary;
   primaryPhotoId: string | null;
+}
+
+/**
+ * A single product as the detail page needs it: everything the list carries,
+ * plus its photos. The list deliberately stays with `primaryPhotoId` alone —
+ * one card shows one image, and reading every photo row of every product would
+ * be paid for on each page.
+ */
+export interface ProductDetail extends ProductWithRatings {
+  /** Primary photo first, oldest first after that. */
+  photos: Photo[];
 }
 
 /**

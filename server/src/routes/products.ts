@@ -5,10 +5,12 @@ import {
   productListQuerySchema,
   updateProductSchema,
   type Product,
+  type ProductDetail,
   type ProductListPage,
   type ProductWithRatings,
 } from '@product-rating/shared';
 import { currentUser } from '../plugins/auth.js';
+import { productPhotos, removePhotoFiles } from '../services/photos.js';
 import {
   createProduct,
   deleteProduct,
@@ -25,6 +27,15 @@ import {
  * may add and correct products. Deleting is reserved for administrators,
  * because it takes other people's ratings and photos with it.
  */
+
+/**
+ * Adds the photo rows to a single product. The list deliberately stays without
+ * them and carries `primaryPhotoId` alone — a card shows one image, and reading
+ * every photo of every product would be paid for on each page.
+ */
+function withPhotos(app: FastifyInstance, product: ProductWithRatings): ProductDetail {
+  return { ...product, photos: productPhotos(app.db, product.id) };
+}
 
 export function registerProductRoutes(app: FastifyInstance): void {
   app.post('/api/v1/products', { preHandler: app.requireUser }, async (request, reply) => {
@@ -52,7 +63,7 @@ export function registerProductRoutes(app: FastifyInstance): void {
     async (request) => {
       const ean = eanSchema.parse(request.params.ean);
       const product = getProductByEan(app.db, currentUser(request).id, ean);
-      return { product: product satisfies ProductWithRatings };
+      return { product: withPhotos(app, product) };
     },
   );
 
@@ -61,7 +72,7 @@ export function registerProductRoutes(app: FastifyInstance): void {
     { preHandler: app.requireUser },
     async (request) => {
       const product = getProduct(app.db, currentUser(request).id, request.params.id);
-      return { product: product satisfies ProductWithRatings };
+      return { product: withPhotos(app, product) };
     },
   );
 
@@ -86,6 +97,11 @@ export function registerProductRoutes(app: FastifyInstance): void {
       const admin = currentUser(request);
       const removed = deleteProduct(app.db, request.params.id);
 
+      // The cascade takes the photo rows, not their files. Deleting them after
+      // the transaction is the safe order: a leftover file is litter `fsck`
+      // reports, a file deleted before a failed transaction would be gone.
+      const files = await removePhotoFiles(app.config, removed.removedPhotos);
+
       request.log.info(
         {
           productId: removed.product.id,
@@ -93,6 +109,7 @@ export function registerProductRoutes(app: FastifyInstance): void {
           by: admin.id,
           ratings: removed.removedRatings,
           photos: removed.removedPhotos.length,
+          files,
         },
         'product deleted',
       );

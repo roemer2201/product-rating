@@ -1,4 +1,5 @@
 import cookie from '@fastify/cookie';
+import multipart from '@fastify/multipart';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import type { AppConfig } from './config/index.js';
 import type { AppDatabase } from './db/index.js';
@@ -7,6 +8,7 @@ import { registerCsrfGuard } from './plugins/csrf.js';
 import { registerErrorHandler } from './plugins/errorHandler.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerInviteRoutes } from './routes/invites.js';
+import { registerPhotoRoutes } from './routes/photos.js';
 import { registerProductRoutes } from './routes/products.js';
 import { registerRatingRoutes } from './routes/ratings.js';
 import { registerUserRoutes } from './routes/users.js';
@@ -44,8 +46,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   const app = Fastify({
     logger: options.logger ?? false,
     trustProxy: config.server.trust_proxy,
-    // JSON bodies only; photo uploads get their own limit from
-    // `uploads.max_file_size_mb` once multipart handling lands in M6.
+    // Applies to JSON bodies only. Photo uploads go through the multipart
+    // plugin below, which enforces `uploads.max_file_size_mb` on its own.
     bodyLimit: 1024 * 1024,
   });
 
@@ -54,6 +56,18 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   app.decorate('loginLimiter', new RateLimiter(config.auth.login_rate_limit_per_minute));
 
   await app.register(cookie, { secret });
+
+  // One file per request, and the size limit stops the stream instead of
+  // letting a huge upload be read into memory first. The reverse proxy has to
+  // allow at least as much (`client_max_body_size`, `LimitRequestBody`).
+  await app.register(multipart, {
+    limits: {
+      fileSize: config.uploads.max_file_size_mb * 1024 * 1024,
+      files: 1,
+      fields: 4,
+    },
+    throwFileSizeLimit: true,
+  });
 
   registerErrorHandler(app);
   registerCsrfGuard(app);
@@ -68,6 +82,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   registerUserRoutes(app);
   registerProductRoutes(app);
   registerRatingRoutes(app);
+  registerPhotoRoutes(app);
 
   if (options.sessionCleanup !== false) {
     // Expired sessions are swept at start-up and once a day afterwards. The
