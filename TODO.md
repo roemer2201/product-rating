@@ -21,7 +21,7 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [ ] **[S]** `LICENSE` wählen und ergänzen (Vorschlag: MIT oder AGPL-3.0 – Entscheidung des Projektinhabers)
 - [ ] **[S]** TypeScript auf 7.x heben, sobald `typescript-eslint` es unterstützt (aktuell Peer-Bereich `>=4.8.4 <6.1.0`, deshalb auf `~5.9.3` festgelegt)
 - [ ] **[S]** Verbleibende `esbuild`-Meldung aus `npm audit` beobachten (nur Dev-Server unter Windows betroffen, transitiv über `vite`/`tsup` gepinnt)
-- [ ] **[S]** `jsdom` und Testing Library ergänzen, sobald es Komponenten zu testen gibt (mit M7)
+- [x] **[S]** `jsdom` und Testing Library ergänzen, sobald es Komponenten zu testen gibt (mit M7)
 
 ## M1 – Konfiguration
 
@@ -108,13 +108,15 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 
 ## M7 – Frontend-Grundgerüst
 
-- [ ] **[S]** Vite-React-Projekt in `web/` mit TypeScript und Pfad-Aliassen
-- [ ] **[S]** Routing (React Router), Layout mit unterer Navigationsleiste
-- [ ] **[S]** Typisierter API-Client in `web/src/lib/api.ts`, Fehlerbehandlung zentral
-- [ ] **[S]** Serverstatus-Verwaltung (TanStack Query) mit sinnvollen Cache-Zeiten
-- [ ] **[M]** Login-Seite, Registrierung mit Einladungscode, „nicht angemeldet“-Weiterleitung
-- [ ] **[S]** Oberflächentexte zentral in `web/src/lib/strings.ts`
-- [ ] **[S]** Grundstyling festlegen (schlichtes eigenes CSS oder Tailwind – Entscheidung dokumentieren), dunkles und helles Thema
+- [x] **[S]** Vite-React-Projekt in `web/` mit TypeScript und Pfad-Aliassen
+- [x] **[S]** Routing (React Router), Layout mit unterer Navigationsleiste
+- [x] **[S]** Typisierter API-Client in `web/src/lib/api.ts`, Fehlerbehandlung zentral
+- [x] **[S]** Serverstatus-Verwaltung (TanStack Query) mit sinnvollen Cache-Zeiten
+- [x] **[M]** Login-Seite, Registrierung mit Einladungscode, „nicht angemeldet“-Weiterleitung
+- [x] **[S]** Oberflächentexte zentral in `web/src/lib/strings.ts`
+- [x] **[S]** Grundstyling festlegen (eigenes CSS mit Custom Properties, siehe README 2), dunkles und helles Thema
+- [ ] **[S]** Abmelden zusätzlich auf der Einstellungsseite anbieten – bis M8 liegt es nur in der Kopfzeile
+- [ ] **[S]** Fokus nach einem Seitenwechsel auf die neue Überschrift setzen, damit Screenreader den Wechsel mitbekommen (mit dem Barrierefreiheitsdurchgang)
 
 ## M8 – Frontend-Funktionen
 

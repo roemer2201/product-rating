@@ -5,6 +5,66 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-15 – M7: Frontend-Grundgerüst
+
+**Umfang**
+
+- `web/src/lib/strings.ts`: sämtliche Oberflächentexte an einer Stelle, dazu
+  `apiErrorText()` – die Übersetzung von Status, Fehlercode und `details` in
+  einen deutschen Satz.
+- `web/src/lib/api.ts`: typisierter Client für alle Routen von `/api/v1`
+  (Auth, Sitzungen, Produkte, Bewertungen, Fotos, Einladungen, Konten),
+  `ApiError` mit deutscher Meldung, `photos.url()` für `<img src>`.
+- `web/src/lib/queries.ts`: Query-Client mit Cache-Zeiten und Wiederholungsregel,
+  Schlüsselverzeichnis für alle Ressourcen, Hooks `useSession`, `useLogin`,
+  `useRegister`, `useLogout`.
+- `web/src/lib/forms.ts`: Zod-Issues zu einer deutschen Meldung je Feld.
+- `web/src/components/`: `AppLayout` (Kopfzeile mit Konto und Abmelden),
+  `BottomNav`, `RequireAuth`, `Field`, `Feedback` (Laden, Fehler, Platzhalter),
+  `icons.tsx` (vier Inline-SVGs).
+- `web/src/routes/`: `LoginPage`, `RegisterPage` sowie die Platzhalter
+  `CataloguePage`, `ScanPage`, `RatingsPage`, `SettingsPage` und `NotFoundPage`.
+- `web/src/styles/`: `theme.css` (Token-Satz hell und dunkel), `app.css`
+  (Layout, Formulare, Navigation, Safe-Area).
+- `vitest.config.ts` auf zwei Projekte umgestellt: `node` für `server/` und
+  `shared/`, `web` mit jsdom, Testing Library und `web/src/testing/setup.ts`.
+- Neue Abhängigkeiten: `react-router`, `@tanstack/react-query`; als
+  Entwicklungsabhängigkeiten `jsdom`, `@testing-library/{react,dom,jest-dom,user-event}`.
+  Damit ist auch der seit M0 offene Punkt „jsdom und Testing Library ergänzen“
+  erledigt.
+- 284 Tests grün (39 neue im Web-Projekt); `lint`, `typecheck`, `format:check`
+  und `build` fehlerfrei (Bundle 350 kB, gzip 107 kB).
+- Zusätzlich real geprüft: Vite-Dev-Server gegen die laufende API, Chromium bei
+  390×844 in hell und dunkel, 19 Prüfungen – Weiterleitung von `/settings` zur
+  Anmeldung und zurück, falsches Passwort, Rate-Limit-Text, Kopfzeile mit Konto,
+  vier Navigationseinträge mit korrekt gesetztem `aria-current`, 44-px-Scan-Ziel,
+  Sitzung übersteht das Neuladen, 404-Seite, Abmelden, Cookie-Flags
+  (`HttpOnly`, `SameSite=Lax`), Einladungscode aus dem Link, Registrierung mit
+  echtem Code sowie die Ablehnung eines verbrauchten Codes.
+
+**Getroffene Entscheidungen**
+
+| Thema | Entscheidung | Begründung |
+|---|---|---|
+| Styling | Eigenes CSS mit Custom Properties statt Tailwind | Eine Handvoll Ansichten rechtfertigt weder Build-Schritt noch Klassenvokabular; ein Token-Satz plus je ein Block für hell und dunkel hält jede Farbe an einer Stelle |
+| Thema-Wechsel | Folgt der Systemeinstellung, kein Schalter in der App | Auf iOS gehört die Wahl zum Gerät; die PWA soll aussehen wie der Rest des Telefons |
+| Routing | Deklarativ (`<Routes>`), keine Router-Loader | Die Daten kommen aus dem Query-Cache; Loader wären eine zweite Quelle für dieselbe Sache |
+| Adressen | Englisch (`/scan`, `/ratings`, `/settings`) | Bezeichner sind laut Projektkonvention englisch, deutsch ist nur, was auf dem Bildschirm steht |
+| Fehlerübersetzung | Nach Fehlercode und `details`, nie nach dem Text des Servers | Der Servertext ist englisch und für ein Log geschrieben; `details.field` sagt zusätzlich, an welchem Eingabefeld die Meldung steht |
+| `401` | Wird zentral in die Sitzungsabfrage geschrieben | Eine abgelaufene Sitzung soll zur Anmeldemaske führen, nicht zu einem Schirm voller fehlschlagender Anfragen |
+| `401` beim Login | Wird auf der Anmeldemaske eigens übersetzt | Dort heißt der Status „Passwort falsch“ und nicht „Sitzung abgelaufen“ – nur diese eine Ansicht kann beides unterscheiden |
+| Sitzungsabfrage | `401` ergibt `null` statt eines Fehlers | „Niemand angemeldet“ ist eine normale Antwort; so verzweigen die Ansichten über Daten und nicht über Fehlerobjekte |
+| Nicht erreichbarer Server | Führt zu Hinweis mit Wiederholung, nicht zur Anmeldemaske | Unerreichbar ist nicht abgemeldet; sonst verlöre man die Sitzung bei jedem Netzwerkaussetzer |
+| Wiederholungen | Kein Retry bei 4xx, bis zu zwei bei Netzwerk- und 5xx-Fehlern | Eine abgelehnte Eingabe bleibt abgelehnt, eine abgerissene Verbindung kann sich erholen |
+| Abmelden | Räumt die Sitzung lokal auch dann ab, wenn die Anfrage scheitert | Das Cookie kann bereits weg sein; jemanden vor einer Sitzung stehen zu lassen, die er loswerden wollte, wäre der schlechtere Ausgang |
+| Abmelden-Ort | In der Kopfzeile statt nur auf der Einstellungsseite | Muss von überall gehen; bis M8 hätte es sonst gar keinen Platz |
+| Platzhalterseiten | Alle Navigationsziele existieren schon als Ansicht | Eine Navigationsleiste mit toten Einträgen wäre schlechter als eine mit ehrlichen Platzhaltern |
+| Einladungscode | Auch über `?invite=…` vorbelegbar | Macht eine Einladung als Link teilbar, statt sie abtippen zu lassen |
+| Formularprüfung | Mit denselben Zod-Schemata wie auf dem Server, Meldungen aber aus `strings.ts` | Spart eine Runde zum Server; die englischen Zod-Texte sind für Entwickler geschrieben. Die Mindestlänge des Passworts steht in der Serverkonfiguration und kann nur dort geprüft werden |
+| Tests der Oberfläche | Nur `fetch` wird ersetzt, Client und Query-Cache laufen echt | So deckt ein Test auch Envelope, Fehlerübersetzung und Cache-Voreinstellungen ab statt nur die Komponente |
+
+---
+
 ## 2026-08-15 – M6: Fotos
 
 **Umfang**
