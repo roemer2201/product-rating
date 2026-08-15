@@ -1,0 +1,73 @@
+/*
+ * Design tokens.
+ *
+ * Plain CSS with custom properties instead of a framework: the app has a
+ * handful of screens, and a token set plus a light and a dark block is less to
+ * carry than a build step and a class vocabulary. Every colour is defined once
+ * here; no component file contains a literal colour.
+ *
+ * The dark theme follows the system setting. A switch in the interface is not
+ * planned — on iOS the choice belongs to the device, and the PWA should look
+ * like the rest of the phone.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  --color-bg: #f4f4f6;
+  --color-surface: #ffffff;
+  --color-surface-muted: #ebebef;
+  --color-border: #d7d7de;
+  --color-text: #1a1a1f;
+  --color-text-muted: #5a5a66;
+  --color-accent: #2f5fd0;
+  --color-accent-hover: #244cab;
+  --color-accent-text: #ffffff;
+  --color-accent-soft: #e6ecfb;
+  --color-danger: #b3261e;
+  --color-danger-soft: #fbe9e7;
+  --color-star: #d99400;
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 1rem;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 8%);
+  --shadow-nav: 0 -1px 3px rgb(0 0 0 / 8%);
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+
+  /* Height of the bottom navigation without the safe area below it. */
+  --nav-height: 3.75rem;
+  /* Anything the thumb has to hit is at least this tall. */
+  --tap-target: 2.75rem;
+
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #131417;
+    --color-surface: #1c1e22;
+    --color-surface-muted: #26282e;
+    --color-border: #34363d;
+    --color-text: #e9e9ee;
+    --color-text-muted: #a2a3ad;
+    --color-accent: #8ba9f5;
+    --color-accent-hover: #a3bcff;
+    --color-accent-text: #10131a;
+    --color-accent-soft: #23293a;
+    --color-danger: #f2857c;
+    --color-danger-soft: #3a1f1d;
+    --color-star: #f0b429;
+
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 40%);
+    --shadow-nav: 0 -1px 3px rgb(0 0 0 / 40%);
+  }
+}

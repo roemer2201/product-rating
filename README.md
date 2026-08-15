@@ -54,11 +54,57 @@ Beide Speicherorte sind frei konfigurierbar (siehe Abschnitt 6).
 | DB-Zugriff     | Drizzle ORM + better-sqlite3            | Typsichere Queries, versionierte SQL-Migrationen, offener Weg zu PostgreSQL |
 | Datenbank      | SQLite im WAL-Modus                     | Keine zweite Instanz nötig, Backup = Datei kopieren, ausreichend für Einzelplatz-/Haushaltsbetrieb |
 | Frontend       | React + Vite + TypeScript               | Standard-Toolchain, gute PWA-Integration |
+| Routing        | React Router (deklarativ)               | Reicht für eine Handvoll Ansichten; Daten kommen aus dem Query-Cache, nicht aus Router-Loadern |
+| Serverstatus   | TanStack Query                          | Cache, Nachladen und Fehlerzustände an einer Stelle statt in jeder Ansicht von Hand |
+| Styling        | Eigenes CSS mit Custom Properties       | Ein Token-Satz plus je ein Block für hell und dunkel ist weniger Ballast als ein Framework samt Klassenvokabular |
 | PWA            | `vite-plugin-pwa` (Workbox)             | Manifest und Service Worker aus einer Quelle |
 | Barcode        | `zxing-wasm` im Browser                 | iOS Safari bietet **keine** `BarcodeDetector`-API; WASM-Decoder ist der verlässliche Weg |
 | Bildverarbeitung | `sharp`                               | Re-Encoding, EXIF-Entfernung (inkl. GPS), Thumbnails |
 | Passwort-Hash  | argon2id                                | Aktueller Standard |
 | Konfiguration  | TOML-Datei + Umgebungsvariablen         | Kommentierbar, gut von Hand pflegbar, gut als Debian-`conffile` geeignet |
+
+### 2.1 Aufbau der Weboberfläche
+
+Die Oberfläche ist für ein Telefon in einer Hand gebaut: Navigation unten,
+Scannen als hervorgehobene mittlere Schaltfläche, alle Bedienelemente
+mindestens 44 Pixel hoch, Ränder über `env(safe-area-inset-*)`.
+
+| Adresse | Ansicht |
+|---|---|
+| `/` | Katalog – Produktliste mit Suche, Filtern und Thumbnails |
+| `/scan` | Scanner, primäre Aktion |
+| `/ratings` | Eigene Bewertungen |
+| `/settings` | Passwort, eigene Sitzungen, Adminbereich |
+| `/login`, `/register` | Anmeldung und Registrierung mit Einladungscode |
+
+Die Adressen sind wie der übrige Code englisch; deutsch ist ausschließlich, was
+auf dem Bildschirm steht. Sämtliche Oberflächentexte liegen in
+`web/src/lib/strings.ts`, damit eine spätere Übersetzung eine Datei betrifft und
+nicht dreißig Komponenten.
+
+**Anmeldung.** `RequireAuth` liegt vor allen Ansichten hinter dem Login und
+unterscheidet drei Fälle: solange die Sitzung geprüft wird, wartet der Schirm;
+ist der Server nicht erreichbar, erscheint ein Hinweis mit Wiederholung –
+Unerreichbarkeit ist kein Abmelden; nur ein eindeutiges „niemand angemeldet“
+führt zur Anmeldemaske, zusammen mit der ursprünglich gewünschten Adresse, zu
+der es nach dem Anmelden zurückgeht.
+
+**Fehlerbehandlung.** Der API-Client (`web/src/lib/api.ts`) ist die einzige
+Stelle, die HTTP kennt. Jede fehlgeschlagene Anfrage – auch eine abgerissene
+Verbindung – wird zu einem `ApiError`, dessen Meldung bereits der deutsche Satz
+für die Oberfläche ist; die englische Serverantwort bleibt für die Konsole
+daneben erhalten. Übersetzt wird nicht der Text des Servers, sondern sein
+Fehlercode samt `details`: `field` zeigt an, an welchem Eingabefeld die Meldung
+steht, und Angaben wie die Mindestlänge eines Passworts oder die Wartezeit nach
+zu vielen Anmeldeversuchen wandern in den Satz. Ein `401` an beliebiger Stelle
+schreibt der Query-Cache in die Sitzungsabfrage – damit landet die Nutzerin auf
+der Anmeldemaske statt vor einem Schirm voller fehlschlagender Anfragen.
+
+**Zwischenspeicher.** Die Cache-Zeiten stehen gesammelt in
+`web/src/lib/queries.ts`: fünf Minuten für die Sitzung, dreißig Sekunden für den
+gemeinsamen Katalog (jemand anderes im Haushalt kann etwas geändert haben), eine
+Minute für die eigenen Bewertungen. Eine wegen falscher Eingabe abgelehnte
+Anfrage wird nicht wiederholt, eine abgerissene Verbindung schon.
 
 ---
 
@@ -570,6 +616,12 @@ npm run lint && npm run typecheck
 npm run build               # Produktions-Bundle nach dist/
 npm run package:deb         # Debian-Paket bauen
 ```
+
+`npm test` läuft in zwei Vitest-Projekten: `node` für `server/` und `shared/`,
+`web` mit jsdom und Testing Library für die Oberfläche. Ein einzelnes Projekt
+lässt sich mit `npx vitest run --project web` starten. Die Tests der Oberfläche
+ersetzen nur `fetch` und laufen sonst durch den echten API-Client und den echten
+Query-Cache, damit auch die Übersetzung der Fehler mit geprüft wird.
 
 Schemaänderungen laufen immer über `server/src/db/schema.ts` plus
 `npm run db:generate`; die erzeugte SQL-Datei unter
