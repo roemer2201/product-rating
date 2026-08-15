@@ -1,0 +1,254 @@
+#!/bin/sh
+#
+# postinst
+#
+# Description:
+#   Configuration step of the product-rating package. Creates the system user
+#   the service runs as, prepares configuration, data and log directories with
+#   their owners and modes, generates the session secret on the first install,
+#   brings the database schema up to date and registers the systemd unit.
+#
+#   Everything here is idempotent, because dpkg runs it on every install and
+#   every upgrade: a second run has to find its work done and leave it alone.
+#   Nothing overwrites a file an administrator may have edited - the
+#   configuration is a conffile and belongs to dpkg, the secret is written once
+#   and then never again.
+#
+# Program flow:
+#   1. Act on "configure" only; every other action returns without work.
+#   2. Create the group and the system user product-rating if they are missing.
+#   3. Create /etc/product-rating, /var/lib/product-rating/{db,uploads,tmp} and
+#      /var/log/product-rating and set owners and modes.
+#   4. Generate /etc/product-rating/secret.env with mode 0600 if it is absent.
+#   5. Apply the database migrations as the service user.
+#   6. Reload systemd, enable the unit, and restart it if it was already
+#      running - a fresh install is enabled but not started, so the
+#      configuration can be reviewed first.
+#
+# Arguments are the ones dpkg passes (configure, abort-upgrade, ...). The
+# script takes no options of its own, so the --help, --silent and --verbose
+# switches of the project's other scripts do not apply: dpkg owns the argument
+# vector here and would not pass them on.
+#
+# Version: 1.0.0  (2026-08-15)
+
+# Mandatory for a maintainer script: any uncaught failure has to leave the
+# package unconfigured rather than half configured.
+set -e
+
+# The package ships debconf templates (the question asked when it is purged),
+# so the protocol is opened here as policy expects. It is released again right
+# away: nothing is asked during installation, and while debconf is running it
+# owns stdout, which the progress messages below need.
+if [ -f /usr/share/debconf/confmodule ]; then
+    . /usr/share/debconf/confmodule
+    db_stop || true
+fi
+
+# Script name, used as the logger tag and in messages.
+SCRIPT_NAME="$(basename -- "${0}")"
+
+# --- Layout of the installation -------------------------------------------
+# Kept in one place so a change to the layout is a change in one spot, here and
+# in the prerm/postrm counterparts.
+APP_USER="product-rating"
+APP_GROUP="product-rating"
+CONFIG_DIR="/etc/product-rating"
+CONFIG_FILE="${CONFIG_DIR}/config.toml"
+SECRET_FILE="${CONFIG_DIR}/secret.env"
+DATA_DIR="/var/lib/product-rating"
+LOG_DIR="/var/log/product-rating"
+UNIT="product-rating.service"
+
+# Bytes of randomness for the generated secret. The start-up check demands at
+# least 32 characters; 32 bytes written as hex are 64.
+SECRET_BYTES=32
+
+# log LEVEL MESSAGE...
+# LEVEL is one of: error, warn, info.
+#
+# Records the entry in syslog/journal so an unattended "apt upgrade" leaves a
+# trace, and prints it as well - dpkg shows what a maintainer script writes,
+# and that is where an administrator actually looks. logger is called only if
+# it exists: in a minimal chroot it may not, and a missing log line must not
+# fail the installation.
+log() {
+    level="${1}"
+    shift
+    message="$*"
+
+    priority="user.info"
+    case "${level}" in
+        error) priority="user.err" ;;
+        warn)  priority="user.warning" ;;
+    esac
+
+    if command -v logger > /dev/null 2>&1; then
+        logger -t "${SCRIPT_NAME}" -p "${priority}" -- "${message}" || true
+    fi
+
+    if [ "${level}" = "error" ] || [ "${level}" = "warn" ]; then
+        printf '%s: %s: %s\n' "${SCRIPT_NAME}" "${level}" "${message}" >&2
+    else
+        printf '%s: %s\n' "${SCRIPT_NAME}" "${message}"
+    fi
+}
+
+# die MESSAGE...  Report an explicit failure and stop the configuration.
+die() {
+    log error "$*"
+    exit 1
+}
+
+# Creates the account the service runs under: a system user without a login
+# shell and without a home directory of its own - its "home" is the data
+# directory, which is created below with the right mode.
+create_user() {
+    if ! getent group "${APP_GROUP}" > /dev/null; then
+        addgroup --system "${APP_GROUP}"
+        log info "Created system group ${APP_GROUP}"
+    fi
+
+    if ! getent passwd "${APP_USER}" > /dev/null; then
+        adduser --system --quiet \
+            --ingroup "${APP_GROUP}" \
+            --home "${DATA_DIR}" \
+            --no-create-home \
+            --shell /usr/sbin/nologin \
+            --gecos "product-rating service" \
+            "${APP_USER}"
+        log info "Created system user ${APP_USER}"
+    fi
+}
+
+# Creates the writable directories and asserts their permissions.
+#
+# "install -d" is used because it is idempotent and sets owner and mode in the
+# same step; running it again on an existing directory re-asserts them, which
+# is what an upgrade should do after the modes were changed by hand.
+prepare_directories() {
+    # Configuration: readable for the service, writable only for root. The
+    # service reads config.toml and the secret, it never writes there.
+    install -d -o root -g "${APP_GROUP}" -m 0750 "${CONFIG_DIR}"
+
+    # Data: nothing outside the service and root has any business here, the
+    # photos of the household are in it.
+    install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${DATA_DIR}"
+    install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${DATA_DIR}/db"
+    install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${DATA_DIR}/uploads"
+    install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${DATA_DIR}/tmp"
+
+    # Logs: group adm by convention, so the usual log readers can follow along
+    # without being given the data directory as well.
+    install -d -o "${APP_USER}" -g adm -m 0750 "${LOG_DIR}"
+
+    # The conffile arrives as root:root 0644 from dpkg. It holds no secret, but
+    # it does describe the installation, so it is closed to everyone but root
+    # and the service.
+    if [ -f "${CONFIG_FILE}" ]; then
+        chown root:"${APP_GROUP}" "${CONFIG_FILE}"
+        chmod 0640 "${CONFIG_FILE}"
+    fi
+}
+
+# Creates the session secret on the first install.
+#
+# Written through node, which the package depends on anyway, rather than
+# through openssl, which is not guaranteed to be installed. The file is created
+# empty with mode 0600 first and only then filled: a secret that was briefly
+# world readable has been leaked, and redirecting into an existing file keeps
+# the mode it was created with.
+prepare_secret() {
+    if [ -s "${SECRET_FILE}" ]; then
+        return 0
+    fi
+
+    install -o "${APP_USER}" -g "${APP_GROUP}" -m 0600 /dev/null "${SECRET_FILE}"
+    if ! node -e "process.stdout.write(require('node:crypto').randomBytes(${SECRET_BYTES}).toString('hex') + '\n')" \
+        > "${SECRET_FILE}"; then
+        rm -f "${SECRET_FILE}"
+        die "Could not generate the session secret: ${SECRET_FILE}"
+    fi
+
+    log info "Generated a session secret: ${SECRET_FILE}"
+}
+
+# Brings the database schema up to date before the service can run a query
+# against it.
+#
+# Run as the service user, not as root: the database file and the snapshot the
+# runner takes before a migration are created here, and they have to belong to
+# the account that opens them afterwards. A failure stops the configuration -
+# a service started against a schema that does not match is worse than a
+# package that reports it could not be configured.
+apply_migrations() {
+    log info "Applying database migrations"
+
+    # The umask is set in a subshell, so it applies to the migration and to
+    # nothing else in this script. It is the one the systemd unit gives the
+    # service: without it the database file gets the umask of whoever ran the
+    # install - usually 022, which leaves it readable for everyone who reaches
+    # the directory. It holds the products, the ratings and the password
+    # hashes, so it is created the same way the service itself would create it.
+    if ! ( umask 0027 && runuser -u "${APP_USER}" -- /usr/bin/product-rating migrate ); then
+        die "Database migration failed; the package is installed but not configured. Check ${CONFIG_FILE} and run: runuser -u ${APP_USER} -- product-rating migrate"
+    fi
+}
+
+# Registers the unit with systemd.
+#
+# On a first install the unit is enabled but deliberately not started: the
+# address in server.base_url has to match the one the browser uses, and that
+# is a value only the administrator knows. On an upgrade a running service is
+# restarted so it picks up the new bundle, and a stopped one stays stopped.
+register_service() {
+    previous_version="${1}"
+
+    if command -v deb-systemd-helper > /dev/null 2>&1; then
+        deb-systemd-helper unmask "${UNIT}" > /dev/null || true
+        if deb-systemd-helper --quiet was-enabled "${UNIT}"; then
+            deb-systemd-helper enable "${UNIT}" > /dev/null || true
+        else
+            # Disabled on purpose by the administrator - remember the state
+            # instead of overriding the decision.
+            deb-systemd-helper update-state "${UNIT}" > /dev/null || true
+        fi
+    fi
+
+    # Only meaningful when systemd is the running init; in a container or a
+    # chroot there is nothing to talk to.
+    if [ -d /run/systemd/system ]; then
+        systemctl --system daemon-reload > /dev/null || true
+
+        if [ -n "${previous_version}" ]; then
+            # try-restart touches the service only if it is running.
+            deb-systemd-invoke try-restart "${UNIT}" > /dev/null || true
+        else
+            log info "Review ${CONFIG_FILE} (server.base_url!), then start the service: systemctl start product-rating"
+        fi
+    fi
+}
+
+case "${1}" in
+    configure)
+        # "$2" is the previously configured version: empty on a first install,
+        # set on an upgrade.
+        create_user
+        prepare_directories
+        prepare_secret
+        apply_migrations
+        register_service "${2:-}"
+        ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+        # Nothing to undo: this script only creates things that are safe to
+        # find already present.
+        ;;
+
+    *)
+        printf '%s: called with unknown argument: %s\n' "${SCRIPT_NAME}" "${1}" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

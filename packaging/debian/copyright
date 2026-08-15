@@ -1,0 +1,16 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: product-rating
+Upstream-Contact: roemer2201 <roemer2201@users.noreply.github.com>
+Source: https://github.com/roemer2201/product-rating
+
+Files: *
+Copyright: 2026 roemer2201
+License: UNLICENSED
+ No licence has been chosen for this project yet, so no rights are granted
+ beyond those the copyright holder gives explicitly. Choosing one is an open
+ point in TODO.md (M0); once it is decided, this file and the Description
+ above have to name it instead.
+ .
+ This does not affect the third party code the package carries below
+ /opt/product-rating/node_modules. Those modules keep their own licences,
+ which ship with them in their respective directories.

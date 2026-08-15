@@ -1,0 +1,11 @@
+product-rating (0.0.0) unstable; urgency=medium
+
+  * Initial packaging (M11). Installs the API server and the built web
+    client below /opt/product-rating, served by one process.
+  * Adds a hardened systemd unit, a logrotate rule and the
+    /usr/bin/product-rating wrapper for serve, migrate and fsck.
+  * postinst creates the system user, the data directories and the session
+    secret and applies the database migrations; purge asks before it
+    removes the database and the photos.
+
+ -- roemer2201 <roemer2201@users.noreply.github.com>  Sat, 15 Aug 2026 12:00:00 +0000

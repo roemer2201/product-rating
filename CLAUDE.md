@@ -66,7 +66,10 @@ web/                    React-PWA
   scripts/              generate-icons.ts (Rasterung der Icons)
 shared/                 Gemeinsame Typen und Zod-Schemata für Server und Web
 config/config.example.toml
-packaging/debian/       control, rules, postinst, prerm, postrm, conffiles
+packaging/build-deb.sh  Bauskript des Debian-Pakets (npm run package:deb)
+packaging/debian/       control, conffiles, templates, config/postinst/prerm/postrm,
+                        systemd-Unit, logrotate-Regel, ausgelieferte config.toml,
+                        CLI-Aufsatz, copyright, changelog, lintian-overrides
 packaging/examples/     nginx, apache2, caddy, traefik, systemd, logrotate, backup, ufw
 docker/                 Dockerfile, docker-compose.yml, entrypoint
 ```
@@ -87,10 +90,10 @@ npm start                # gebauten Server starten
 ```
 
 Dazu `npm run migrate` und `npm run db:generate` (seit M2), `npm run fsck --
---uploads` (seit M6) sowie im Web-Workspace `npm run icons` (Icons aus den
+--uploads` (seit M6), im Web-Workspace `npm run icons` (Icons aus den
 SVG-Quellen) und `npm run preview` (gebaute App auf :4173, der einzige Weg, den
-Service Worker auszuprobieren) – beide seit M9. Noch nicht vorhanden, kommt mit
-dem jeweiligen Meilenstein: `npm run package:deb` (M11).
+Service Worker auszuprobieren) – beide seit M9 – sowie `npm run package:deb`
+(Debian-Paket, seit M11; `-- --help` zeigt die Schalter).
 
 Vor jedem Commit mindestens `npm run lint`, `npm run typecheck` und `npm test`
 laufen lassen und Fehlschläge berichten, nicht stillschweigend übergehen.

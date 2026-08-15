@@ -1,0 +1,27 @@
+Package: product-rating
+Version: @VERSION@
+Architecture: @ARCH@
+Maintainer: roemer2201 <roemer2201@users.noreply.github.com>
+Installed-Size: @INSTALLED_SIZE@
+Depends: nodejs (>= 22), adduser, init-system-helpers (>= 1.51), debconf (>= 0.5) | debconf-2.0@SHLIBS_DEPENDS@
+Recommends: logrotate
+Suggests: nginx | apache2 | caddy
+Section: web
+Priority: optional
+Homepage: https://github.com/roemer2201/product-rating
+Description: self-hostable product ratings by EAN barcode
+ product-rating records products by their EAN barcode, together with a photo
+ and a rating from zero to five stars. It is built for a household: a handful
+ of accounts share one product catalogue, while ratings and photos belong to
+ the account that created them. Registration is by invitation code only, and
+ the application makes no outgoing network requests of its own.
+ .
+ The package installs the API server and the built web client, which one
+ process serves together, plus a systemd unit, a logrotate rule and the
+ product-rating command line tool. Products live in an SQLite database below
+ /var/lib/product-rating, photos in the file system next to it, and the
+ configuration in /etc/product-rating/config.toml.
+ .
+ The service listens on the loopback interface by default and expects a
+ reverse proxy in front of it that terminates TLS - the camera of the barcode
+ scanner needs a secure context in the browser.

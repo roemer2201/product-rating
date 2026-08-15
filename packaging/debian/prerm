@@ -1,0 +1,50 @@
+#!/bin/sh
+#
+# prerm
+#
+# Description:
+#   Runs before the files of the product-rating package are taken away. Its one
+#   job is to stop the service, so the bundle underneath it is not removed
+#   while node is still executing it and SQLite still has the database open.
+#
+#   On an upgrade the service is left running on purpose: dpkg unpacks the new
+#   bundle over the old one and the postinst restarts the service afterwards,
+#   which keeps the interruption to a single restart instead of a stop that
+#   lasts for the whole unpack.
+#
+# Program flow:
+#   1. On "remove" and "deconfigure": stop the unit, if systemd is running.
+#   2. On "upgrade" and "failed-upgrade": do nothing, the postinst restarts.
+#
+# Arguments are the ones dpkg passes (remove, upgrade, deconfigure, ...). The
+# script takes no options of its own; dpkg owns the argument vector.
+#
+# Version: 1.0.0  (2026-08-15)
+
+# Mandatory for a maintainer script: a failure here has to abort the removal
+# rather than let it continue against a running service.
+set -e
+
+UNIT="product-rating.service"
+
+case "${1}" in
+    remove|deconfigure)
+        # Only meaningful when systemd is the running init; in a container or a
+        # chroot there is nothing to talk to, and there is no service running
+        # either.
+        if [ -d /run/systemd/system ]; then
+            deb-systemd-invoke stop "${UNIT}" > /dev/null || true
+        fi
+        ;;
+
+    upgrade|failed-upgrade)
+        # Deliberately empty, see the description above.
+        ;;
+
+    *)
+        printf 'prerm: called with unknown argument: %s\n' "${1}" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

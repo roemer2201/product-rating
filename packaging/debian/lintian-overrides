@@ -1,0 +1,36 @@
+# Findings of lintian that were looked at and deliberately left standing.
+# Installed as /usr/share/lintian/overrides/product-rating, so a later run on
+# the installed system reaches the same conclusion without anyone having to
+# reconstruct the reasoning.
+#
+# Everything not listed here is meant to be fixed rather than silenced. The
+# build script removes the binaries of foreign platforms, the test suites and
+# the documentation of the dependencies, strips the native modules and works
+# out the library dependencies with dpkg-shlibdeps for exactly that reason.
+
+# The application lives in /opt, which is where the FHS puts add-on software
+# that is not part of the distribution - and this package is installed from a
+# file, not from a Debian mirror. It is a deliberate decision, documented in
+# README 7.2, and it keeps the bundled node_modules out of /usr, where they
+# would sit next to files that dpkg actually manages.
+product-rating: dir-or-file-in-opt [opt/*]
+
+# sharp does not link against the system libvips: it ships its own build, and
+# that build has libjpeg, libpng, libwebp and the rest inside it. That is how
+# the module is published on npm, and unpicking it would mean compiling libvips
+# from source at package build time. The consequence is understood - a security
+# update to the system libraries does not reach this copy, so the module has to
+# be updated instead, which is what the dependency update does.
+product-rating: embedded-library * [opt/product-rating/node_modules/@img/*]
+
+# The wrapper in /usr/bin is a stopgap that maps three subcommands onto the
+# entry points of the bundle; the real command line interface, with user,
+# invite and backup, arrives with M13. Its manual page belongs to that, not to
+# a wrapper that will be replaced. "product-rating --help" documents what
+# exists today.
+product-rating: no-manual-page [usr/bin/product-rating]
+
+# False positive: the string lintian matches is "${DATA_DIR}/tmp", the temp
+# directory of the application below /var/lib/product-rating. The script does
+# not use /tmp at all, and the systemd unit gives the service a private one.
+product-rating: possibly-insecure-handling-of-tmp-files-in-maintainer-script /tmp [postinst:*]

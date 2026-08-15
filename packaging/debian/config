@@ -1,0 +1,32 @@
+#!/bin/sh
+#
+# config
+#
+# Description:
+#   Debconf configuration step of the product-rating package. dpkg runs it
+#   before the package is unpacked and again before it is configured, which is
+#   the point at which a package would ask everything it needs to know.
+#
+#   This package asks nothing at that point. Its one question - whether the
+#   database and the photos may be removed - only makes sense while it is being
+#   purged, and the postrm asks it there. The script exists so the templates
+#   are registered with debconf ahead of that moment, and so an unattended
+#   installation can seed the answer in advance:
+#
+#     echo 'product-rating product-rating/purge-data boolean true' | debconf-set-selections
+#
+# Program flow:
+#   1. Load the debconf protocol, which registers the templates of the package.
+#   2. Return, leaving the question for the postrm.
+#
+# Arguments are the ones dpkg passes (configure, reconfigure, ...); the script
+# takes no options of its own.
+#
+# Version: 1.0.0  (2026-08-15)
+
+# Mandatory for a maintainer script.
+set -e
+
+. /usr/share/debconf/confmodule
+
+exit 0

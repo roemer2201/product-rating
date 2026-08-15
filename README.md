@@ -655,30 +655,71 @@ Architektur läuft über QEMU (`docker run --privileged --rm tonistiigi/binfmt
 
 ```bash
 sudo apt install ./product-rating_<version>_<arch>.deb
-sudoedit /etc/product-rating/config.toml
-sudo systemctl enable --now product-rating
+sudoedit /etc/product-rating/config.toml      # vor allem server.base_url
+sudo systemctl start product-rating
 ```
+
+Das `postinst` aktiviert den Dienst, startet ihn bei einer Neuinstallation aber
+bewusst **nicht**: `server.base_url` muss der Adresse entsprechen, unter der der
+Browser die App aufruft, und die kennt nur der Betreiber. Bei einem Upgrade wird
+ein laufender Dienst neu gestartet, ein gestoppter bleibt gestoppt.
 
 Installationslayout:
 
 | Pfad | Inhalt |
 |------|--------|
-| `/opt/product-rating/` | Anwendungsbundle (Server, Frontend, Abhängigkeiten) |
+| `/opt/product-rating/` | Anwendungsbundle (`server/dist` samt Migrationen, `web/`, `node_modules`) |
 | `/etc/product-rating/config.toml` | Konfiguration, als `conffile` registriert – Änderungen überleben Updates |
 | `/etc/product-rating/secret.env` | Session-Secret, `0600`, im `postinst` erzeugt |
-| `/var/lib/product-rating/{db,uploads,tmp}` | Nutzdaten |
+| `/var/lib/product-rating/{db,uploads,tmp}` | Nutzdaten, `0750`, Eigentümer `product-rating` |
 | `/var/log/product-rating/` | Logs, sofern `log.destination = "file"` |
-| `/lib/systemd/system/product-rating.service` | Dienst, gehärtet (`ProtectSystem=strict`, `ReadWritePaths`, `NoNewPrivileges`) |
-| `/etc/logrotate.d/product-rating` | Logrotation |
-| `/usr/bin/product-rating` | CLI: `serve`, `migrate`, `user add`, `invite create`, `backup` |
-| `/usr/share/doc/product-rating/examples/` | Vorgefertigte Konfigurationen für Fremdkomponenten |
+| `/usr/lib/systemd/system/product-rating.service` | Dienst, gehärtet (`ProtectSystem=strict`, `ReadWritePaths`, `NoNewPrivileges`, leeres `CapabilityBoundingSet`) |
+| `/etc/logrotate.d/product-rating` | Logrotation, ebenfalls `conffile` |
+| `/usr/bin/product-rating` | CLI-Aufsatz: bisher `serve`, `migrate`, `fsck` |
+| `/usr/share/doc/product-rating/` | `copyright`, `changelog.gz`, `README.md.gz`, `config.example.toml`, `examples/` |
 
 Das `postinst` legt den Systemnutzer `product-rating` an, erzeugt Verzeichnisse
-und Secret, führt die Migrationen aus und startet den Dienst. `purge` entfernt
-Konfiguration und Nutzdaten erst nach Rückfrage.
+und Secret, führt die Migrationen aus und meldet die Unit bei systemd an – alles
+idempotent, ein Upgrade wiederholt nur, was fehlt. `remove` stoppt den Dienst
+und lässt die Daten liegen. `purge` entfernt `/etc/product-rating` samt Secret
+immer und fragt über debconf nach, ob auch Datenbank, Fotos und Logs weg dürfen;
+ohne Antwort (`DEBIAN_FRONTEND=noninteractive`) gilt „nein“ und die Daten
+bleiben. Vorbelegen lässt sich die Antwort mit:
 
-Weil `better-sqlite3` und `sharp` native Module enthalten, wird das Paket je
-Architektur gebaut (`amd64`, `arm64`). Abhängigkeit: `nodejs (>= 22)`.
+```bash
+echo 'product-rating product-rating/purge-data boolean true' | sudo debconf-set-selections
+```
+
+Die Unit setzt `MemoryDenyWriteExecute` bewusst **nicht**: die JavaScript-Engine
+übersetzt zur Laufzeit in Maschinencode und braucht dafür Seiten, die
+beschreibbar und ausführbar sind. Ein Port unter 1024 bräuchte zusätzlich
+`AmbientCapabilities=CAP_NET_BIND_SERVICE` – dafür steht aber der Reverse Proxy
+davor.
+
+`/usr/bin/product-rating` bildet zurzeit nur die vorhandenen Einstiegspunkte ab
+(`serve`, `migrate`, `fsck`). `user`, `invite`, `backup` und `restore` melden,
+dass es sie noch nicht gibt, statt still nichts zu tun; sie kommen mit M13.
+
+**Paket bauen.** `npm run package:deb` baut beide Workspaces, stellt einen
+Abhängigkeitsbaum nur aus Laufzeitpaketen zusammen, wirft die Binärdateien
+fremder Plattformen heraus, legt den Baum unter `packaging/build/` an und ruft
+`dpkg-deb` auf. Ist `lintian` installiert, wird das Ergebnis geprüft.
+`--help` zeigt die Schalter, unter anderem `--version` und `--output`.
+
+Weil `better-sqlite3`, `sharp` und `@node-rs/argon2` native Module enthalten,
+wird das Paket je Architektur gebaut (`amd64`, `arm64`). Die Prebuilds stammen
+vom Baurechner, deshalb lehnt das Skript ein `--arch` ab, das nicht zur eigenen
+Architektur passt – für die andere wird auf ihr gebaut, notfalls im Container:
+
+```bash
+docker run --rm -v "${PWD}:/src" -w /src --platform linux/arm64 \
+  node:22-bookworm bash -c 'apt-get update && apt-get install -y dpkg-dev \
+    && npm run package:deb'
+```
+
+Abhängigkeiten des Pakets: `nodejs (>= 22)`, `adduser`, `init-system-helpers`,
+`debconf` sowie die C-Bibliotheken, die `dpkg-shlibdeps` beim Bau aus den
+nativen Modulen ermittelt (`libc6`, `libgcc-s1`, `libstdc++6`).
 
 ### 7.3 Mitgelieferte Konfigurationen für Fremdkomponenten
 
@@ -804,7 +845,8 @@ server/     Fastify-API, Drizzle-Schema und Migrationen, CLI
 web/        React-PWA
 shared/     gemeinsame Typen und Zod-Schemata
 config/     config.example.toml
-packaging/  debian/, examples/ (nginx, apache2, caddy, traefik, logrotate, backup)
+packaging/  build-deb.sh, debian/ (control, Maintainer-Skripte, Unit,
+            logrotate, Konfiguration), examples/ (ab M12)
 docker/     Dockerfile, Entrypoint, Container-Konfiguration, Compose-Dateien
             (einzeln und mit Caddy davor)
 ```

@@ -170,19 +170,30 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 
 ## M11 – Debian-Paket
 
-- [ ] **[M]** `packaging/debian/control`: Paketname, Abhängigkeit `nodejs (>= 22)`, `adduser`, architekturabhängig
-- [ ] **[M]** Buildskript `npm run package:deb`: Bundle bauen, Baum unter `packaging/build/` aufbauen, `dpkg-deb --build`
-- [ ] **[S]** Dateibaum: `/opt/product-rating`, `/etc/product-rating`, `/var/lib/product-rating/{db,uploads,tmp}`, `/var/log/product-rating`
-- [ ] **[S]** `conffiles`: `/etc/product-rating/config.toml` registrieren, damit Änderungen Updates überleben
-- [ ] **[M]** `postinst`: Systemnutzer anlegen, Verzeichnisse und Rechte setzen, Secret erzeugen (`0600`), Migrationen ausführen (`node dist/migrate.js`), Dienst aktivieren
-- [ ] **[S]** Prüfen, dass `dist/migrations/` im Paket und im Image landet – der Runner liest die SQL-Dateien zur Laufzeit
-- [ ] **[S]** `prerm` / `postrm`: Dienst stoppen, bei `purge` Konfiguration und Daten nach Rückfrage entfernen
-- [ ] **[S]** systemd-Unit mit Härtung: `ProtectSystem=strict`, `ReadWritePaths`, `NoNewPrivileges`, `PrivateTmp`, `Restart=on-failure`
-- [ ] **[S]** `/usr/bin/product-rating` als Wrapper auf die CLI
-- [ ] **[S]** logrotate-Regel für `/var/log/product-rating/`
-- [ ] **[S]** Lintlauf mit `lintian`, gemeldete Punkte abarbeiten
-- [ ] **[M]** Installation in einer sauberen Debian-VM oder einem Container testen: install, Konfiguration ändern, Neustart, Upgrade, remove, purge
-- [ ] **[S]** Architekturen `amd64` und `arm64` bauen (native Module!)
+- [x] **[M]** `packaging/debian/control`: Paketname, Abhängigkeit `nodejs (>= 22)`, `adduser`, architekturabhängig
+- [x] **[M]** Buildskript `npm run package:deb`: Bundle bauen, Baum unter `packaging/build/` aufbauen, `dpkg-deb --build`
+- [x] **[S]** Dateibaum: `/opt/product-rating`, `/etc/product-rating`, `/var/lib/product-rating/{db,uploads,tmp}`, `/var/log/product-rating`
+- [x] **[S]** `conffiles`: `/etc/product-rating/config.toml` registrieren, damit Änderungen Updates überleben
+- [x] **[M]** `postinst`: Systemnutzer anlegen, Verzeichnisse und Rechte setzen, Secret erzeugen (`0600`), Migrationen ausführen (`node dist/migrate.js`), Dienst aktivieren
+- [x] **[S]** Prüfen, dass `dist/migrations/` im Paket und im Image landet – der Runner liest die SQL-Dateien zur Laufzeit
+- [x] **[S]** `prerm` / `postrm`: Dienst stoppen, bei `purge` Konfiguration und Daten nach Rückfrage entfernen
+- [x] **[S]** systemd-Unit mit Härtung: `ProtectSystem=strict`, `ReadWritePaths`, `NoNewPrivileges`, `PrivateTmp`, `Restart=on-failure`
+- [x] **[S]** `/usr/bin/product-rating` als Wrapper auf die CLI
+- [x] **[S]** logrotate-Regel für `/var/log/product-rating/`
+- [x] **[S]** Lintlauf mit `lintian`, gemeldete Punkte abarbeiten
+- [x] **[M]** Installation in einer sauberen Debian-VM oder einem Container testen: install, Konfiguration ändern, Neustart, Upgrade, remove, purge
+- [ ] **[S]** Architekturen `amd64` und `arm64` bauen (native Module!) – `amd64` ist gebaut und geprüft, für `arm64` fehlte die Maschine; das Bauskript lehnt einen Fremdbau bewusst ab, README 7.2 nennt den Weg über einen `linux/arm64`-Container
+- [ ] **[S]** Dienststart unter echtem systemd prüfen: die Härtung der Unit
+      (`ProtectSystem=strict`, `SystemCallFilter=@system-service`, leeres
+      `CapabilityBoundingSet`) ist bisher nur gelesen, nicht ausgeführt – in der
+      Entwicklungsumgebung lief kein systemd. Geprüft wurde der Dienst als
+      derselbe Systemnutzer mit demselben Aufruf, aber ohne die Sandbox
+- [ ] **[S]** Versionsschema festlegen (M14) und das Paket daraus versorgen –
+      zurzeit nimmt `build-deb.sh` die `0.0.0` aus `package.json`, und
+      `packaging/debian/changelog` wird von Hand gepflegt
+- [ ] **[S]** Beim Löschen des Pakets bleibt `/opt` als von dpkg angelegtes
+      Verzeichnis zurück; harmlos, aber es lohnt zu prüfen, ob das Paket den
+      Eintrag für `/opt` selbst gar nicht mitliefern muss
 
 ## M12 – Mitgelieferte Konfigurationen
 
@@ -197,6 +208,7 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [ ] **[S]** In allen Proxy-Beispielen darauf hinweisen, dass `server.base_url` der öffentlichen Adresse entsprechen muss – sonst schlägt die Origin-Prüfung schreibender Anfragen fehl
 - [ ] **[S]** Jede Beispielkonfiguration einmal real gegen die laufende App testen
 - [ ] **[S]** Querverweise in `README.md` prüfen
+- [ ] **[S]** Nichts weiter zu tun fürs Paket: `packaging/build-deb.sh` legt ein vorhandenes `packaging/examples/` von sich aus nach `/usr/share/doc/product-rating/examples/` – nach dem Anlegen einmal im gebauten Paket nachsehen
 
 ## M13 – CLI und Betrieb
 
