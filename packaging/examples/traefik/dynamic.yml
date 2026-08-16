@@ -1,0 +1,105 @@
+# product-rating behind Traefik 3, configured through the file provider.
+#
+# For an instance on the host (Debian package). If the application runs as a
+# container next to Traefik, the labels in docker-compose.labels.yml say the
+# same thing without a file.
+#
+#   cp dynamic.yml /etc/traefik/dynamic/product-rating.yml
+#
+# Traefik watches the directory and picks the file up without a restart; a
+# mistake in it is reported in the log and leaves the previous state running.
+#
+# The matching part of the STATIC configuration (/etc/traefik/traefik.yml),
+# which cannot come from this file:
+#
+#   entryPoints:
+#     web:
+#       address: ":80"
+#       http:
+#         redirections:
+#           entryPoint:
+#             to: websecure
+#             scheme: https
+#     websecure:
+#       address: ":443"
+#   providers:
+#     file:
+#       directory: /etc/traefik/dynamic
+#       watch: true
+#   certificatesResolvers:
+#     letsencrypt:
+#       acme:
+#         email: admin@example.org
+#         storage: /var/lib/traefik/acme.json
+#         httpChallenge:
+#           entryPoint: web
+#
+# Settings in the application:
+#
+#   * server.base_url = https://produkte.example.org - every writing request is
+#     checked against it.
+#   * server.trust_proxy = true. Traefik sets X-Forwarded-For, -Proto and -Host
+#     by itself, and without trust_proxy the log and the login rate limit see
+#     Traefik instead of the client.
+
+http:
+  routers:
+    product-rating:
+      rule: 'Host(`produkte.example.org`)'
+      entryPoints:
+        - websecure
+      service: product-rating
+      middlewares:
+        - product-rating-headers
+        - product-rating-body
+      tls:
+        certResolver: letsencrypt
+
+  services:
+    product-rating:
+      loadBalancer:
+        servers:
+          # TLS ends in Traefik; the application speaks plain HTTP on the
+          # loopback interface and answers the interface and /api/v1 from one
+          # process.
+          - url: 'http://127.0.0.1:8080'
+        # The Host header of the browser reaches the application, so it logs
+        # and links the name the client actually used.
+        passHostHeader: true
+        healthCheck:
+          path: /healthz
+          interval: '30s'
+          timeout: '5s'
+
+  middlewares:
+    # No cache rules anywhere in this file, on purpose. The application sets
+    # Cache-Control itself and is the only place that can tell the two cases
+    # apart: the file names under /assets/ carry a hash of their content and
+    # are immutable for a year, while index.html, sw.js and the manifest keep
+    # their names across releases and are sent as no-cache. A customResponse
+    # header for Cache-Control would overwrite exactly that and leave installed
+    # home screen apps on an old bundle.
+    product-rating-headers:
+      headers:
+        # The application is only reachable over HTTPS; a year is the usual
+        # value. stsPreload only if the domain is really meant to go onto the
+        # preload list.
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        contentTypeNosniff: true
+        referrerPolicy: 'same-origin'
+        # The interface is not meant to be embedded anywhere.
+        frameDeny: true
+
+    # Photos are the largest thing that travels here. At least
+    # uploads.max_file_size_mb of the application (15 MB by default) plus the
+    # overhead of the multipart body; anything above is answered with 413
+    # before the application sees it.
+    #
+    # Buffering means Traefik holds the request until it is complete: up to
+    # memRequestBodyBytes in memory, the rest in a temporary file. That is the
+    # price of the limit, and for a handful of photos a day it is a fair one.
+    product-rating-body:
+      buffering:
+        maxRequestBodyBytes: 20971520
+        memRequestBodyBytes: 2097152

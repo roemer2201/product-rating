@@ -3,7 +3,34 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
+/**
+ * The path the instance is reached under, with a slash at both ends.
+ *
+ * Everything the browser asks for is derived from this: the bundle in
+ * `index.html`, `start_url` and `scope` of the manifest, the scope of the
+ * service worker and — through `import.meta.env.BASE_URL` — the API address in
+ * `lib/api.ts`. It has to be decided at build time, because those files are
+ * written by this build.
+ *
+ *   PRODUCT_RATING_BASE_PATH=/produkte npm run build
+ *
+ * The reverse proxy strips the prefix again before it forwards, so the server
+ * keeps answering on `/` and `/api/v1` and needs no setting of its own. See
+ * `packaging/examples/nginx/product-rating-subpath.conf`.
+ */
+function basePath(): string {
+  const raw = (process.env.PRODUCT_RATING_BASE_PATH ?? '').trim();
+  const trimmed = raw.replace(/^\/+|\/+$/g, '');
+  return trimmed === '' ? '/' : `/${trimmed}/`;
+}
+
+const base = basePath();
+
+/** Escapes the path so it can stand at the front of a regular expression. */
+const baseAsPattern = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 export default defineConfig({
+  base,
   plugins: [
     react(),
     VitePWA({
@@ -83,7 +110,10 @@ export default defineConfig({
         // page. The API is excluded: a request that has to reach the server
         // must fail as a request, not be answered with HTML.
         navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/api\//],
+        // Under a sub-path the API sits below it as well, so the pattern has
+        // to carry the prefix - otherwise it matches nothing and a navigation
+        // to an API address would be answered from the cache.
+        navigateFallbackDenylist: [new RegExp(`^${baseAsPattern}api/`)],
         cleanupOutdatedCaches: true,
         // Take over the page that installed the worker instead of waiting for
         // the next start, so the app survives a lost connection from the first

@@ -205,8 +205,9 @@ schon nach dem ersten Besuch einen Verbindungsabbruch übersteht.
 **Für den Reverse Proxy heißt das:** `sw.js` und `index.html` dürfen nicht mit
 langer Lebensdauer zwischengespeichert werden – sonst bleiben Geräte auf einem
 alten Bundle stehen. Die Dateien unter `/assets/` tragen einen Hash im Namen und
-dürfen dauerhaft gecacht werden. Die Beispielkonfigurationen (Abschnitt 7.3)
-setzen das um.
+dürfen dauerhaft gecacht werden. Die Anwendung setzt beide Header seit M10
+selbst; die Beispielkonfigurationen (Abschnitt 7.3) reichen sie deshalb nur
+durch und setzen bewusst keine eigenen Cache-Regeln.
 
 ---
 
@@ -723,23 +724,52 @@ nativen Modulen ermittelt (`libc6`, `libgcc-s1`, `libstdc++6`).
 
 ### 7.3 Mitgelieferte Konfigurationen für Fremdkomponenten
 
-Unter `/usr/share/doc/product-rating/examples/` (im Repo: `packaging/examples/`):
+Unter `/usr/share/doc/product-rating/examples/` (im Repo: `packaging/examples/`,
+mit einer eigenen [Übersicht](packaging/examples/README.md)):
 
 - **nginx** – `nginx/product-rating.conf`: Vhost mit TLS, `proxy_pass` auf
   `127.0.0.1:8080`, `client_max_body_size` passend zum Upload-Limit,
-  `X-Forwarded-*`-Header, Cache-Header für statische Assets, Security-Header.
-  Zusätzlich eine Variante für den Betrieb in einem Unterpfad.
+  `X-Forwarded-*`-Header, Security-Header, gzip. Dazu
+  `nginx/product-rating-subpath.conf` für den Betrieb unter einem Unterpfad.
 - **Apache 2.4** – `apache2/product-rating.conf`: Vhost mit `mod_proxy`,
-  `mod_proxy_http`, `mod_headers`, `mod_ssl`; `ProxyPreserveHost On`,
-  `RequestHeader set X-Forwarded-Proto https`, `LimitRequestBody` passend zum
-  Upload-Limit. Benötigt `a2enmod proxy proxy_http headers ssl`.
+  `ProxyPreserveHost On`, `RequestHeader set X-Forwarded-Proto https`,
+  `AllowEncodedSlashes NoDecode` und Größenbegrenzung. Benötigt
+  `a2enmod proxy proxy_http headers ssl deflate rewrite`.
 - **Caddy** – `caddy/Caddyfile`: kürzeste Variante inklusive automatischem TLS.
-- **Traefik** – `traefik/dynamic.yml` sowie Compose-Labels.
-- **systemd** – Unit und eine `override.conf`-Vorlage für abweichende Pfade.
-- **logrotate** – Rotationsregel für `/var/log/product-rating/`.
-- **Backup** – `backup/product-rating-backup` (Skript, konsistentes
-  SQLite-`.backup` plus Upload-Verzeichnis) und passende systemd-Timer-Vorlage.
+- **Traefik** – `traefik/dynamic.yml` für den File-Provider sowie
+  `traefik/docker-compose.labels.yml` mit denselben Einstellungen als Labels.
+- **systemd** – `systemd/override.conf`: Drop-in-Vorlage für abweichende Pfade,
+  Ports und Log-Stufe. Die Unit selbst gehört zum Paket und wird nicht
+  bearbeitet, sondern mit `systemctl edit product-rating` überschrieben.
+- **Backup** – `backup/product-rating-backup` (Skript: SQLite-Snapshot per
+  `VACUUM INTO` plus Upload-Verzeichnis, Fotos gegen den Vorgänger hart
+  verlinkt) mit `.service` und `.timer` für den täglichen Lauf.
 - **ufw** – Applikationsprofil.
+
+Die logrotate-Regel ist keine Vorlage, sondern Teil des Pakets
+(`/etc/logrotate.d/product-rating`, als `conffile` registriert).
+
+Keins der Beispiele setzt Cache-Header: die Anwendung setzt sie selbst und ist
+die einzige Stelle, die die unveränderlichen Dateien unter `/assets/` von
+`index.html`, `sw.js` und dem Manifest unterscheiden kann (Abschnitt 2.2). Eine
+eigene Regel im Proxy überschriebe genau das.
+
+**Betrieb unter einem Unterpfad.** Möglich, kostet aber einen eigenen Bau: der
+Pfad steckt in `index.html`, im Manifest, im Service Worker und in der
+API-Adresse des Bundles und lässt sich nachträglich nicht umschreiben.
+
+```bash
+PRODUCT_RATING_BASE_PATH=/produkte npm run package:deb
+docker build --build-arg PRODUCT_RATING_BASE_PATH=/produkte \
+  -f docker/Dockerfile -t product-rating .
+```
+
+Der Proxy schneidet das Präfix wieder ab (`proxy_pass … /` mit Schrägstrich am
+Ende), die Anwendung antwortet also weiterhin auf `/` und `/api/v1` und braucht
+keine eigene Einstellung. `server.base_url` bekommt den vollen Pfad, zum
+Beispiel `https://heim.example.org/produkte`. Zwei Instanzen unter zwei
+Unterpfaden **desselben** Hostnamens funktionieren nicht: das Sitzungs-Cookie
+gilt für `/` und beide überschrieben sich gegenseitig.
 
 ---
 
@@ -748,6 +778,10 @@ Unter `/usr/share/doc/product-rating/examples/` (im Repo: `packaging/examples/`)
 - **Backup:** `product-rating backup --to <verzeichnis>` erzeugt einen
   konsistenten SQLite-Snapshot (`VACUUM INTO`) und sichert die Uploads. Ein
   einfaches Kopieren der `.db` im laufenden Betrieb ist wegen WAL nicht sicher.
+  Bis der CLI-Rahmen steht (M13) tut
+  `packaging/examples/backup/product-rating-backup` dasselbe, samt Timer und
+  Aufbewahrungsgrenze; der Dienst muss dafür nicht angehalten werden. Die
+  Wiederherstellung steht im `--help` des Skripts.
 - **Update:** `apt install ./product-rating_<neue-version>.deb` beziehungsweise
   `docker compose pull && docker compose up -d`. Migrationen laufen automatisch;
   vorher wird ein Datenbank-Snapshot angelegt.
@@ -802,6 +836,7 @@ npm test                    # Vitest
 npm run lint && npm run typecheck
 npm run build               # Produktions-Bundle nach dist/
 npm run package:deb         # Debian-Paket bauen
+PRODUCT_RATING_BASE_PATH=/produkte npm run build   # Bau für einen Unterpfad (7.3)
 docker build -f docker/Dockerfile -t product-rating .   # Image bauen
 
 npm run icons  --workspace @product-rating/web   # Icons aus den SVG-Quellen
@@ -846,7 +881,8 @@ web/        React-PWA
 shared/     gemeinsame Typen und Zod-Schemata
 config/     config.example.toml
 packaging/  build-deb.sh, debian/ (control, Maintainer-Skripte, Unit,
-            logrotate, Konfiguration), examples/ (ab M12)
+            logrotate, Konfiguration), examples/ (nginx, apache2, caddy,
+            traefik, systemd, ufw, backup)
 docker/     Dockerfile, Entrypoint, Container-Konfiguration, Compose-Dateien
             (einzeln und mit Caddy davor)
 ```

@@ -37,6 +37,17 @@ RUN npm ci
 
 COPY . .
 
+# Sub-path the instance is reached under, empty for the normal case of an own
+# host name. It has to be known here, because it ends up in index.html, in the
+# manifest and in the API address of the bundle:
+#
+#   docker build --build-arg PRODUCT_RATING_BASE_PATH=/produkte …
+#
+# The reverse proxy strips the prefix again, so nothing about the server
+# changes. See packaging/examples/nginx/product-rating-subpath.conf.
+ARG PRODUCT_RATING_BASE_PATH=""
+ENV PRODUCT_RATING_BASE_PATH=${PRODUCT_RATING_BASE_PATH}
+
 # Server bundle including the SQL migrations, plus the web client with its
 # service worker.
 RUN npm run build

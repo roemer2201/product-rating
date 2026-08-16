@@ -40,8 +40,17 @@ import { apiErrorText } from '@/lib/strings';
  * validation to the shared zod schemas.
  */
 
-/** Same origin as the app; the Vite dev server proxies it to the API. */
-export const API_BASE = '/api/v1';
+/**
+ * Same origin as the app; the Vite dev server proxies it to the API.
+ *
+ * `BASE_URL` is the path this bundle was built for and always ends with a
+ * slash — `/` unless `PRODUCT_RATING_BASE_PATH` named a sub-path. Deriving the
+ * API address from it is what makes a deployment under a sub-path work: the
+ * browser asks for `/produkte/api/v1/…`, the reverse proxy strips the prefix
+ * again, and the server keeps answering on `/api/v1/…` without knowing about
+ * any of it.
+ */
+export const API_BASE = `${import.meta.env.BASE_URL}api/v1`;
 
 /** The error envelope every failing route answers with. */
 interface ErrorBody {

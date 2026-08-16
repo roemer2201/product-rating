@@ -1,0 +1,85 @@
+# Backup of a product-rating instance, started by product-rating-backup.timer.
+#
+#   install -m 0755 product-rating-backup /usr/local/bin/
+#   cp product-rating-backup.service product-rating-backup.timer \
+#     /etc/systemd/system/
+#   install -d -o product-rating -g product-rating -m 0750 \
+#     /var/backups/product-rating
+#   systemctl daemon-reload
+#   systemctl enable --now product-rating-backup.timer
+#
+# Try it once without waiting for the timer:
+#
+#   systemctl start product-rating-backup.service
+#   journalctl -u product-rating-backup -n 50
+#
+# The service does not have to be stopped for this: the database is copied
+# with SQLite's own VACUUM INTO, which is consistent while writes keep
+# happening.
+
+[Unit]
+Description=Backup of the product-rating database and photos
+Documentation=https://github.com/roemer2201/product-rating
+# Only ordering, not a dependency: a backup of a stopped instance is a
+# perfectly good backup.
+After=product-rating.service
+
+[Service]
+Type=oneshot
+
+# The same user the application runs as, so the database and the photos are
+# readable without root. The backup directory has to belong to it - see the
+# install line above.
+User=product-rating
+Group=product-rating
+
+# Every option of the script is also an environment variable, which is what
+# makes it configurable here without touching the command line.
+Environment=PRODUCT_RATING_BACKUP_TARGET=/var/backups/product-rating
+Environment=PRODUCT_RATING_BACKUP_RETENTION=14
+# Only needed if config.toml points the paths somewhere other than the
+# default of the package:
+#Environment=PRODUCT_RATING_BACKUP_DATABASE=/srv/product-rating/db/app.db
+#Environment=PRODUCT_RATING_BACKUP_UPLOADS=/srv/product-rating/uploads
+
+ExecStart=/usr/local/bin/product-rating-backup
+
+# The script logs to the journal through logger by itself; this keeps the
+# output of the commands it calls in the same place.
+StandardOutput=journal
+StandardError=journal
+
+# Backups contain photos and the whole catalogue: the files belong to the
+# service user and nobody else.
+UMask=0077
+
+# --- Hardening -------------------------------------------------------------
+# The job reads two directories and writes into a third. Everything else is
+# taken away, mirroring the unit of the service itself.
+NoNewPrivileges=true
+ProtectSystem=strict
+# Reading the data, writing the backup. A target on another file system has to
+# be named here instead.
+ReadOnlyPaths=/var/lib/product-rating
+ReadWritePaths=/var/backups/product-rating
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+# A backup needs no network at all.
+PrivateNetwork=true
+RestrictAddressFamilies=AF_UNIX
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=

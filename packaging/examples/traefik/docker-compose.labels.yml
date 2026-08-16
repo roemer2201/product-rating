@@ -1,0 +1,104 @@
+# product-rating behind Traefik 3, as containers in one compose project.
+#
+# Same configuration as dynamic.yml, only expressed as labels: Traefik reads
+# them from the docker provider, so no file has to be mounted. Start from
+# docker/docker-compose.yml and add the labels of the app service below, or use
+# this file directly:
+#
+#   PRODUCT_RATING_DOMAIN=produkte.example.org \
+#   PRODUCT_RATING_BASE_URL=https://produkte.example.org \
+#   ACME_EMAIL=admin@example.org \
+#     docker compose -f docker-compose.labels.yml up -d
+#
+# The application is not published on the host here - only Traefik talks to it,
+# over the network of the compose project.
+
+name: product-rating
+
+services:
+  app:
+    image: product-rating:latest
+    container_name: product-rating
+    restart: unless-stopped
+    init: true
+
+    environment:
+      # The public address, and it has to be the one the browser uses:
+      # everything writing is checked against it.
+      PR_SERVER__BASE_URL: ${PRODUCT_RATING_BASE_URL:?set PRODUCT_RATING_BASE_URL, e.g. https://produkte.example.org}
+      # Traefik sets X-Forwarded-For and X-Forwarded-Proto; with this the log
+      # and the login rate limit see the client instead of the proxy.
+      PR_SERVER__TRUST_PROXY: 'true'
+      BOOTSTRAP_ADMIN_USER: ${BOOTSTRAP_ADMIN_USER:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+
+    volumes:
+      - data:/data
+
+    security_opt:
+      - no-new-privileges:true
+
+    labels:
+      traefik.enable: 'true'
+      traefik.http.routers.product-rating.rule: Host(`${PRODUCT_RATING_DOMAIN:?set PRODUCT_RATING_DOMAIN}`)
+      traefik.http.routers.product-rating.entrypoints: websecure
+      traefik.http.routers.product-rating.tls.certresolver: letsencrypt
+      traefik.http.routers.product-rating.middlewares: product-rating-headers,product-rating-body
+      # The port inside the container; the compose network reaches it directly,
+      # nothing is published on the host.
+      traefik.http.services.product-rating.loadbalancer.server.port: '8080'
+      traefik.http.services.product-rating.loadbalancer.passhostheader: 'true'
+      traefik.http.services.product-rating.loadbalancer.healthcheck.path: /healthz
+      traefik.http.services.product-rating.loadbalancer.healthcheck.interval: 30s
+
+      # Same headers as in dynamic.yml. No Cache-Control among them: the
+      # application sets it itself and is the only place that can tell an
+      # immutable /assets/ file from index.html, sw.js and the manifest, which
+      # have to stay revalidated.
+      traefik.http.middlewares.product-rating-headers.headers.stsseconds: '31536000'
+      traefik.http.middlewares.product-rating-headers.headers.stsincludesubdomains: 'true'
+      traefik.http.middlewares.product-rating-headers.headers.contenttypenosniff: 'true'
+      traefik.http.middlewares.product-rating-headers.headers.referrerpolicy: same-origin
+      traefik.http.middlewares.product-rating-headers.headers.framedeny: 'true'
+
+      # At least uploads.max_file_size_mb of the application (15 MB by default)
+      # plus the overhead of the multipart body.
+      traefik.http.middlewares.product-rating-body.buffering.maxrequestbodybytes: '20971520'
+      traefik.http.middlewares.product-rating-body.buffering.memrequestbodybytes: '2097152'
+
+  traefik:
+    image: traefik:v3
+    container_name: product-rating-traefik
+    restart: unless-stopped
+
+    command:
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --providers.docker=true
+      # Only containers that ask for it are published, not every container of
+      # the host.
+      - --providers.docker.exposedbydefault=false
+      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:?set ACME_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+
+    ports:
+      - '80:80'
+      - '443:443'
+
+    volumes:
+      # Read only: Traefik needs to read the labels of the containers, nothing
+      # more. The socket is the control of the docker daemon - whoever may
+      # write to it is root on the host.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # The certificate and the account key. Without this volume Traefik asks
+      # the certificate authority again after every restart and runs into its
+      # rate limit.
+      - letsencrypt:/letsencrypt
+
+volumes:
+  data:
+    name: product-rating-data
+  letsencrypt:
