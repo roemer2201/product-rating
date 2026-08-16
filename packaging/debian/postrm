@@ -1,0 +1,181 @@
+#!/bin/sh
+#
+# postrm
+#
+# Description:
+#   Runs after the files of the product-rating package have been taken away.
+#   On "remove" it only tidies up the systemd state, so a reinstall finds a
+#   clean slate. On "purge" it removes what dpkg does not know about: the
+#   generated session secret, the configuration directory, and - after asking -
+#   the database, the photos and the log files.
+#
+#   The question is the reason the package ships debconf templates. Purging is
+#   irreversible and hits exactly the data that cannot be rebuilt, so it is not
+#   done on the strength of a "purge" alone. Without an answer - an unattended
+#   run with the noninteractive frontend - the default is no, and the data
+#   stays.
+#
+# Program flow:
+#   1. On "remove": mask the unit and reload systemd.
+#   2. On "purge": ask whether the data may go.
+#   3.   Always remove /etc/product-rating including the session secret.
+#   4.   Remove /var/lib/product-rating and /var/log/product-rating only if the
+#        answer was yes, and only then drop the system user, which would
+#        otherwise leave the kept files owned by an unknown uid.
+#   5.   Drop the systemd state and the debconf answers.
+#
+# Arguments are the ones dpkg passes (remove, purge, upgrade, ...). The script
+# takes no options of its own; dpkg owns the argument vector.
+#
+# Version: 1.0.0  (2026-08-15)
+
+# Mandatory for a maintainer script.
+set -e
+
+# The debconf protocol has to be opened here, at the top level of the script,
+# and never from inside a function. Sourcing confmodule re-executes the script
+# through the debconf frontend as "$0" "$@" - and inside a function "$@" is the
+# arguments of the function, not of the script. The script would restart
+# without the action dpkg passed it and fall through to the "unknown argument"
+# branch below.
+#
+# Sourcing also moves the script's stdout to stderr and keeps the protocol on a
+# descriptor of its own, so the messages below cannot corrupt it.
+DEBCONF_AVAILABLE=0
+if [ -f /usr/share/debconf/confmodule ]; then
+    . /usr/share/debconf/confmodule
+    DEBCONF_AVAILABLE=1
+fi
+
+# Script name, used as the logger tag and in messages.
+SCRIPT_NAME="$(basename -- "${0}")"
+
+# --- Layout of the installation -------------------------------------------
+# The same values as in the postinst; changing the layout means changing both.
+APP_USER="product-rating"
+APP_GROUP="product-rating"
+CONFIG_DIR="/etc/product-rating"
+DATA_DIR="/var/lib/product-rating"
+LOG_DIR="/var/log/product-rating"
+UNIT="product-rating.service"
+
+# log LEVEL MESSAGE...  Same behaviour as in the postinst: syslog if logger is
+# there, and the console, which is what dpkg shows.
+log() {
+    level="${1}"
+    shift
+    message="$*"
+
+    priority="user.info"
+    case "${level}" in
+        error) priority="user.err" ;;
+        warn)  priority="user.warning" ;;
+    esac
+
+    if command -v logger > /dev/null 2>&1; then
+        logger -t "${SCRIPT_NAME}" -p "${priority}" -- "${message}" || true
+    fi
+
+    if [ "${level}" = "error" ] || [ "${level}" = "warn" ]; then
+        printf '%s: %s: %s\n' "${SCRIPT_NAME}" "${level}" "${message}" >&2
+    else
+        printf '%s: %s\n' "${SCRIPT_NAME}" "${message}"
+    fi
+}
+
+# Asks whether the data directories may be removed and answers "yes" or "no".
+#
+# Every debconf call is allowed to fail: with the noninteractive frontend
+# db_input reports that it skipped the question, and a postrm that aborts there
+# would leave the package half purged. A skipped question keeps the default
+# from the templates file, which is false - the cautious answer.
+ask_about_data() {
+    if [ "${DEBCONF_AVAILABLE}" -ne 1 ]; then
+        printf 'no\n'
+        return 0
+    fi
+
+    db_input high product-rating/purge-data || true
+    db_go || true
+    db_get product-rating/purge-data || true
+
+    if [ "${RET}" = "true" ]; then
+        printf 'yes\n'
+    else
+        printf 'no\n'
+    fi
+}
+
+# Removes the configuration directory. config.toml itself is a conffile and has
+# already been taken by dpkg at this point; what is left is the session secret
+# and whatever an administrator dropped next to it. The directory is only
+# removed when it is empty afterwards, so a stray file is kept rather than
+# swept away silently.
+remove_configuration() {
+    rm -f "${CONFIG_DIR}/secret.env"
+    rmdir "${CONFIG_DIR}" 2> /dev/null || true
+}
+
+# Removes the data and the account that owns it. Only ever called after an
+# explicit yes.
+remove_data() {
+    rm -rf "${DATA_DIR}" "${LOG_DIR}"
+    log info "Removed the database, the photos and the log files"
+
+    # The account goes with the data. If the data were kept, the account would
+    # have to stay as well: the files carry its uid, and a later install that
+    # got a different uid would no longer be able to read them.
+    if command -v deluser > /dev/null 2>&1; then
+        deluser --system --quiet "${APP_USER}" || true
+    fi
+    if command -v delgroup > /dev/null 2>&1; then
+        delgroup --system --quiet --only-if-empty "${APP_GROUP}" || true
+    fi
+}
+
+case "${1}" in
+    remove)
+        if command -v deb-systemd-helper > /dev/null 2>&1; then
+            deb-systemd-helper mask "${UNIT}" > /dev/null || true
+        fi
+        if [ -d /run/systemd/system ]; then
+            systemctl --system daemon-reload > /dev/null || true
+        fi
+        ;;
+
+    purge)
+        purge_data="$(ask_about_data)"
+
+        remove_configuration
+        if [ "${purge_data}" = "yes" ]; then
+            remove_data
+        else
+            log info "Keeping ${DATA_DIR} and ${LOG_DIR}; remove them by hand if they are no longer needed"
+        fi
+
+        if command -v deb-systemd-helper > /dev/null 2>&1; then
+            deb-systemd-helper purge "${UNIT}" > /dev/null || true
+            deb-systemd-helper unmask "${UNIT}" > /dev/null || true
+        fi
+        if [ -d /run/systemd/system ]; then
+            systemctl --system daemon-reload > /dev/null || true
+        fi
+
+        # Drop the stored answer, so a later install asks again instead of
+        # reusing a decision made for a different installation.
+        if [ "${DEBCONF_AVAILABLE}" -eq 1 ]; then
+            db_purge || true
+        fi
+        ;;
+
+    upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        # Nothing to clean up: the files are being replaced, not removed.
+        ;;
+
+    *)
+        printf '%s: called with unknown argument: %s\n' "${SCRIPT_NAME}" "${1}" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

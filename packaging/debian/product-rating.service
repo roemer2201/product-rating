@@ -1,0 +1,74 @@
+# product-rating - API server and web client in one process.
+#
+# Installed as /usr/lib/systemd/system/product-rating.service. Do not edit this
+# file: an upgrade replaces it. Local changes belong in a drop-in, which
+# survives:
+#
+#   systemctl edit product-rating
+#
+# A drop-in is what it takes to point paths.* somewhere else as well - a data
+# directory outside /var/lib needs its own ReadWritePaths entry, because
+# ProtectSystem=strict below makes the whole file system read only apart from
+# the paths named here. The examples directory carries a template for that.
+
+[Unit]
+Description=product-rating - product ratings by EAN barcode
+Documentation=https://github.com/roemer2201/product-rating
+# The server binds a socket at start-up; without a configured network that
+# fails and systemd would restart it until the network happens to be up.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=product-rating
+Group=product-rating
+WorkingDirectory=/opt/product-rating
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/product-rating serve
+# The server closes its listener and the database on SIGTERM, which is what
+# systemd sends by default.
+Restart=on-failure
+RestartSec=5s
+# Data written by the service - the database, its snapshots and WAL files, the
+# photos - stays readable for the group and closed to everyone else.
+UMask=0027
+
+# --- Hardening -------------------------------------------------------------
+# The service reads its configuration, writes its data and answers HTTP. It
+# needs nothing else, so everything else is taken away.
+NoNewPrivileges=true
+# Read only file system apart from the paths below. Both are created by the
+# postinst and belong to the service user.
+ProtectSystem=strict
+ReadWritePaths=/var/lib/product-rating /var/log/product-rating
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+# HTTP and the loopback socket; AF_UNIX stays because the runtime uses it for
+# the journal and for name resolution.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+# The service binds a port above 1024 and needs no capability at all. A port
+# below 1024 would need CAP_NET_BIND_SERVICE here and in AmbientCapabilities -
+# but that is what the reverse proxy in front is for.
+CapabilityBoundingSet=
+# Deliberately NOT set: MemoryDenyWriteExecute=true. The JavaScript engine
+# compiles to machine code at runtime and needs pages that are writable and
+# executable; with the option on, the service does not get past its start.
+
+[Install]
+WantedBy=multi-user.target

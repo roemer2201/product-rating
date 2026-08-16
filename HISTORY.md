@@ -5,6 +5,113 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-15 – M11: Debian-Paket
+
+**Umfang**
+
+- `packaging/build-deb.sh` als `npm run package:deb`: baut beide Workspaces,
+  stellt den Laufzeit-Abhängigkeitsbaum zusammen, legt den Installationsbaum
+  unter `packaging/build/` an, schreibt `DEBIAN/` samt `md5sums` und ruft
+  `dpkg-deb --build --root-owner-group` auf (kein `fakeroot` nötig). Nach den
+  Skript-Konventionen: Header mit Programmablaufplan, `--help`,
+  Silent-/Verbose-Modus, jeder Parameter zusätzlich als `BUILD_DEB_*`-Variable,
+  Logging über `logger` plus Konsole.
+- `packaging/debian/`: `control` (mit Platzhaltern für Version, Architektur,
+  Größe und die ermittelten Bibliotheks-Abhängigkeiten), `conffiles`,
+  `templates`, `config`, `postinst`, `prerm`, `postrm`, die systemd-Unit, die
+  logrotate-Regel, die ausgelieferte `config.toml`, der CLI-Aufsatz,
+  `copyright`, `changelog` und `lintian-overrides`.
+- `postinst`: Systemnutzer, Verzeichnisse mit Rechten, Secret mit `0600`,
+  Migrationen als Dienstnutzer und mit `umask 0027`, Anmeldung der Unit bei
+  systemd. Neuinstallation aktiviert den Dienst, startet ihn aber nicht –
+  `server.base_url` muss vorher stimmen; ein Upgrade startet einen laufenden
+  Dienst neu. `prerm` stoppt nur bei `remove`, damit ein Upgrade eine einzige
+  Unterbrechung hat statt einer über den ganzen Auspackvorgang.
+- `postrm`: `purge` entfernt `/etc/product-rating` samt Secret immer und fragt
+  über debconf nach den Nutzdaten; ohne Antwort bleibt es beim Nein. Der
+  Systemnutzer geht nur mit den Daten, sonst gehörten die behaltenen Dateien
+  einer unbekannten uid.
+- systemd-Unit mit `ProtectSystem=strict`, `ReadWritePaths`, `NoNewPrivileges`,
+  `PrivateTmp`, `SystemCallFilter=@system-service`, leerem
+  `CapabilityBoundingSet` und `UMask=0027`. `MemoryDenyWriteExecute` bleibt
+  bewusst aus: der JIT der JavaScript-Engine braucht beschreibbare und
+  ausführbare Seiten.
+- `/usr/bin/product-rating` bildet `serve`, `migrate` und `fsck` auf die
+  vorhandenen Einstiegspunkte ab und meldet für `user`, `invite`, `backup` und
+  `restore`, dass es sie noch nicht gibt (M13), statt still nichts zu tun.
+- README 7.2 und 9, CLAUDE.md 3 und 4 nachgezogen.
+- 385 Tests grün; `lint`, `typecheck` und `format:check` fehlerfrei.
+
+**Entscheidungen**
+
+- **Unit nach `/usr/lib/systemd/system/`**, nicht nach `/lib/systemd/system/`
+  wie bisher in der README: auf einem merged-usr-System ist `/lib` ein Symlink,
+  und ein Paket darf nicht durch einen Symlink hindurch installieren.
+- **Natives Paket** (`0.0.0` ohne Debian-Revision), also `changelog.gz` statt
+  `changelog.Debian.gz` – Anwendung und Verpackung sind ein Quellbaum.
+- **Kein `npm prune` im Repository.** Ein eigenes Verzeichnis mit nur den
+  Manifesten und der Lock-Datei bekommt aus denselben festgenagelten Versionen
+  dasselbe Ergebnis, ohne den Entwicklungsbaum des Bauenden zu zerlegen. Der
+  Install ist auf den Server-Workspace gefiltert: die Laufzeitpakete von `web/`
+  (React, Router, `zxing-wasm`) stecken schon im gebauten Client.
+- **Binärdateien fremder Plattformen fliegen raus** (musl, wasm32, darwin,
+  win32, andere Architektur), dazu Testsuiten, Dokumentation und CI-Metadaten
+  der Abhängigkeiten; die nativen Module werden mit `strip --strip-unneeded`
+  entlastet. Zusammen aus 130 MB `node_modules` 71 MB installiert, 11,8 MB
+  Paket. Das Ausführbar-Bit unter `node_modules` richtet sich danach, ob eine
+  Datei mit `#!` beginnt.
+- **`dpkg-shlibdeps` statt Vermutung**: die C-Bibliotheken der nativen Module
+  werden beim Bau ermittelt und in `Depends` geschrieben (`libc6 (>= 2.34)`,
+  `libgcc-s1`, `libstdc++6`) – `nodejs` allein garantiert sie nicht.
+- **Kein Fremdbau.** Die Prebuilds stammen vom Baurechner, deshalb lehnt das
+  Skript ein `--arch` ab, das nicht zur eigenen Architektur passt: ein Paket mit
+  `arm64` im Namen und x86-Binärdateien darin installiert sauber und scheitert
+  erst bei der ersten Datenbankabfrage.
+- **lintian**: von 8179 Meldungen auf null offene. Behoben statt überdeckt
+  wurden `no-debconf-config`, der Changelog-Name und seine Zeilenlänge, die
+  Pfade in `test`-Ausdrücken der Maintainer-Skripte, die Ja/Nein-Formulierung im
+  debconf-Text, die fremden Binärdateien, die Ausführbar-Bits und die
+  Bibliotheks-Abhängigkeiten. Vier Punkte stehen mit Begründung in
+  `lintian-overrides`: `/opt` ist laut FHS genau der richtige Ort für
+  nachinstallierte Software, sharp bringt sein libvips selbst mit, die
+  Handbuchseite gehört zur echten CLI aus M13, und der `/tmp`-Fund ist der
+  String `${DATA_DIR}/tmp`.
+
+**Real geprüft** (Paket gebaut, installiert und betrieben)
+
+- Voller Lebenszyklus: `dpkg -i`, Konfiguration ändern, Upgrade auf `0.0.1`,
+  `remove`, `purge`. Der geänderte `conffile` (`port = 9090`) überlebt das
+  Upgrade, Secret und Nutzdaten ebenso; die Migration meldet beim zweiten Lauf
+  „nothing to do“. `remove` lässt Konfiguration und Daten liegen, `purge` ohne
+  Antwort ebenfalls die Daten, `purge` mit vorbelegtem
+  `product-rating/purge-data boolean true` räumt Datenbank, Fotos, Logs und den
+  Systemnutzer ab.
+- Anwendung aus dem installierten Paket, als Dienstnutzer gestartet: Anmeldung
+  (argon2), Produkt anlegen (better-sqlite3), Foto hochladen (sharp/libvips –
+  1200×900 JPEG nach WebP), Bewertung, Auslieferung von Thumbnail und
+  App-Shell, `/assets/` mit `immutable`, `fsck --uploads` ohne Befund. Damit
+  ist belegt, dass der beschnittene und gestrippte Abhängigkeitsbaum trägt.
+- Rechte nach dem Install: `secret.env` `0600`, `config.toml` `0640
+  root:product-rating`, Datenverzeichnisse `0750`, `app.db` `0640`. Dass die
+  Datenbank ohne die `umask 0027` im `postinst` als `0644` entstand, ist beim
+  Testen aufgefallen und behoben.
+- Beim Testen gefunden und behoben: `postrm` hatte `confmodule` innerhalb einer
+  Funktion geladen. Das Laden startet das Skript über das debconf-Frontend neu
+  – mit `"$@"`, das in einer Funktion aber deren Argumente sind. Das Skript lief
+  danach ohne die Aktion von dpkg wieder an und brach mit „unknown argument“ ab.
+  Jetzt wird auf oberster Ebene geladen.
+
+**Offen** – arm64 fehlt mangels Maschine, und die Sandbox der Unit ist bisher
+nur gelesen: in der Entwicklungsumgebung lief kein systemd, geprüft wurde der
+Dienst als derselbe Systemnutzer mit demselben Aufruf, aber ohne die Härtung.
+Beides steht als eigener Punkt in TODO.md (M11).
+
+Am Rande: `/usr/share/doc/` sah nach dem Install leer aus – das lag an der
+`path-exclude`-Regel des Testcontainers, nicht am Paket; `dpkg -c` zeigt die
+Dateien.
+
+---
+
 ## 2026-08-15 – M10: Docker
 
 **Umfang**

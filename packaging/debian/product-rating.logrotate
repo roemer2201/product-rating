@@ -1,0 +1,23 @@
+# Rotation of the product-rating log files.
+#
+# Only relevant when log.destination in /etc/product-rating/config.toml is set
+# to "file". The shipped configuration logs to stdout, which under systemd is
+# the journal - and the journal rotates itself, so this rule then finds nothing
+# to do, which is what "missingok" is for.
+/var/log/product-rating/*.log {
+    daily
+    rotate 14
+    missingok
+    notifempty
+    compress
+    delaycompress
+    # The server holds its log file open and is not told to reopen it, so the
+    # file has to keep its inode: copy the contents away, then truncate the
+    # original. Renaming it instead would leave the service writing into a file
+    # nobody looks at any more.
+    copytruncate
+    create 0640 product-rating adm
+    # Rotate as the owner of the directory rather than as root, so a symlink
+    # planted in it cannot be followed with root privileges.
+    su product-rating product-rating
+}

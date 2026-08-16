@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+#
+# product-rating
+#
+# Description:
+#   Command line front end of the installed product-rating package. Resolves a
+#   subcommand to the matching entry point of the application bundle below
+#   /opt/product-rating and replaces itself with node, so the exit status and
+#   the signal handling are those of the application and not of this wrapper.
+#
+#   The systemd unit calls it as "product-rating serve", the postinst as
+#   "product-rating migrate".
+#
+# Program flow:
+#   1. Read the subcommand; help and version are answered here and stop.
+#   2. Map the subcommand to an entry point of the bundle.
+#   3. Verify node and the entry point are there, with a message that names
+#      what is missing.
+#   4. exec node with that entry point and every remaining argument.
+#
+# Usage:
+#   product-rating <command> [OPTIONS]
+#
+# Note on the project's script conventions: this wrapper carries no --silent
+# and no --verbose of its own. It produces no output worth suppressing - every
+# message a user sees comes from the application it execs, which has its own
+# log level (--log-level, log.level in the configuration). Adding switches that
+# do nothing would only suggest an effect that is not there.
+#
+# Version: 1.0.0  (2026-08-15)
+
+# Robustness baseline: a wrapper that cannot resolve its target must not fall
+# through to something else.
+set -euo pipefail
+
+# Script name, used as the logger tag and in messages.
+SCRIPT_NAME="$(basename -- "${0}")"
+
+# Version of the package this wrapper was built for; filled in by
+# packaging/build-deb.sh.
+VERSION="@VERSION@"
+
+# --- Defaults seeded from environment variables ---------------------------
+# Precedence: environment variable > built-in default. Both exist so the
+# wrapper can be pointed at a bundle in another place - a test installation
+# next to the packaged one, for instance.
+APP_DIR="${PRODUCT_RATING_APP:-/opt/product-rating/server}"
+NODE_BIN="${PRODUCT_RATING_NODE:-node}"
+
+# Print usage information.
+usage() {
+    cat <<'EOF'
+Usage: product-rating <command> [OPTIONS]
+
+Command line front end of product-rating. Every option after the command is
+passed to the application unchanged.
+
+Commands:
+  serve               Run the API server and serve the web client.
+  migrate             Apply pending database migrations and exit.
+  fsck --uploads      Compare the upload directory against the photo table.
+                      Reports only; --repair deletes the orphaned files.
+  help, --help, -h    Show this help and exit.
+  version, --version  Show the package version and exit.
+
+Options of the application, accepted by serve, migrate and fsck alike:
+  --config FILE       Configuration file to read instead of the search path
+                      (/etc/product-rating/config.toml on this system).
+  --set KEY=VALUE     Override a single configuration value, for example
+                      --set server.port=9090
+  --log-level LEVEL   error | warn | info | debug
+
+Environment:
+  PRODUCT_RATING_APP    Directory of the application bundle, the one holding
+                        dist/.        Default: /opt/product-rating/server
+  PRODUCT_RATING_NODE   node binary to run.                  Default: node
+  PRODUCT_RATING_CONFIG Configuration file, same effect as --config.
+
+Not implemented yet, and reported as such rather than silently ignored:
+"user", "invite", "backup" and "restore". They arrive with M13; until then
+accounts are managed in the web interface, and a backup is a copy of the
+database taken with SQLite's own backup - never a plain copy of the file,
+which is not safe while the service runs.
+
+Examples:
+  product-rating serve --log-level debug
+  product-rating migrate
+  product-rating fsck --uploads
+EOF
+}
+
+# die MESSAGE...  Report an explicit failure and exit non-zero.
+#
+# No logger here: this wrapper runs in the foreground of an administrator or
+# inside the systemd unit, where stderr already ends up in the journal. A
+# logger call would duplicate the line in the same journal.
+die() {
+    printf '%s: error: %s\n' "${SCRIPT_NAME}" "$*" >&2
+    exit 1
+}
+
+# --- Subcommand ------------------------------------------------------------
+if [ "$#" -lt 1 ]; then
+    printf '%s: no command given\n' "${SCRIPT_NAME}" >&2
+    usage >&2
+    exit 2
+fi
+
+command_name="${1}"
+shift
+
+# Map the subcommand to the entry point that implements it. The bundle keeps
+# one file per entry point; the proper subcommand dispatcher inside the
+# application arrives with M13, and this mapping goes away with it.
+entry_point=""
+case "${command_name}" in
+    serve)
+        entry_point="index.js"
+        ;;
+    migrate)
+        entry_point="migrate.js"
+        ;;
+    fsck)
+        entry_point="fsck.js"
+        ;;
+    help|--help|-h)
+        usage
+        exit 0
+        ;;
+    version|--version|-V)
+        printf 'product-rating %s\n' "${VERSION}"
+        exit 0
+        ;;
+    user|invite|backup|restore)
+        die "the ${command_name} command is not implemented yet; see 'product-rating --help'"
+        ;;
+    *)
+        printf '%s: unknown command: %s\n' "${SCRIPT_NAME}" "${command_name}" >&2
+        usage >&2
+        exit 2
+        ;;
+esac
+
+# --- Preconditions ---------------------------------------------------------
+# Both checks name the missing piece, because "command not found" from an exec
+# five layers down tells an administrator nothing about which part is broken.
+if ! command -v "${NODE_BIN}" > /dev/null 2>&1; then
+    die "node was not found (${NODE_BIN}); the package depends on nodejs (>= 22)"
+fi
+
+target="${APP_DIR}/dist/${entry_point}"
+if [ ! -f "${target}" ]; then
+    die "application bundle is incomplete, ${target} is missing; reinstall the package"
+fi
+
+# exec, so the application takes over this process: it receives SIGTERM from
+# systemd directly and its exit status reaches the caller unchanged.
+exec "${NODE_BIN}" "${target}" "$@"

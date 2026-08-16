@@ -1,0 +1,15 @@
+Template: product-rating/purge-data
+Type: boolean
+Default: false
+Description: Remove the product-rating database, photos and log files?
+ The package is being purged. Its data directory /var/lib/product-rating
+ holds the SQLite database and every uploaded photo, and
+ /var/log/product-rating holds the log files, if file logging was switched
+ on.
+ .
+ Confirm this only if that data is meant to be gone for good; short of a
+ backup there is no way back. Declining keeps both directories, so a later
+ install of the package finds its products, photos and accounts again.
+ .
+ The configuration in /etc/product-rating, including the session secret, is
+ removed either way - that is what purging a package means.
