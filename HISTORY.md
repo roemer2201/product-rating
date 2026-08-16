@@ -5,6 +5,94 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-16 – M13: CLI und Betrieb
+
+**Umfang**
+
+- `product-rating <befehl>` als einziger Einstiegspunkt der Anwendung
+  (`server/src/cli/`): `serve`, `migrate`, `user add|list|disable|enable|passwd`,
+  `invite create|list|revoke`, `backup`, `restore`, `fsck`, dazu `help` und
+  `version`. `server/src/index.ts` reicht nur noch `process.argv` an den
+  Verteiler weiter und setzt dessen Antwort als Exit-Code; `src/migrate.ts` und
+  `src/fsck.ts` sind entfallen, das Bundle hat einen Einstiegspunkt statt drei.
+- Einheitliche Exit-Codes: `0` erledigt, `1` fehlgeschlagen oder Fund, `2` falsch
+  aufgerufen. Ergebnisse gehen nach stdout, Fortschritt und Fehler nach stderr,
+  damit `product-rating invite create` in einer Pipe genau den Code liefert.
+- Eigener Optionen-Parser (`cli/options.ts`): Jeder Befehl nimmt seine eigenen
+  Schalter heraus und reicht die Konfigurationsschalter aus M1 (`--config`,
+  `--set`, Kurzformen) unverändert an `loadConfig()` weiter. Unbekannte Schalter
+  sind ein Fehler statt stiller Nachsicht.
+- `backup --to <dir> [--keep-days N]` und `restore --from <dir> [--yes]`
+  (`services/backup.ts`): Kopie über `VACUUM INTO`, Gegenlesen mit
+  `PRAGMA integrity_check`, Fotos gegen den Vorgänger hart verlinkt,
+  `latest`-Symlink, Aufbewahrungsgrenze nach Verzeichnisnamen. Layout identisch
+  zu `packaging/examples/backup/product-rating-backup`, damit Snapshots beider
+  Wege austauschbar sind.
+- Strukturiertes Logging mit pino (`server/src/logging/`): `log.level`,
+  `log.format` (`json`/`pretty`) und `log.destination` (`stdout`/`file`/`syslog`)
+  wirken jetzt tatsächlich; bisher war nur der Level angeschlossen. Fastify
+  bekommt die fertige Instanz über `loggerInstance`.
+- Anmeldeversuche unter einem Namen im Log: `event: "auth.login"` mit `outcome`
+  (`success`, `failure`, `rate_limited`), Benutzername, IP und – nur im Log – dem
+  Grund. Damit ist der offene Punkt aus M3 erledigt.
+- `/healthz` meldet Version, Erreichbarkeit der Datenbank und Beschreibbarkeit
+  des Upload-Verzeichnisses; `503` und `"degraded"`, sobald eines davon fehlt.
+- Paket und Container nachgezogen: Der Debian-Aufsatz beantwortet nur noch
+  `version` selbst und übergibt den Rest an das Bundle, der Container-Entrypoint
+  ruft `dist/index.js migrate` beziehungsweise `serve`, `build-deb.sh` prüft nur
+  noch den einen Einstiegspunkt.
+- README 5, 7.2, 8 (neu 8.1 Kommandozeile, 8.2 Logging) und CLAUDE.md 4
+  nachgezogen. 427 Tests grün; `lint`, `typecheck` und `format:check` fehlerfrei.
+
+**Entscheidungen**
+
+- **Ein Einstiegspunkt statt drei.** `serve` ist ein Befehl wie jeder andere.
+  Der Aufsatz in `/usr/bin` musste sonst wissen, welche Datei welchen Befehl
+  bedient, und lief bei jedem neuen Befehl der Anwendung hinterher.
+- **Kein `--password` auf der Kommandozeile.** Ein Passwort als Argument steht
+  in der Shell-History und für die Laufzeit des Prozesses in der Prozessliste
+  jedes Nutzers der Maschine. Es bleibt die Abfrage ohne Echo (zweimal, gegen
+  Tippfehler) und `--password-stdin` für Skripte.
+- **`restore` fragt nach dem Wort „restore“**, nicht nach „ja“. Der Befehl
+  ersetzt Datenbank und Fotos; eine Frage, die man im Reflex bejaht, ist dafür
+  zu wenig. Die vorhandene Datenbank wird vorher als `pre-restore-<stempel>.db`
+  daneben gelegt, ein Griff in das falsche Verzeichnis ist also umkehrbar.
+- **syslog über `logger`.** Node kann keine Unix-Datagram-Sockets, `/dev/log`
+  ist genau das. Statt eines nativen Moduls für ein Logziel bekommt ein
+  langlebiger `logger`-Prozess (util-linux, wie in den Shell-Skripten des
+  Projekts) die Zeilen über stdin, mit `--prio-prefix` und `<PRI>` je Zeile,
+  damit eine Warnung im Journal eine Warnung bleibt. Stirbt er, fallen die
+  Zeilen auf stderr zurück – ein Dienst, der wegen seines Loghelfers abstürzt,
+  wäre der schlechtere Tausch. Beim Start wird eine Testzeile geschrieben, sonst
+  fiele erst im Ernstfall auf, dass nichts ankommt.
+- **`pretty` ohne Worker-Thread.** pino-pretty läuft im Prozess statt als
+  Transport: Ein Worker müsste vor dem Ende sauber abgeräumt werden, und für die
+  Zeilenzahl einer Haushaltsinstanz ist das viel Maschinerie für nichts.
+- **Kopien behalten die Änderungszeit.** Ohne das trüge jede Kopie im Snapshot
+  die Zeit des Backup-Laufs, und der nächste Lauf könnte unveränderte Fotos
+  nicht mehr erkennen – das harte Verlinken hängt daran. Entspricht `cp -p`.
+- **Befehle verweigern die Arbeit auf einem veralteten Schema** und nennen
+  `product-rating migrate`. Eine Abfrage gegen eine fehlende Spalte scheitert
+  sonst mit einer Meldung über SQL statt mit dem einen hilfreichen Satz.
+- **`user enable` zusätzlich aufgenommen.** `disable` ließe sich sonst nur in
+  der Weboberfläche zurücknehmen – ausgerechnet dort, wo man nach einem
+  versehentlich gesperrten Konto nicht unbedingt hinkommt.
+- **`/healthz` bleibt schmal.** Version und zwei Wahrheitswerte, sonst nichts:
+  Die Route ist absichtlich ohne Anmeldung erreichbar, also hat sie einem
+  Fremden nichts über das Innere der Installation zu erzählen.
+
+**Test**
+
+Gegen ein gebautes Bundle in einer eigenen Instanz durchgespielt: `migrate`
+(auch zweimal, bleibt bei „nothing to do“), `user add --password-stdin`,
+`user list`, `invite create` und `list`, `backup --to`, `fsck --uploads`,
+`serve` mit `/healthz`, einer fehlgeschlagenen und einer erfolgreichen Anmeldung
+im Log und Abschluss über SIGTERM mit Exit-Code 0. `logger` ohne syslog-Socket
+hat dabei einen EPIPE-Absturz ausgelöst – behoben, die Zeilen fallen jetzt auf
+stderr zurück, und der Fall ist als Test hinterlegt.
+
+---
+
 ## 2026-08-16 – M12: Mitgelieferte Konfigurationen
 
 **Umfang**

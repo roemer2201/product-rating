@@ -68,7 +68,7 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [x] **[S]** CSRF-Absicherung: Origin-/Referer-Prüfung für alle schreibenden Routen
 - [x] **[S]** Tests: Login-Erfolg/-Fehlschlag, Rate-Limit, abgelaufene Session, Registrierung mit gültigem/ungültigem/verbrauchtem Code, Rollenprüfung
 - [x] **[S]** Sitzungsliste lesbarer machen: User-Agent zu „iPhone · Safari“ verdichten (mit der Einstellungsseite in M8)
-- [ ] **[S]** Anmeldeversuche zusätzlich ins Log mit einheitlichem Ereignisnamen, sobald strukturiertes Logging steht (M13)
+- [x] **[S]** Anmeldeversuche zusätzlich ins Log mit einheitlichem Ereignisnamen, sobald strukturiertes Logging steht (M13) – `event: "auth.login"` mit `outcome` und Grund
 
 ## M4 – Produkt-API
 
@@ -215,16 +215,19 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 
 ## M13 – CLI und Betrieb
 
-- [ ] **[S]** CLI-Gerüst (`product-rating <befehl>`) mit `--help` und Exit-Codes
-- [ ] **[S]** `serve`, `migrate`
-- [ ] **[S]** `user add|list|disable|passwd`, `invite create|list|revoke`
-- [ ] **[M]** `backup --to <verzeichnis>`: SQLite `VACUUM INTO` plus Uploads, mit Zeitstempel und optionaler Aufbewahrungsgrenze
-- [ ] **[M]** `restore --from <verzeichnis>` mit ausdrücklicher Bestätigung
-- [ ] **[S]** `fsck` – verwaiste Dateien und Datenbankeinträge finden
-- [ ] **[S]** `/healthz` liefert Version, DB-Erreichbarkeit, Schreibbarkeit der Uploads
-- [ ] **[S]** Strukturiertes Logging (pino) mit den Zielen stdout, Datei und syslog
-- [ ] **[S]** `log.format` und `log.destination` tatsächlich anwenden – seit M1 validiert, wirksam ist bislang nur `log.level`
-- [ ] **[S]** CLI-Argumente aus M1 (`--config`, `--set`, Kurzformen) in `--help` aufnehmen
+- [x] **[S]** CLI-Gerüst (`product-rating <befehl>`) mit `--help` und Exit-Codes
+- [x] **[S]** `serve`, `migrate`
+- [x] **[S]** `user add|list|disable|passwd`, `invite create|list|revoke` – dazu `user enable`, weil `disable` sonst nur über die Weboberfläche zurückzunehmen ist
+- [x] **[M]** `backup --to <verzeichnis>`: SQLite `VACUUM INTO` plus Uploads, mit Zeitstempel und optionaler Aufbewahrungsgrenze (`--keep-days`)
+- [x] **[M]** `restore --from <verzeichnis>` mit ausdrücklicher Bestätigung
+- [x] **[S]** `fsck` – verwaiste Dateien und Datenbankeinträge finden
+- [x] **[S]** `/healthz` liefert Version, DB-Erreichbarkeit, Schreibbarkeit der Uploads
+- [x] **[S]** Strukturiertes Logging (pino) mit den Zielen stdout, Datei und syslog
+- [x] **[S]** `log.format` und `log.destination` tatsächlich anwenden – seit M1 validiert, wirksam ist bislang nur `log.level`
+- [x] **[S]** CLI-Argumente aus M1 (`--config`, `--set`, Kurzformen) in `--help` aufnehmen
+- [ ] **[S]** Handbuchseite (`man 1 product-rating`) aus den Hilfetexten erzeugen und ins Paket legen; bis dahin steht dafür ein `lintian`-Override
+- [ ] **[S]** `restore` kann nicht prüfen, ob der Dienst noch läuft – SQLite gibt darüber im Leerlauf keine Auskunft. Es bleibt bei Hinweis und Vorab-Kopie; eine Sperrdatei des laufenden Servers wäre der Weg, wenn das je stört
+- [ ] **[S]** Der syslog-Weg läuft über `logger` (util-linux), weil Node keine Unix-Datagram-Sockets kann. Falls das je stört: eigenes natives Modul oder ein Dienst, der auf einem Stream-Socket lauscht
 
 ## M14 – Qualitätssicherung und Release
 
@@ -232,7 +235,7 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [ ] **[S]** Testabdeckung für EAN-Validierung, Konfigurationsauflösung und Berechtigungen sicherstellen
 - [ ] **[M]** GitHub-Actions-Workflow: lint, typecheck, test, build
 - [ ] **[M]** Release-Workflow: Debian-Pakete (amd64, arm64) und Container-Images bauen und anhängen
-- [ ] **[S]** Versionsschema festlegen (SemVer) und `CHANGELOG` oder `HISTORY.md` als Quelle bestimmen
+- [ ] **[S]** Versionsschema festlegen (SemVer) und `CHANGELOG` oder `HISTORY.md` als Quelle bestimmen. Dazu gehört `server/package.json`: daraus lesen seit M13 `product-rating version` und `/healthz`, und dort steht bislang `0.0.0`
 - [ ] **[S]** Sicherheitsdurchsicht vor dem ersten Release: Header, Cookies, Limits, Dateirechte
 - [ ] **[S]** Content-Security-Policy und die übrigen Sicherheits-Header setzen – README 4 nennt sie unter „Härtung“, umgesetzt ist bisher keiner; seit M10 liefert die Anwendung das HTML selbst aus, also gehört die Regel in den Server und nicht nur in die Proxy-Beispiele
 - [ ] **[S]** Installationsanleitung anhand einer Neuinstallation gegenprüfen

@@ -16,13 +16,13 @@
 #   2. Create the data directories (db, uploads, tmp) below the data root.
 #   3. Create the session secret with mode 0600 if it does not exist yet.
 #   4. Apply the database migrations, unless they were switched off.
-#   5. Replace this shell with the API server, so it becomes PID 1 and
-#      receives SIGTERM from "docker stop" directly.
+#   5. Replace this shell with the API server ("product-rating serve"), so it
+#      becomes PID 1 and receives SIGTERM from "docker stop" directly.
 #
 # Usage:
 #   entrypoint.sh [-v|--verbose] [-s|--silent] [-d|--data DIR] [--] [SERVER ARGS]
 #
-# Version: 1.0.0  (2026-08-15)
+# Version: 1.1.0  (2026-08-16)
 
 # Robustness baseline: a half prepared container must not start serving.
 set -euo pipefail
@@ -51,8 +51,13 @@ usage() {
 Usage: entrypoint.sh [OPTIONS] [--] [SERVER ARGS]
 
 Prepares the container state of product-rating and starts the API server.
-Arguments after "--" are passed on to the server unchanged, for example
-"-- --log-level debug".
+Arguments after "--" are passed on to "product-rating serve" unchanged, for
+example "-- --log-level debug".
+
+Every other command of the application is reached through the same bundle,
+for instance:
+  docker compose exec app node /app/server/dist/index.js user add anna
+  docker compose exec app node /app/server/dist/index.js backup --to /data/backups
 
 Options:
   -d, --data DIR      Data root; db/, uploads/ and tmp/ are created below it.
@@ -252,7 +257,7 @@ apply_migrations() {
     fi
 
     log info "Applying database migrations"
-    node "${APP_DIR}/dist/migrate.js"
+    node "${APP_DIR}/dist/index.js" migrate
 }
 
 main() {
@@ -269,7 +274,9 @@ main() {
     log info "Starting the server"
     # exec, so the server becomes PID 1: "docker stop" then delivers SIGTERM to
     # the process that knows how to shut down, and no shell swallows it.
-    exec node "${APP_DIR}/dist/index.js" "$@"
+    # "serve" is one command of the application; the same entry point answers
+    # "migrate", "backup" and the rest.
+    exec node "${APP_DIR}/dist/index.js" serve "$@"
 }
 
 main "$@"

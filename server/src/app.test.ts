@@ -1,3 +1,4 @@
+import { rmSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { isValidStars } from '@product-rating/shared';
@@ -18,11 +19,32 @@ describe('app skeleton', () => {
     await harness.close();
   });
 
-  it('answers the liveness probe', async () => {
+  it('answers the liveness probe with version and checks', async () => {
     const response = await app.inject({ method: 'GET', url: '/healthz' });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ status: 'ok' });
+    expect(response.json()).toEqual({
+      status: 'ok',
+      version: expect.stringMatching(/^\d+\.\d+\.\d+$/) as unknown,
+      checks: { database: true, uploads: true },
+    });
+  });
+
+  it('reports 503 when the upload directory is gone', async () => {
+    const own = await createTestApp();
+    try {
+      rmSync(own.config.paths.uploads, { recursive: true, force: true });
+
+      const response = await own.app.inject({ method: 'GET', url: '/healthz' });
+
+      expect(response.statusCode).toBe(503);
+      expect(response.json()).toMatchObject({
+        status: 'degraded',
+        checks: { database: true, uploads: false },
+      });
+    } finally {
+      await own.close();
+    }
   });
 
   it('returns 404 for unknown routes', async () => {

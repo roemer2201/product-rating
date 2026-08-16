@@ -82,6 +82,18 @@ function appliedCount(sqlite: BetterSqlite3.Database): number {
   return row?.count ?? 0;
 }
 
+/**
+ * Migrations that are generated but not applied to this database yet.
+ *
+ * The command line interface uses it to refuse work on an outdated schema:
+ * a query against a missing column fails with a message about SQL, not with
+ * the one thing that helps — "run product-rating migrate".
+ */
+export function pendingMigrations(sqlite: BetterSqlite3.Database, folder?: string): number {
+  const resolved = folder ?? migrationsFolder();
+  return journalTags(resolved).length - appliedCount(sqlite);
+}
+
 /** Timestamp suffix for snapshot files: `20260814-171205`. */
 function timestampSuffix(now: Date): string {
   const pad = (value: number): string => String(value).padStart(2, '0');

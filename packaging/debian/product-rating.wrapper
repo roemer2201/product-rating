@@ -3,20 +3,23 @@
 # product-rating
 #
 # Description:
-#   Command line front end of the installed product-rating package. Resolves a
-#   subcommand to the matching entry point of the application bundle below
-#   /opt/product-rating and replaces itself with node, so the exit status and
-#   the signal handling are those of the application and not of this wrapper.
+#   Command line front end of the installed product-rating package. Finds the
+#   application bundle below /opt/product-rating and replaces itself with node,
+#   so the exit status and the signal handling are those of the application and
+#   not of this wrapper.
+#
+#   The commands themselves belong to the application, which knows its own
+#   options and answers "product-rating help". This script only bridges the
+#   gap between /usr/bin and the bundle.
 #
 #   The systemd unit calls it as "product-rating serve", the postinst as
 #   "product-rating migrate".
 #
 # Program flow:
-#   1. Read the subcommand; help and version are answered here and stop.
-#   2. Map the subcommand to an entry point of the bundle.
-#   3. Verify node and the entry point are there, with a message that names
+#   1. Answer "version" here, because it names the package and not the bundle.
+#   2. Verify node and the entry point are there, with a message that names
 #      what is missing.
-#   4. exec node with that entry point and every remaining argument.
+#   3. exec node with the entry point and every argument, unchanged.
 #
 # Usage:
 #   product-rating <command> [OPTIONS]
@@ -27,7 +30,7 @@
 # log level (--log-level, log.level in the configuration). Adding switches that
 # do nothing would only suggest an effect that is not there.
 #
-# Version: 1.0.0  (2026-08-15)
+# Version: 2.0.0  (2026-08-16)
 
 # Robustness baseline: a wrapper that cannot resolve its target must not fall
 # through to something else.
@@ -47,28 +50,20 @@ VERSION="@VERSION@"
 APP_DIR="${PRODUCT_RATING_APP:-/opt/product-rating/server}"
 NODE_BIN="${PRODUCT_RATING_NODE:-node}"
 
-# Print usage information.
+# Print the part of the usage information this wrapper is responsible for.
+#
+# Only used when the bundle cannot be reached; in every other case the
+# application answers "product-rating help" itself, and it is the one that
+# knows its commands and their options.
 usage() {
     cat <<'EOF'
 Usage: product-rating <command> [OPTIONS]
 
-Command line front end of product-rating. Every option after the command is
-passed to the application unchanged.
+Command line front end of product-rating. Every argument is passed to the
+application unchanged; "product-rating help" lists the commands.
 
-Commands:
-  serve               Run the API server and serve the web client.
-  migrate             Apply pending database migrations and exit.
-  fsck --uploads      Compare the upload directory against the photo table.
-                      Reports only; --repair deletes the orphaned files.
-  help, --help, -h    Show this help and exit.
-  version, --version  Show the package version and exit.
-
-Options of the application, accepted by serve, migrate and fsck alike:
-  --config FILE       Configuration file to read instead of the search path
-                      (/etc/product-rating/config.toml on this system).
-  --set KEY=VALUE     Override a single configuration value, for example
-                      --set server.port=9090
-  --log-level LEVEL   error | warn | info | debug
+Handled by this wrapper:
+  version, --version  Show the version of the installed package and exit.
 
 Environment:
   PRODUCT_RATING_APP    Directory of the application bundle, the one holding
@@ -76,15 +71,11 @@ Environment:
   PRODUCT_RATING_NODE   node binary to run.                  Default: node
   PRODUCT_RATING_CONFIG Configuration file, same effect as --config.
 
-Not implemented yet, and reported as such rather than silently ignored:
-"user", "invite", "backup" and "restore". They arrive with M13; until then
-accounts are managed in the web interface, and a backup is a copy of the
-database taken with SQLite's own backup - never a plain copy of the file,
-which is not safe while the service runs.
-
 Examples:
   product-rating serve --log-level debug
   product-rating migrate
+  product-rating user add anna --role admin
+  product-rating backup --to /var/backups/product-rating
   product-rating fsck --uploads
 EOF
 }
@@ -99,45 +90,14 @@ die() {
     exit 1
 }
 
-# --- Subcommand ------------------------------------------------------------
-if [ "$#" -lt 1 ]; then
-    printf '%s: no command given\n' "${SCRIPT_NAME}" >&2
-    usage >&2
-    exit 2
-fi
-
-command_name="${1}"
-shift
-
-# Map the subcommand to the entry point that implements it. The bundle keeps
-# one file per entry point; the proper subcommand dispatcher inside the
-# application arrives with M13, and this mapping goes away with it.
-entry_point=""
-case "${command_name}" in
-    serve)
-        entry_point="index.js"
-        ;;
-    migrate)
-        entry_point="migrate.js"
-        ;;
-    fsck)
-        entry_point="fsck.js"
-        ;;
-    help|--help|-h)
-        usage
-        exit 0
-        ;;
+# --- Version ---------------------------------------------------------------
+# Answered here rather than by the application: this is the version of the
+# Debian package, which is what an administrator means when they ask a
+# packaged program for its version.
+case "${1:-}" in
     version|--version|-V)
         printf 'product-rating %s\n' "${VERSION}"
         exit 0
-        ;;
-    user|invite|backup|restore)
-        die "the ${command_name} command is not implemented yet; see 'product-rating --help'"
-        ;;
-    *)
-        printf '%s: unknown command: %s\n' "${SCRIPT_NAME}" "${command_name}" >&2
-        usage >&2
-        exit 2
         ;;
 esac
 
@@ -148,8 +108,9 @@ if ! command -v "${NODE_BIN}" > /dev/null 2>&1; then
     die "node was not found (${NODE_BIN}); the package depends on nodejs (>= 22)"
 fi
 
-target="${APP_DIR}/dist/${entry_point}"
+target="${APP_DIR}/dist/index.js"
 if [ ! -f "${target}" ]; then
+    usage >&2
     die "application bundle is incomplete, ${target} is missing; reinstall the package"
 fi
 

@@ -40,6 +40,17 @@ import { consumeInvite, findInvite } from '../services/invites.js';
 
 const LOGIN_FAILED = 'username or password is wrong';
 
+/**
+ * Event name every login attempt is logged under, successful or not.
+ *
+ * One name for all of them is what makes the attempts searchable — "every
+ * `auth.login` with `outcome != success` from this address" is a query a log
+ * aggregator can answer, "grep for three different sentences" is not. The
+ * reason is only in the log; the answer to the client stays the same for all
+ * of them, otherwise the route would tell a stranger who has an account here.
+ */
+const LOGIN_EVENT = 'auth.login';
+
 export function registerAuthRoutes(app: FastifyInstance): void {
   app.post('/api/v1/auth/login', async (request, reply) => {
     const { username, password } = loginSchema.parse(request.body);
@@ -49,7 +60,13 @@ export function registerAuthRoutes(app: FastifyInstance): void {
     const keys = [`ip:${request.ip}`, `user:${username}`];
     for (const key of keys) {
       const decision = app.loginLimiter.check(key);
-      if (!decision.allowed) throw new RateLimitError(decision.retryAfterSeconds);
+      if (!decision.allowed) {
+        request.log.warn(
+          { event: LOGIN_EVENT, outcome: 'rate_limited', username, ip: request.ip },
+          'login attempt rejected',
+        );
+        throw new RateLimitError(decision.retryAfterSeconds);
+      }
     }
 
     const user = findUserByUsername(app.db, username);
@@ -57,7 +74,17 @@ export function registerAuthRoutes(app: FastifyInstance): void {
 
     if (user === undefined || !matches || user.disabledAt !== null) {
       for (const key of keys) app.loginLimiter.consume(key);
-      request.log.warn({ username, ip: request.ip }, 'failed login attempt');
+      request.log.warn(
+        {
+          event: LOGIN_EVENT,
+          outcome: 'failure',
+          reason:
+            user === undefined ? 'unknown_user' : matches ? 'account_disabled' : 'wrong_password',
+          username,
+          ip: request.ip,
+        },
+        'login attempt failed',
+      );
       throw new UnauthorizedError(LOGIN_FAILED);
     }
 
@@ -71,7 +98,10 @@ export function registerAuthRoutes(app: FastifyInstance): void {
     }
 
     app.startSession(request, reply, user.id);
-    request.log.info({ userId: user.id }, 'login');
+    request.log.info(
+      { event: LOGIN_EVENT, outcome: 'success', userId: user.id, username, ip: request.ip },
+      'login',
+    );
 
     return { user: currentPublicUser(request) satisfies User };
   });

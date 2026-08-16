@@ -80,8 +80,13 @@ min_password_length = 10
 [log]
 level = "info"        # error | warn | info | debug
 format = "json"       # json | pretty
-destination = "stdout" # stdout | file | syslog
-# Nur bei destination = "file" verwendet.
+# stdout | file | syslog. Unter systemd und im Container landet stdout dort,
+# wo Journal beziehungsweise "docker logs" hinsehen. "syslog" schreibt über
+# logger (util-linux) mit der Facility daemon; fehlt der Befehl oder nimmt der
+# lokale syslog-Dienst nichts an, bricht der Start mit Begründung ab.
+destination = "stdout"
+# Nur bei destination = "file" verwendet. Das Verzeichnis wird beim Start
+# geprüft und bei Bedarf angelegt; die Rotation macht logrotate.
 file = "/var/log/product-rating/app.log"
 
 [app]

@@ -301,8 +301,6 @@ build_workspaces() {
     local required
     for required in \
         "${REPO_ROOT}/server/dist/index.js" \
-        "${REPO_ROOT}/server/dist/migrate.js" \
-        "${REPO_ROOT}/server/dist/fsck.js" \
         "${REPO_ROOT}/server/dist/migrations" \
         "${REPO_ROOT}/web/dist/index.html"
     do

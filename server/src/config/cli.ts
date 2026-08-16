@@ -21,6 +21,13 @@ const FLAG_TARGETS: Record<string, readonly [ConfigSection, string]> = {
   '--log-destination': ['log', 'destination'],
 };
 
+/**
+ * Every flag that configures the application rather than a command. The
+ * command line interface hands these through to `parseCliOverrides()` instead
+ * of treating them as a mistake, and they all take a value.
+ */
+export const CONFIG_FLAGS: readonly string[] = ['--config', '--set', ...Object.keys(FLAG_TARGETS)];
+
 export interface CliOverrides {
   /** Path from `--config`, if given. */
   configPath?: string | undefined;
@@ -66,7 +73,8 @@ function applyOverride(overrides: RawConfig, section: string, key: string, raw: 
  *
  * Understood are `--config <path>`, the convenience flags above and the generic
  * `--set <section>.<key>=<value>`, each also in `--flag=value` form. Everything
- * else is ignored here and left to the command line interface added in M13.
+ * else is ignored here: the command line interface has already taken its own
+ * options out and passes on what is left.
  */
 export function parseCliOverrides(argv: string[] = []): CliOverrides {
   const overrides: RawConfig = {};

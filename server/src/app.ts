@@ -1,6 +1,12 @@
+import { access, constants } from 'node:fs/promises';
 import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
-import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
+import { sql } from 'drizzle-orm';
+import Fastify, {
+  type FastifyBaseLogger,
+  type FastifyInstance,
+  type FastifyServerOptions,
+} from 'fastify';
 import type { AppConfig } from './config/index.js';
 import type { AppDatabase } from './db/index.js';
 import { registerAuth, SESSION_CLEANUP_INTERVAL_MS } from './plugins/auth.js';
@@ -14,6 +20,7 @@ import { registerProductRoutes } from './routes/products.js';
 import { registerRatingRoutes } from './routes/ratings.js';
 import { registerUserRoutes } from './routes/users.js';
 import { RateLimiter } from './services/rateLimit.js';
+import { APP_VERSION } from './version.js';
 
 export interface BuildAppOptions {
   config: AppConfig;
@@ -21,6 +28,8 @@ export interface BuildAppOptions {
   /** Session secret from `auth.secret_file`; signs the session cookie. */
   secret: string;
   logger?: FastifyServerOptions['logger'];
+  /** A ready made pino instance; how `serve` applies `[log]`. */
+  loggerInstance?: FastifyBaseLogger;
   /** Set to false in tests that do not want a timer running. */
   sessionCleanup?: boolean;
 }
@@ -45,7 +54,9 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   const { config, db, secret } = options;
 
   const app = Fastify({
-    logger: options.logger ?? false,
+    ...(options.loggerInstance === undefined
+      ? { logger: options.logger ?? false }
+      : { loggerInstance: options.loggerInstance }),
     trustProxy: config.server.trust_proxy,
     // Applies to JSON bodies only. Photo uploads go through the multipart
     // plugin below, which enforces `uploads.max_file_size_mb` on its own.
@@ -78,8 +89,39 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   registerCsrfGuard(app);
   registerAuth(app);
 
-  app.get('/healthz', async () => {
-    return { status: 'ok' as const };
+  /**
+   * Liveness and readiness in one address, because a process that answers but
+   * cannot reach its database is of no use to anybody watching it. Deliberately
+   * without authentication and therefore deliberately thin: version, whether a
+   * query works and whether photos can still be written - nothing that would
+   * describe the inside of the installation to a stranger.
+   */
+  app.get('/healthz', async (_request, reply) => {
+    let database = true;
+    try {
+      db.get(sql`select count(*) as count from users`);
+    } catch {
+      database = false;
+    }
+
+    let uploads = true;
+    try {
+      await access(config.paths.uploads, constants.W_OK | constants.X_OK);
+    } catch {
+      uploads = false;
+    }
+
+    const healthy = database && uploads;
+    if (!healthy) {
+      reply.code(503);
+      app.log.error({ database, uploads }, 'health check failed');
+    }
+
+    return {
+      status: healthy ? ('ok' as const) : ('degraded' as const),
+      version: APP_VERSION,
+      checks: { database, uploads },
+    };
   });
 
   registerAuthRoutes(app);

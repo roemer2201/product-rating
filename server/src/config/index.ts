@@ -24,7 +24,7 @@ export {
   type ConfigFileSource,
 } from './file.js';
 export { ENV_PREFIX, ENV_SEPARATOR, collectEnvOverrides } from './env.js';
-export { parseCliOverrides, type CliOverrides } from './cli.js';
+export { CONFIG_FLAGS, parseCliOverrides, type CliOverrides } from './cli.js';
 export { loadConfig, parseConfig, type LoadConfigOptions, type LoadedConfig } from './load.js';
 export { MIN_SECRET_LENGTH, ensureRuntimeDirectories, readSessionSecret } from './checks.js';
 export {

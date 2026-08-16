@@ -428,7 +428,7 @@ Let's-Encrypt-Zertifikat (DNS-Challenge funktioniert auch ohne offenen Port 80).
 - Keine offene Registrierung.
 - Der **erste Start** legt aus `BOOTSTRAP_ADMIN_USER` und
   `BOOTSTRAP_ADMIN_PASSWORD` ein Administratorkonto an. Alternativ:
-  `product-rating user add --admin`. Die Variablen wirken nur, solange die
+  `product-rating user add <name> --role admin` (8.1). Die Variablen wirken nur, solange die
   Instanz überhaupt kein Konto hat – ein vergessener Eintrag in einer
   Unit- oder Compose-Datei kann später also keinen Administrator nachschieben.
 - Weitere Konten entstehen nur über **Einladungscodes**
@@ -676,7 +676,7 @@ Installationslayout:
 | `/var/log/product-rating/` | Logs, sofern `log.destination = "file"` |
 | `/usr/lib/systemd/system/product-rating.service` | Dienst, gehärtet (`ProtectSystem=strict`, `ReadWritePaths`, `NoNewPrivileges`, leeres `CapabilityBoundingSet`) |
 | `/etc/logrotate.d/product-rating` | Logrotation, ebenfalls `conffile` |
-| `/usr/bin/product-rating` | CLI-Aufsatz: bisher `serve`, `migrate`, `fsck` |
+| `/usr/bin/product-rating` | CLI (siehe 8.1) |
 | `/usr/share/doc/product-rating/` | `copyright`, `changelog.gz`, `README.md.gz`, `config.example.toml`, `examples/` |
 
 Das `postinst` legt den Systemnutzer `product-rating` an, erzeugt Verzeichnisse
@@ -697,9 +697,10 @@ beschreibbar und ausführbar sind. Ein Port unter 1024 bräuchte zusätzlich
 `AmbientCapabilities=CAP_NET_BIND_SERVICE` – dafür steht aber der Reverse Proxy
 davor.
 
-`/usr/bin/product-rating` bildet zurzeit nur die vorhandenen Einstiegspunkte ab
-(`serve`, `migrate`, `fsck`). `user`, `invite`, `backup` und `restore` melden,
-dass es sie noch nicht gibt, statt still nichts zu tun; sie kommen mit M13.
+`/usr/bin/product-rating` ist ein dünner Aufsatz: Er beantwortet `version` aus
+der Paketversion und übergibt alles andere unverändert an das Bundle. Die
+Befehle selbst stehen in der Anwendung (8.1), damit Docker und Paket dieselben
+haben.
 
 **Paket bauen.** `npm run package:deb` baut beide Workspaces, stellt einen
 Abhängigkeitsbaum nur aus Laufzeitpaketen zusammen, wirft die Binärdateien
@@ -778,21 +779,89 @@ gilt für `/` und beide überschrieben sich gegenseitig.
 - **Backup:** `product-rating backup --to <verzeichnis>` erzeugt einen
   konsistenten SQLite-Snapshot (`VACUUM INTO`) und sichert die Uploads. Ein
   einfaches Kopieren der `.db` im laufenden Betrieb ist wegen WAL nicht sicher.
-  Bis der CLI-Rahmen steht (M13) tut
-  `packaging/examples/backup/product-rating-backup` dasselbe, samt Timer und
-  Aufbewahrungsgrenze; der Dienst muss dafür nicht angehalten werden. Die
-  Wiederherstellung steht im `--help` des Skripts.
+  Der Dienst muss dafür nicht angehalten werden. Dieselben Snapshots erzeugt
+  `packaging/examples/backup/product-rating-backup` samt Timer – gedacht für
+  Maschinen, die die Anwendung dafür gar nicht erst aufrufen wollen.
 - **Update:** `apt install ./product-rating_<neue-version>.deb` beziehungsweise
   `docker compose pull && docker compose up -d`. Migrationen laufen automatisch;
   vorher wird ein Datenbank-Snapshot angelegt.
-- **Monitoring:** `/healthz` (Prozess und DB-Erreichbarkeit), strukturierte
-  JSON-Logs nach stdout, Datei oder syslog.
+- **Monitoring:** `/healthz` antwortet ohne Anmeldung mit Version, Erreichbarkeit
+  der Datenbank und Beschreibbarkeit des Upload-Verzeichnisses – Status `200`
+  mit `{"status":"ok",…}`, sonst `503` mit `"degraded"`. Dazu strukturierte Logs
+  nach stdout, Datei oder syslog (8.2).
 - **Konsistenzprüfung:** `product-rating fsck --uploads` vergleicht das
   Upload-Verzeichnis in beide Richtungen mit der Fototabelle: Dateien, zu denen
   keine Zeile mehr existiert, und Zeilen, deren Datei fehlt. Gemeldet wird
   immer, gelöscht nur mit `--repair` – eine verwaiste Datei kostet Platz, eine
-  zu Unrecht gelöschte ein Foto. Bis der CLI-Rahmen steht (M13) liegt derselbe
-  Befehl als `npm run fsck -- --uploads` vor.
+  zu Unrecht gelöschte ein Foto.
+
+### 8.1 Kommandozeile
+
+`product-rating <befehl>` ist der einzige Einstiegspunkt: Der systemd-Dienst
+ruft `serve` auf, das `postinst` `migrate`, alles Weitere ein Mensch auf der
+Konsole. Im Container liegt derselbe Befehl unter
+`node /app/server/dist/index.js`, zum Beispiel
+`docker compose exec app node /app/server/dist/index.js user list`.
+
+| Befehl | Wirkung |
+|---|---|
+| `serve` | API und Weboberfläche ausliefern; wendet vorher fehlende Migrationen an |
+| `migrate` | Migrationen anwenden und beenden (idempotent, mit Snapshot vorweg) |
+| `user add\|list\|disable\|enable\|passwd` | Konten anlegen, auflisten, sperren, entsperren, Passwort setzen |
+| `invite create\|list\|revoke` | Einladungscodes ausgeben, auflisten, zurückziehen |
+| `backup --to <dir>` | Snapshot aus `VACUUM INTO` plus Fotos, `--keep-days N` als Aufbewahrungsgrenze |
+| `restore --from <dir>` | Snapshot zurückspielen, nach ausdrücklicher Bestätigung (`--yes` überspringt sie) |
+| `fsck --uploads` | Upload-Verzeichnis gegen die Fototabelle prüfen, `--repair` löscht verwaiste Dateien |
+| `help [befehl]`, `version` | Hilfe und Version |
+
+Jeder Befehl versteht zusätzlich die Konfigurationsschalter aus 6:
+`--config <datei>`, `--set <sektion>.<schlüssel>=<wert>` und die Kurzformen
+`--host`, `--port`, `--base-url`, `--database`, `--uploads`, `--temp`,
+`--log-level`, `--log-format`, `--log-destination`. Damit lässt sich jeder
+Befehl auf eine zweite Instanz richten. Einzige Doppelbelegung: `fsck --uploads`
+meint die Prüfung, nicht den Pfad – dafür `--set paths.uploads=<dir>`.
+
+Exit-Codes: `0` erledigt, `1` fehlgeschlagen oder Fund (`fsck`), `2` falsch
+aufgerufen. Ergebnisse gehen nach stdout, Fortschritt und Fehler nach stderr –
+`product-rating invite create` liefert also genau den Code auf stdout und lässt
+sich weiterverarbeiten.
+
+Passwörter nimmt die CLI nie als Argument entgegen; sie stünden in der
+Shell-History und in der Prozessliste. Entweder fragt sie danach (zweimal, ohne
+Echo) oder sie liest sie mit `--password-stdin` aus einer Pipe:
+
+```bash
+product-rating user add anna --role admin
+echo "…" | product-rating user add tom --password-stdin
+product-rating invite create --note "für Tom"
+
+systemctl stop product-rating
+product-rating restore --from /var/backups/product-rating/2026-08-16_030000
+systemctl start product-rating
+```
+
+`restore` überschreibt den laufenden Zustand, deshalb erst den Dienst anhalten:
+Ein laufender Server hält die Datenbank offen und schriebe in die Datei, die
+gerade ersetzt wird. Die vorhandene Datenbank wird vorher als
+`pre-restore-<zeitstempel>.db` daneben abgelegt.
+
+### 8.2 Logging
+
+`log.level` bestimmt die Ausführlichkeit, `log.format` die Form (`json` für
+Auswertung, `pretty` für den Blick auf die Konsole) und `log.destination` das
+Ziel:
+
+| Ziel | Wohin | Anmerkung |
+|---|---|---|
+| `stdout` | Standardausgabe | Standard. Unter systemd das Journal, im Container das, was `docker logs` zeigt |
+| `file` | `log.file` | Verzeichnis wird beim Start geprüft und angelegt; Rotation über `/etc/logrotate.d/product-rating` (`copytruncate`) |
+| `syslog` | lokaler syslog-Dienst | Über `logger` (util-linux), Facility `daemon`, Priorität je Zeile. Beim Start wird eine Testzeile geschrieben; klappt das nicht, bricht der Start mit Begründung ab |
+
+Anmeldeversuche stehen unter einem einheitlichen Ereignisnamen im Log:
+`event: "auth.login"` mit `outcome` `success`, `failure` oder `rate_limited`,
+dazu Benutzername, IP und – nur im Log, nie in der Antwort – der Grund
+(`unknown_user`, `wrong_password`, `account_disabled`). Damit lässt sich „alle
+Fehlversuche dieser Adresse“ abfragen, ohne nach Sätzen zu suchen.
 
 ---
 
