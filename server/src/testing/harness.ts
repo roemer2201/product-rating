@@ -1,3 +1,4 @@
+import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../app.js';
@@ -51,6 +52,11 @@ export async function createTestApp(options: CreateTestAppOptions = {}): Promise
     },
     auth: { ...TEST_ARGON2, ...(options.config?.auth ?? {}) },
   });
+
+  // The server creates these at start-up (`ensureRuntimeDirectories`), and the
+  // health check expects them to be there, so the harness does the same.
+  mkdirSync(config.paths.uploads, { recursive: true });
+  mkdirSync(config.paths.temp, { recursive: true });
 
   const app = await buildApp({
     config,

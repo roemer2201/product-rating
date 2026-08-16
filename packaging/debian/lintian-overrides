@@ -23,11 +23,11 @@ product-rating: dir-or-file-in-opt [opt/*]
 # be updated instead, which is what the dependency update does.
 product-rating: embedded-library * [opt/product-rating/node_modules/@img/*]
 
-# The wrapper in /usr/bin is a stopgap that maps three subcommands onto the
-# entry points of the bundle; the real command line interface, with user,
-# invite and backup, arrives with M13. Its manual page belongs to that, not to
-# a wrapper that will be replaced. "product-rating --help" documents what
-# exists today.
+# There is no manual page yet. The command line interface documents itself -
+# "product-rating help" lists the commands, "product-rating help COMMAND" the
+# options of one of them - and README.md is installed with the package. A
+# roff page generated from those texts is worth having, and it is on the list;
+# an out of date one would be worse than none.
 product-rating: no-manual-page [usr/bin/product-rating]
 
 # False positive: the string lintian matches is "${DATA_DIR}/tmp", the temp

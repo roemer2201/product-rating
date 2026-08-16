@@ -96,6 +96,13 @@ SVG-Quellen) und `npm run preview` (gebaute App auf :4173, der einzige Weg, den
 Service Worker auszuprobieren) – beide seit M9 – sowie `npm run package:deb`
 (Debian-Paket, seit M11; `-- --help` zeigt die Schalter).
 
+Seit M13 ist `server/src/index.ts` die CLI: `serve`, `migrate`, `user`,
+`invite`, `backup`, `restore`, `fsck`, dazu `help` und `version`. Lokal also
+`npx tsx server/src/index.ts <befehl>`, im Bundle `node server/dist/index.js
+<befehl>`; `npm run migrate` und `npm run fsck` sind nur noch Abkürzungen
+darauf. Neue Befehle gehören nach `server/src/cli/` und in die Tabelle in
+README 8.1.
+
 Vor jedem Commit mindestens `npm run lint`, `npm run typecheck` und `npm test`
 laufen lassen und Fehlschläge berichten, nicht stillschweigend übergehen.
 

@@ -19,9 +19,11 @@
 #   of another copy. Every snapshot still looks like a full one, and deleting
 #   an old snapshot never damages a newer one.
 #
-#   This script is the interim solution until "product-rating backup" arrives
-#   with the CLI (M13). Both do the same thing; this one has no dependency on
-#   the application beyond the paths.
+#   "product-rating backup --to DIR" does the same thing and produces the same
+#   layout, so snapshots of either can be restored with either. This script is
+#   the alternative for a machine that would rather not call the application
+#   at all: it needs nothing but sqlite3, rsync and the two paths, and it keeps
+#   working when the installation itself is broken.
 #
 # Program flow:
 #   1. Parse arguments and resolve configuration (CLI > env > default).
@@ -40,7 +42,7 @@
 #                         [-r|--retention DAYS] [--database FILE]
 #                         [--uploads DIR]
 #
-# Version: 1.0.0  (2026-08-16)
+# Version: 1.1.0  (2026-08-16)
 
 # Robustness baseline: a backup that continues after a failed step is worse
 # than no backup, because it looks like one.
@@ -106,7 +108,12 @@ own VACUUM INTO, which is consistent while writes keep happening.
 Example:
   product-rating-backup --target /srv/backups/product-rating --retention 30
 
-Restore (with the service stopped):
+Restore (with the service stopped), the short way:
+  systemctl stop product-rating
+  product-rating restore --from <snapshot>
+  systemctl start product-rating
+
+The same by hand, for a machine without the application:
   systemctl stop product-rating
   install -o product-rating -g product-rating -m 0640 \
     <snapshot>/app.db /var/lib/product-rating/db/app.db

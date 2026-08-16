@@ -10,6 +10,7 @@ export {
 } from './client.js';
 export {
   migrationsFolder,
+  pendingMigrations,
   runMigrations,
   snapshotDatabase,
   type MigrateOptions,

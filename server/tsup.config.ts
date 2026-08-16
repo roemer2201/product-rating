@@ -2,7 +2,9 @@ import { cpSync } from 'node:fs';
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: ['src/index.ts', 'src/migrate.ts', 'src/fsck.ts'],
+  // One entry point: `dist/index.js` is the command line interface, and
+  // `serve` is one of its commands.
+  entry: ['src/index.ts'],
   outDir: 'dist',
   format: ['esm'],
   target: 'node22',
