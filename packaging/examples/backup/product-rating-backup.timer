@@ -1,0 +1,26 @@
+# Schedule of the product-rating backup. See product-rating-backup.service for
+# the installation.
+#
+#   systemctl enable --now product-rating-backup.timer
+#   systemctl list-timers product-rating-backup.timer
+
+[Unit]
+Description=Daily backup of product-rating
+Documentation=https://github.com/roemer2201/product-rating
+
+[Timer]
+# Nightly. A household instance is idle at that hour, and the retention of the
+# script counts in days, so one run a day is what it is built around.
+OnCalendar=*-*-* 03:30:00
+
+# Up to an hour later, so a host that runs several timers does not start them
+# all in the same minute.
+RandomizedDelaySec=1h
+
+# A machine that is switched off at night - a NAS on a timer, a desktop - would
+# otherwise never be backed up. With this, the run is caught up after the next
+# boot.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -20,7 +20,13 @@ const queryClient = createQueryClient();
 createRoot(container).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      {/*
+        The path this bundle was built for; '/' in the normal case. Without it
+        every route of the client would be resolved against the root, and an
+        instance under /produkte/ would link to addresses the proxy does not
+        forward.
+      */}
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
         <App />
       </BrowserRouter>
     </QueryClientProvider>

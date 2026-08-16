@@ -70,7 +70,8 @@ packaging/build-deb.sh  Bauskript des Debian-Pakets (npm run package:deb)
 packaging/debian/       control, conffiles, templates, config/postinst/prerm/postrm,
                         systemd-Unit, logrotate-Regel, ausgelieferte config.toml,
                         CLI-Aufsatz, copyright, changelog, lintian-overrides
-packaging/examples/     nginx, apache2, caddy, traefik, systemd, logrotate, backup, ufw
+packaging/examples/     nginx (auch Unterpfad), apache2, caddy, traefik (Datei und
+                        Compose-Labels), systemd-Drop-in, ufw, Backup-Skript mit Timer
 docker/                 Dockerfile, docker-compose.yml, entrypoint
 ```
 
@@ -194,4 +195,10 @@ laufen lassen und Fehlschläge berichten, nicht stillschweigend übergehen.
   serverseitig passieren.
 - Upload-Limits existieren an drei Stellen: App-Konfiguration, Reverse Proxy
   (`client_max_body_size` bzw. `LimitRequestBody`) und gegebenenfalls Container.
-  Alle drei müssen zusammenpassen.
+  Alle drei müssen zusammenpassen. Bei Apache greift `LimitRequestBody` für
+  Proxy-Anfragen nicht – dort begrenzt die Regel mit `mod_rewrite` in
+  `packaging/examples/apache2/product-rating.conf`.
+- Der Unterpfad (`PRODUCT_RATING_BASE_PATH`) wird beim **Bau** festgelegt und
+  steckt in `index.html`, Manifest, Service Worker und in `API_BASE`. Wer an
+  diesen Stellen etwas ändert, muss ihn mitdenken – ein Pfad lässt sich später
+  nicht durch den Proxy umschreiben.

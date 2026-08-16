@@ -5,6 +5,96 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-16 – M12: Mitgelieferte Konfigurationen
+
+**Umfang**
+
+- `packaging/examples/` mit elf Dateien plus Übersicht: nginx (eigener Host und
+  Unterpfad), Apache 2.4, Caddy, Traefik (File-Provider und Compose-Labels),
+  systemd-Drop-in, ufw-Applikationsprofil sowie das Backup-Skript mit `.service`
+  und `.timer`. `packaging/build-deb.sh` legt das Verzeichnis seit M11 von sich
+  aus nach `/usr/share/doc/product-rating/examples/`; am Bauskript war nichts zu
+  ändern.
+- Betrieb unter einem Unterpfad im Web-Client ermöglicht:
+  `PRODUCT_RATING_BASE_PATH` setzt Vites `base`, daraus leiten sich `index.html`,
+  `start_url`/`scope` des Manifests, der Geltungsbereich des Service Workers,
+  die `navigateFallbackDenylist`, `API_BASE` und das `basename` des Routers ab.
+  Dazu ein gleichnamiges Build-Argument im `Dockerfile`, damit beide
+  Deployment-Wege es können.
+- Backup-Skript nach den Skript-Konventionen: Header mit Programmablaufplan,
+  `--help` inklusive Wiederherstellungsanleitung, Silent-/Verbose-Modus, jeder
+  Parameter zusätzlich als `PRODUCT_RATING_BACKUP_*`-Variable, Logging über
+  `logger`. Kopiert die Datenbank mit `VACUUM INTO`, prüft die Kopie mit
+  `PRAGMA integrity_check` und verlinkt die Fotos mit `rsync --link-dest` hart
+  gegen den Vorgänger.
+- README 2.2, 7.3, 8 und 9 sowie CLAUDE.md 3 und 7 nachgezogen.
+- 385 Tests grün; `lint`, `typecheck` und `format:check` fehlerfrei;
+  `shellcheck` sauber.
+
+**Entscheidungen**
+
+- **Die Beispiele setzen keine Cache-Header.** Seit M10 setzt die Anwendung sie
+  selbst und ist die einzige Stelle, die die gehashten Dateien unter `/assets/`
+  von `index.html`, `sw.js` und dem Manifest unterscheiden kann. Eine
+  `expires`-, `ExpiresByType`- oder `header Cache-Control`-Regel im Proxy
+  überschriebe genau das. Dass die Werte der Anwendung durchkommen, ist in allen
+  vier Proxys gemessen.
+- **Der Unterpfad wird beim Bau festgelegt, nicht zur Laufzeit.** Der Pfad
+  steckt in Dateien, die der Bau schreibt – Manifest und Service Worker –, und
+  ein Proxy kann sie nicht nachträglich umschreiben. Der Proxy schneidet
+  stattdessen das Präfix ab, sodass der Server unverändert auf `/` und
+  `/api/v1` antwortet und keine eigene Einstellung braucht.
+- **Apache: `LimitRequestBody` reicht nicht.** Gemessen an Apache 2.4.58 geht
+  eine von `mod_proxy` behandelte Anfrage daran vorbei – auch im
+  `<Location>`-Block; mit einem Testlimit von 1024 Byte lief ein 6,6-KB-Upload
+  durch. Die Begrenzung erledigt deshalb eine `mod_rewrite`-Regel über die
+  angekündigte `Content-Length`, die mit 413 antwortet. `LimitRequestBody`
+  bleibt für alles stehen, was Apache selbst ausliefert.
+- **`AllowEncodedSlashes NoDecode` plus `nocanon`** im Apache-Beispiel: ohne die
+  beiden beantwortet Apache eine Adresse mit `%2F` selbst mit 404, statt sie
+  weiterzureichen. Gegenprobe gefahren – ohne die Direktiven 404, mit ihnen
+  erreicht die Anfrage die Anwendung.
+- **Keine logrotate-Vorlage und keine zweite Unit** unter `examples/`. Beide
+  gehören zum Paket und lägen sonst doppelt im Repository, mit dem üblichen
+  Auseinanderlaufen. README 7.3 nennt jetzt die installierten Pfade; für lokale
+  Abweichungen an der Unit ist das Drop-in da.
+- **`ufw`: zwei Profile.** Das eine öffnet 80 und 443 für den Proxy, das andere
+  den Port der Anwendung für den Betrieb ohne Proxy – mit dem Hinweis, dass ohne
+  TLS die Kamera und damit der Scanner ausfällt.
+- **Backup ohne TOML-Parser.** Das Skript liest `config.toml` bewusst nicht,
+  sondern kennt Standardpfade und Parameter. Ein halbherziger Parser, der eine
+  geänderte Konfiguration übersieht, sicherte sonst still das falsche
+  Verzeichnis.
+
+**Test**
+
+Gegen eine echte Instanz (gebautes Bundle, Server auf `127.0.0.1:8080`,
+selbstsigniertes Zertifikat) lief nacheinander nginx 1.24, Apache 2.4.58,
+Caddy 2.10.2 und Traefik 3.5.0 davor. Geprüft wurden App-Shell, Deep-Link auf
+die App-Shell, `/api/v1` bleibt auch mit `Accept: text/html` JSON, die
+durchgereichten `Cache-Control`-Werte (`immutable` für `/assets/`, `no-cache`
+für `sw.js`, `index.html` und Manifest), Kompression, die Security-Header,
+Anmeldung samt Ablehnung einer fremden `Origin`, das Anlegen eines Produkts,
+ein Foto-Upload sowie die Größenstaffelung: 17 MB lehnt die Anwendung mit
+lesbarem Fehler ab, 25 MB schon der Proxy mit 413. Für den Unterpfad lief eine
+zweite Instanz mit einem Bundle für `/produkte`: Weiterleitung ohne
+Schrägstrich, Bundle, Manifest (`start_url` und `scope`), API und Anmeldung
+unter dem Präfix, und der Rest des Hostnamens bleibt unberührt.
+
+Das Backup-Skript lief gegen die laufende Instanz: Snapshot,
+`integrity_check`, Rückzählung aus der Kopie (1 Produkt, 13 Fotos), harte
+Verlinkung beim zweiten Lauf (gleiche Inode-Nummer), Aufbewahrungsgrenze (alter
+Snapshot weg, fremdes Verzeichnis und `latest` bleiben), `--retention 0`,
+Fehlerpfade und Exit-Codes. `systemd-analyze verify` läuft für die Unit mit
+angewandtem Drop-in sowie für `.service` und `.timer` ohne Beanstandung;
+`ufw app info` zeigt beide Profile.
+
+Drei Punkte konnten hier nicht laufen und stehen als offene Punkte unter M12:
+die Traefik-Compose-Labels und der Docker-Bau mit `PRODUCT_RATING_BASE_PATH`
+(kein Docker-Daemon in der Entwicklungsumgebung) sowie nginx ab 1.25.1, dessen
+`http2 on;` das ausgelieferte Beispiel verwendet – getestet wurde mit 1.24 und
+der dort nötigen alten Schreibweise, die im Beispiel als Hinweis steht.
+
 ## 2026-08-15 – M11: Debian-Paket
 
 **Umfang**

@@ -150,7 +150,7 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [x] **[S]** Sichtbare Aktualisierungsaufforderung bei neuer Version
 - [x] **[S]** Offline-Hinweisseite statt Browser-Fehlerseite
 - [ ] **[M]** Auf einem echten iPhone prüfen: Installation, Scanner, Kamera-Upload, Sitzung überlebt Neustart, Safe-Area-Layout
-- [ ] **[S]** In den Proxy-Beispielen (M12) sicherstellen, dass `sw.js` und `index.html` nicht mit langer Lebensdauer gecacht werden, `/assets/` dagegen schon – sonst bleiben Geräte auf einem alten Bundle stehen. Seit M10 setzt die Anwendung diese Header selbst; die Beispiele dürfen sie also nur durchreichen und nicht überschreiben
+- [x] **[S]** In den Proxy-Beispielen (M12) sicherstellen, dass `sw.js` und `index.html` nicht mit langer Lebensdauer gecacht werden, `/assets/` dagegen schon – sonst bleiben Geräte auf einem alten Bundle stehen. Seit M10 setzt die Anwendung diese Header selbst; die Beispiele dürfen sie also nur durchreichen und nicht überschreiben
 - [ ] **[S]** Aktualisierungshinweis auch außerhalb von `AppLayout` zeigen (Anmeldemaske, Registrierung) – dort hängt er derzeit nicht im Baum
 - [ ] **[S]** Beim Übernehmen einer neuen Version vor ungespeicherten Eingaben warnen, statt nur nicht von selbst neu zu laden
 
@@ -197,18 +197,21 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 
 ## M12 – Mitgelieferte Konfigurationen
 
-- [ ] **[M]** `packaging/examples/nginx/product-rating.conf`: TLS-Vhost, `proxy_pass`, `client_max_body_size`, `X-Forwarded-*`, Security-Header, Cache-Regeln für Assets
-- [ ] **[S]** nginx-Variante für Betrieb unter einem Unterpfad
-- [ ] **[M]** `packaging/examples/apache2/product-rating.conf`: `mod_proxy`-Vhost, `ProxyPreserveHost`, `RequestHeader set X-Forwarded-Proto`, `LimitRequestBody`, benötigte Module dokumentiert
-- [ ] **[S]** `packaging/examples/caddy/Caddyfile`
-- [ ] **[S]** `packaging/examples/traefik/dynamic.yml` plus Compose-Labels
-- [ ] **[S]** `packaging/examples/systemd/override.conf` als Vorlage für abweichende Pfade
-- [ ] **[S]** `packaging/examples/ufw/product-rating` – Applikationsprofil
-- [ ] **[M]** `packaging/examples/backup/product-rating-backup` – Skript nach den Skript-Konventionen (Header, `--help`, Silent-/Verbose-Modus, Logging über `logger`), plus systemd-Timer
-- [ ] **[S]** In allen Proxy-Beispielen darauf hinweisen, dass `server.base_url` der öffentlichen Adresse entsprechen muss – sonst schlägt die Origin-Prüfung schreibender Anfragen fehl
-- [ ] **[S]** Jede Beispielkonfiguration einmal real gegen die laufende App testen
-- [ ] **[S]** Querverweise in `README.md` prüfen
-- [ ] **[S]** Nichts weiter zu tun fürs Paket: `packaging/build-deb.sh` legt ein vorhandenes `packaging/examples/` von sich aus nach `/usr/share/doc/product-rating/examples/` – nach dem Anlegen einmal im gebauten Paket nachsehen
+- [x] **[M]** `packaging/examples/nginx/product-rating.conf`: TLS-Vhost, `proxy_pass`, `client_max_body_size`, `X-Forwarded-*`, Security-Header, Cache-Regeln für Assets
+- [x] **[S]** nginx-Variante für Betrieb unter einem Unterpfad
+- [x] **[M]** `packaging/examples/apache2/product-rating.conf`: `mod_proxy`-Vhost, `ProxyPreserveHost`, `RequestHeader set X-Forwarded-Proto`, `LimitRequestBody`, benötigte Module dokumentiert
+- [x] **[S]** `packaging/examples/caddy/Caddyfile`
+- [x] **[S]** `packaging/examples/traefik/dynamic.yml` plus Compose-Labels
+- [x] **[S]** `packaging/examples/systemd/override.conf` als Vorlage für abweichende Pfade
+- [x] **[S]** `packaging/examples/ufw/product-rating` – Applikationsprofil
+- [x] **[M]** `packaging/examples/backup/product-rating-backup` – Skript nach den Skript-Konventionen (Header, `--help`, Silent-/Verbose-Modus, Logging über `logger`), plus systemd-Timer
+- [x] **[S]** In allen Proxy-Beispielen darauf hinweisen, dass `server.base_url` der öffentlichen Adresse entsprechen muss – sonst schlägt die Origin-Prüfung schreibender Anfragen fehl
+- [x] **[S]** Jede Beispielkonfiguration einmal real gegen die laufende App testen
+- [x] **[S]** Querverweise in `README.md` prüfen
+- [x] **[S]** Nichts weiter zu tun fürs Paket: `packaging/build-deb.sh` legt ein vorhandenes `packaging/examples/` von sich aus nach `/usr/share/doc/product-rating/examples/` – nach dem Anlegen einmal im gebauten Paket nachsehen
+- [ ] **[S]** Die Compose-Labels für Traefik sind als Einzige nicht real gelaufen – in der Entwicklungsumgebung gab es keinen Docker-Daemon. Geprüft wurden dieselben Einstellungen als `dynamic.yml` gegen ein echtes Traefik 3.5; die Labels sind daraus übersetzt und nur auf gültiges YAML geprüft
+- [ ] **[S]** nginx-Beispiele einmal gegen nginx >= 1.25.1 laufen lassen: getestet wurde mit 1.24 (Ubuntu 24.04), das `http2 on;` noch nicht kennt und deshalb im Test durch `listen 443 ssl http2;` ersetzt wurde. Ausgeliefert ist die neue Schreibweise mit dem Hinweis auf die alte
+- [ ] **[S]** Unterpfad-Bau in Docker gegenprüfen: das Build-Argument `PRODUCT_RATING_BASE_PATH` im `Dockerfile` ist bisher nur gelesen, gebaut wurde ohne Daemon nichts. Der Weg über `npm run build` (und damit auch `npm run package:deb`) ist geprüft
 
 ## M13 – CLI und Betrieb
 

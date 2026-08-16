@@ -1,0 +1,9 @@
+[product-rating]
+title=product-rating (reverse proxy)
+description=HTTP and HTTPS of the reverse proxy in front of product-rating. The application itself listens on the loopback interface and needs no rule of its own.
+ports=80,443/tcp
+
+[product-rating-direct]
+title=product-rating without a reverse proxy
+description=Port of the application itself. Only needed when it is reached directly, without a proxy - which means without TLS, and a browser refuses camera access without a secure context, so the barcode scanner stays unusable.
+ports=8080/tcp

@@ -1,0 +1,390 @@
+#!/usr/bin/env bash
+#
+# product-rating-backup
+#
+# Description:
+#   Creates a consistent backup of a product-rating instance: a snapshot of the
+#   SQLite database plus a copy of the upload directory with the photos, into a
+#   directory named after the moment it was taken. Old snapshots are removed
+#   once they are older than the retention period.
+#
+#   Copying the .db file of a running instance is NOT safe: the database runs
+#   in WAL mode, so the recent writes sit in a separate file and a plain copy
+#   catches the database mid transaction. "VACUUM INTO" hands that job to
+#   SQLite itself, which produces a compact and consistent copy while the
+#   service keeps running - no downtime, no maintenance window.
+#
+#   The photos are copied with rsync and hard linked against the previous
+#   snapshot, so a photo that has not changed costs one directory entry instead
+#   of another copy. Every snapshot still looks like a full one, and deleting
+#   an old snapshot never damages a newer one.
+#
+#   This script is the interim solution until "product-rating backup" arrives
+#   with the CLI (M13). Both do the same thing; this one has no dependency on
+#   the application beyond the paths.
+#
+# Program flow:
+#   1. Parse arguments and resolve configuration (CLI > env > default).
+#   2. Verify the prerequisites: sqlite3, rsync, readable source, writable
+#      target.
+#   3. Create the snapshot directory <target>/<YYYY-mm-dd_HHMMSS>.
+#   4. Copy the database with VACUUM INTO and check the result with
+#      "PRAGMA integrity_check".
+#   5. Copy the uploads with rsync, hard linked against the last snapshot.
+#   6. Point the "latest" symlink at the new snapshot.
+#   7. Delete snapshots older than the retention period.
+#   8. Report the result via logging.
+#
+# Usage:
+#   product-rating-backup [-v|--verbose] [-s|--silent] [-t|--target DIR]
+#                         [-r|--retention DAYS] [--database FILE]
+#                         [--uploads DIR]
+#
+# Version: 1.0.0  (2026-08-16)
+
+# Robustness baseline: a backup that continues after a failed step is worse
+# than no backup, because it looks like one.
+set -euo pipefail
+
+# Script name, used as the logger tag and in messages.
+SCRIPT_NAME="$(basename -- "${0}")"
+
+# --- Defaults seeded from environment variables ---------------------------
+# Precedence: command-line argument > environment variable > built-in default.
+#
+# The defaults are the paths of the Debian package. An instance whose
+# config.toml points paths.database or paths.uploads somewhere else has to say
+# so here as well - this script deliberately does not parse the TOML, so it
+# cannot silently back up the wrong directory after a configuration change.
+TARGET="${PRODUCT_RATING_BACKUP_TARGET:-/var/backups/product-rating}"
+DATABASE="${PRODUCT_RATING_BACKUP_DATABASE:-/var/lib/product-rating/db/app.db}"
+UPLOADS="${PRODUCT_RATING_BACKUP_UPLOADS:-/var/lib/product-rating/uploads}"
+RETENTION="${PRODUCT_RATING_BACKUP_RETENTION:-14}"
+VERBOSE="${PRODUCT_RATING_BACKUP_VERBOSE:-0}"
+SILENT="${PRODUCT_RATING_BACKUP_SILENT:-0}"
+
+# Name of the symlink that always points at the most recent snapshot. It is
+# also what the hard links of the next run are made against.
+LATEST_LINK="latest"
+
+# Print usage information.
+usage() {
+    cat <<'EOF'
+Usage: product-rating-backup [OPTIONS]
+
+Creates a consistent snapshot of the product-rating database and photos, and
+removes snapshots older than the retention period.
+
+Options:
+  -t, --target DIR      Directory the snapshots are written into.
+                        Env: PRODUCT_RATING_BACKUP_TARGET
+                        Default: /var/backups/product-rating
+  -r, --retention DAYS  Delete snapshots older than DAYS days. 0 keeps
+                        everything.
+                        Env: PRODUCT_RATING_BACKUP_RETENTION   Default: 14
+      --database FILE   The SQLite database of the instance.
+                        Env: PRODUCT_RATING_BACKUP_DATABASE
+                        Default: /var/lib/product-rating/db/app.db
+      --uploads DIR     The upload directory with the photos.
+                        Env: PRODUCT_RATING_BACKUP_UPLOADS
+                        Default: /var/lib/product-rating/uploads
+  -v, --verbose         Enable verbose (debug) output.
+                        Env: PRODUCT_RATING_BACKUP_VERBOSE     Default: 0
+  -s, --silent          Suppress all non-error output.
+                        Env: PRODUCT_RATING_BACKUP_SILENT      Default: 0
+  -h, --help            Show this help and exit.
+
+Precedence for every option: command-line argument > environment variable
+> built-in default. --silent and --verbose exclude each other.
+
+The paths default to the layout of the Debian package. If config.toml points
+paths.database or paths.uploads somewhere else, name them here.
+
+The service does not have to be stopped: the database is copied with SQLite's
+own VACUUM INTO, which is consistent while writes keep happening.
+
+Example:
+  product-rating-backup --target /srv/backups/product-rating --retention 30
+
+Restore (with the service stopped):
+  systemctl stop product-rating
+  install -o product-rating -g product-rating -m 0640 \
+    <snapshot>/app.db /var/lib/product-rating/db/app.db
+  rm -f /var/lib/product-rating/db/app.db-wal /var/lib/product-rating/db/app.db-shm
+  rsync -a --delete <snapshot>/uploads/ /var/lib/product-rating/uploads/
+  chown -R product-rating:product-rating /var/lib/product-rating
+  systemctl start product-rating
+EOF
+}
+
+# log LEVEL MESSAGE...
+# LEVEL is one of: error, warn, info, debug.
+#
+# Always records the entry in syslog/journal, so a run from the systemd timer
+# leaves a trace without a terminal, and additionally prints to the console
+# when there is one. In silent mode only errors reach the console; the syslog
+# entry is written either way, so the audit trail stays complete.
+log() {
+    local level="${1}"
+    shift
+    local message="$*"
+
+    local priority="user.notice"
+    case "${level}" in
+        error) priority="user.err" ;;
+        warn)  priority="user.warning" ;;
+        info)  priority="user.info" ;;
+        debug) priority="user.debug" ;;
+    esac
+
+    # Debug messages are only emitted in verbose mode.
+    if [ "${level}" = "debug" ] && [ "${VERBOSE}" -ne 1 ]; then
+        return 0
+    fi
+
+    logger -t "${SCRIPT_NAME}" -p "${priority}" -- "${message}"
+
+    if [ -t 1 ]; then
+        if [ "${SILENT}" -eq 1 ] && [ "${level}" != "error" ]; then
+            return 0
+        fi
+        if [ "${level}" = "error" ] || [ "${level}" = "warn" ]; then
+            printf '%s: %s\n' "${level}" "${message}" >&2
+        else
+            printf '%s: %s\n' "${level}" "${message}"
+        fi
+    fi
+}
+
+# die MESSAGE...  Report an explicit, anticipated failure and exit non-zero.
+die() {
+    log error "$*"
+    exit 1
+}
+
+# --- Argument parsing (highest precedence) --------------------------------
+# A manual loop, so both the short and the long form work, with and without an
+# equals sign.
+while [ "$#" -gt 0 ]; do
+    case "${1}" in
+        -t|--target)
+            if [ "$#" -lt 2 ]; then
+                printf '%s: option %s requires an argument\n' "${SCRIPT_NAME}" "${1}" >&2
+                exit 2
+            fi
+            TARGET="${2}"
+            shift 2
+            ;;
+        --target=*)
+            TARGET="${1#*=}"
+            shift
+            ;;
+        -r|--retention)
+            if [ "$#" -lt 2 ]; then
+                printf '%s: option %s requires an argument\n' "${SCRIPT_NAME}" "${1}" >&2
+                exit 2
+            fi
+            RETENTION="${2}"
+            shift 2
+            ;;
+        --retention=*)
+            RETENTION="${1#*=}"
+            shift
+            ;;
+        --database)
+            if [ "$#" -lt 2 ]; then
+                printf '%s: option %s requires an argument\n' "${SCRIPT_NAME}" "${1}" >&2
+                exit 2
+            fi
+            DATABASE="${2}"
+            shift 2
+            ;;
+        --database=*)
+            DATABASE="${1#*=}"
+            shift
+            ;;
+        --uploads)
+            if [ "$#" -lt 2 ]; then
+                printf '%s: option %s requires an argument\n' "${SCRIPT_NAME}" "${1}" >&2
+                exit 2
+            fi
+            UPLOADS="${2}"
+            shift 2
+            ;;
+        --uploads=*)
+            UPLOADS="${1#*=}"
+            shift
+            ;;
+        -v|--verbose)
+            VERBOSE=1
+            shift
+            ;;
+        -s|--silent)
+            SILENT=1
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        --)
+            shift
+            break
+            ;;
+        -*)
+            printf '%s: unknown option: %s\n' "${SCRIPT_NAME}" "${1}" >&2
+            usage >&2
+            exit 2
+            ;;
+        *)
+            # No positional arguments expected.
+            printf '%s: unexpected argument: %s\n' "${SCRIPT_NAME}" "${1}" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+done
+
+# Silent and verbose are mutually exclusive.
+if [ "${SILENT}" -eq 1 ] && [ "${VERBOSE}" -eq 1 ]; then
+    printf '%s: --silent and --verbose are mutually exclusive\n' "${SCRIPT_NAME}" >&2
+    exit 2
+fi
+
+# Checks everything the run depends on, so a failure happens before the first
+# file is written rather than halfway through a snapshot.
+check_prerequisites() {
+    command -v sqlite3 > /dev/null 2>&1 \
+        || die "sqlite3 is not installed (apt install sqlite3)"
+    command -v rsync > /dev/null 2>&1 \
+        || die "rsync is not installed (apt install rsync)"
+
+    case "${RETENTION}" in
+        ''|*[!0-9]*) die "Retention has to be a whole number of days: ${RETENTION}" ;;
+    esac
+
+    [ -f "${DATABASE}" ] || die "Database file does not exist: ${DATABASE}"
+    [ -r "${DATABASE}" ] || die "Database file is not readable: ${DATABASE}"
+    [ -d "${UPLOADS}" ]  || die "Upload directory does not exist: ${UPLOADS}"
+    [ -r "${UPLOADS}" ]  || die "Upload directory is not readable: ${UPLOADS}"
+
+    # The target may still be missing; then its parent has to be writable.
+    if [ -d "${TARGET}" ]; then
+        [ -w "${TARGET}" ] || die "Backup target is not writable: ${TARGET}"
+    else
+        local parent
+        parent="$(dirname -- "${TARGET}")"
+        [ -d "${parent}" ] || die "Parent of the backup target does not exist: ${parent}"
+        [ -w "${parent}" ] || die "Parent of the backup target is not writable: ${parent}"
+    fi
+}
+
+# Copies the database through SQLite itself. VACUUM INTO writes a compact,
+# consistent copy of the current state while the service keeps writing;
+# copying the file directly would catch the WAL in between.
+#
+# sqlite3 3.27 (2019) or newer is needed for VACUUM INTO. On anything older
+# ".backup" does the same job:  sqlite3 "${DATABASE}" ".backup '${snapshot}'"
+backup_database() {
+    local snapshot="${1}/app.db"
+
+    log debug "Copying the database with VACUUM INTO: ${snapshot}"
+    # The path goes into an SQL string; a single quote in it would end that
+    # string early, so it is doubled - the SQL way of escaping.
+    sqlite3 "file:${DATABASE}?mode=ro" \
+        "VACUUM INTO '${snapshot//\'/\'\'}';"
+
+    # A copy that cannot be read back is not a backup. integrity_check reads
+    # the whole file and answers with "ok" when nothing is broken.
+    local check
+    check="$(sqlite3 "${snapshot}" 'PRAGMA integrity_check;')"
+    [ "${check}" = "ok" ] || die "The database copy is damaged: ${check}"
+
+    log debug "Database copied and checked"
+}
+
+# Copies the photos. --link-dest lets rsync hard link every file that is
+# unchanged since the previous snapshot instead of copying it: a full looking
+# snapshot at the cost of the changes only. Deleting an old snapshot leaves
+# the newer ones intact, because a file survives as long as one link remains.
+backup_uploads() {
+    local destination="${1}/uploads"
+    local previous="${TARGET}/${LATEST_LINK}/uploads"
+
+    mkdir -p -- "${destination}"
+
+    local -a rsync_options=(--archive --delete)
+    if [ "${VERBOSE}" -eq 1 ]; then
+        rsync_options+=(--verbose)
+    fi
+    if [ -d "${previous}" ]; then
+        log debug "Hard linking unchanged photos against ${previous}"
+        rsync_options+=(--link-dest="${previous}")
+    fi
+
+    # The trailing slash on the source is what copies the CONTENT of the
+    # directory instead of the directory itself.
+    rsync "${rsync_options[@]}" -- "${UPLOADS}/" "${destination}/"
+
+    log debug "Photos copied"
+}
+
+# Removes snapshots older than the retention period. Runs after the new
+# snapshot exists, so a failure here still leaves a current backup behind.
+prune_old_snapshots() {
+    if [ "${RETENTION}" -eq 0 ]; then
+        log debug "Retention is 0, keeping every snapshot"
+        return 0
+    fi
+
+    local removed=0
+    local old
+    # -maxdepth/-mindepth 1 keeps the target directory itself out of the list,
+    # and the name pattern keeps anything that is not one of our snapshots -
+    # including the "latest" symlink - out of it as well.
+    while IFS= read -r -d '' old; do
+        log debug "Removing the outdated snapshot ${old}"
+        rm -rf -- "${old}"
+        removed=$((removed + 1))
+    done < <(find "${TARGET}" -mindepth 1 -maxdepth 1 -type d \
+        -name '20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]_[0-9][0-9][0-9][0-9][0-9][0-9]' \
+        -mtime "+${RETENTION}" -print0)
+
+    if [ "${removed}" -gt 0 ]; then
+        log info "Removed ${removed} snapshot(s) older than ${RETENTION} days"
+    fi
+}
+
+main() {
+    check_prerequisites
+
+    # Photos and the database are personal data; a backup of them has no
+    # business being readable by everyone on the machine.
+    umask 0077
+
+    local stamp snapshot
+    stamp="$(date +%Y-%m-%d_%H%M%S)"
+    snapshot="${TARGET}/${stamp}"
+
+    log info "Starting backup into ${snapshot}"
+    log debug "Database ${DATABASE}, uploads ${UPLOADS}, retention ${RETENTION} days"
+
+    [ -e "${snapshot}" ] && die "The snapshot directory already exists: ${snapshot}"
+    mkdir -p -- "${snapshot}"
+
+    backup_database "${snapshot}"
+    backup_uploads "${snapshot}"
+
+    # The symlink is swapped in one step: a temporary name plus "mv -T", so
+    # there is never a moment without a "latest".
+    ln -sfn -- "${stamp}" "${TARGET}/.${LATEST_LINK}.new"
+    mv -T -- "${TARGET}/.${LATEST_LINK}.new" "${TARGET}/${LATEST_LINK}"
+
+    prune_old_snapshots
+
+    local size
+    size="$(du -sh -- "${snapshot}" | cut -f1)"
+    log info "Backup finished: ${snapshot} (${size})"
+}
+
+main "$@"

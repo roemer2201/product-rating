@@ -1,0 +1,81 @@
+# product-rating behind Caddy, installed on the host (Caddy 2).
+#
+#   cp Caddyfile /etc/caddy/Caddyfile        # or include it from there
+#   caddy validate --config /etc/caddy/Caddyfile
+#   systemctl reload caddy
+#
+# The shortest of the four proxies: Caddy obtains and renews the certificate
+# itself, redirects HTTP to HTTPS and sets X-Forwarded-For, X-Forwarded-Proto
+# and X-Forwarded-Host without being asked. Requirements for the certificate
+# are the usual ones - the name resolves to this host and ports 80 and 443
+# reach it from the internet.
+#
+# For a container setup with Caddy in the same compose project see
+# docker/docker-compose.caddy.yml; that file is the same configuration with the
+# service name instead of the loopback address.
+#
+# Settings in the application:
+#
+#   * server.base_url = https://produkte.example.org - every writing request is
+#     checked against it.
+#   * server.trust_proxy = true, so the log and the login rate limit see the
+#     client instead of Caddy.
+
+produkte.example.org {
+	# TLS ends here; the application speaks plain HTTP on the loopback
+	# interface and answers the interface and /api/v1 from one process.
+	reverse_proxy 127.0.0.1:8080 {
+		health_uri /healthz
+	}
+
+	# Photos are the largest thing that travels here. At least
+	# uploads.max_file_size_mb of the application (15 MB by default) plus the
+	# overhead of the multipart body. Too small a value ends the upload in the
+	# proxy, and the interface only sees a broken connection.
+	request_body {
+		max_size 20MB
+	}
+
+	# Images are WebP and already compressed; the bundle and the JSON answers
+	# are what this is for.
+	encode zstd gzip
+
+	header {
+		# The application is only reachable over HTTPS; a year is the usual
+		# value. Add "preload" only if the domain is really meant to go onto
+		# the preload list.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "same-origin"
+		# The interface is not meant to be embedded anywhere.
+		X-Frame-Options "DENY"
+	}
+
+	# No cache rules here, on purpose. The application sets Cache-Control
+	# itself and is the only place that can tell the two cases apart: the file
+	# names under /assets/ carry a hash of their content and are immutable for
+	# a year, while index.html, sw.js and the manifest keep their names across
+	# releases and are sent as no-cache. A "header Cache-Control" here would
+	# overwrite exactly that and leave installed home screen apps on an old
+	# bundle.
+
+	log {
+		output file /var/log/caddy/product-rating.log
+		format console
+	}
+}
+
+# An instance that is only reachable inside the home network gets no
+# certificate from Let's Encrypt, because the challenge never arrives. Caddy
+# then issues one from its own CA - the root of which has to be trusted on
+# every device once:
+#
+#   produkte.heim.lan {
+#   	tls internal
+#   	reverse_proxy 127.0.0.1:8080
+#   }
+#
+# The root certificate is in
+# /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt.
+# Without a certificate the devices trust, the browser refuses access to the
+# camera and the barcode scanner stays unusable.
