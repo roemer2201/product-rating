@@ -51,6 +51,14 @@ behalten und deshalb `no-cache` bekommen. Eine eigene Regel im Proxy
 (`expires`, `ExpiresByType`, `header Cache-Control`) überschreibt genau das und
 lässt installierte Home-Bildschirm-Apps auf einem alten Bundle sitzen.
 
-Ebenso wenig setzen sie eine **Content-Security-Policy**. Die gehört in die
-Anwendung, die ihr eigenes Bundle kennt (offen, M14); an zwei Stellen gepflegt
-würde sie auseinanderlaufen.
+Ebenso wenig setzen sie **Härtungs-Header**. Seit M14 setzt die Anwendung
+`Content-Security-Policy`, `X-Content-Type-Options`, `Referrer-Policy`,
+`X-Frame-Options`, `Permissions-Policy` sowie die beiden
+`Cross-Origin-*`-Header selbst – sie ist die einzige Stelle, die ihr eigenes
+Bundle kennt, und an zwei Stellen gepflegt würden die Regeln auseinanderlaufen.
+Bei nginx käme ein zweites `add_header` zusätzlich beim Browser an, nicht statt
+des ersten.
+
+Einzige Ausnahme ist **`Strict-Transport-Security`**: den setzen die Beispiele,
+weil nur die TLS-Seite weiß, dass wirklich ein Zertifikat davorsteht – die
+Anwendung selbst spricht hinter dem Proxy einfaches HTTP.

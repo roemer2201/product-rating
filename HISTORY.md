@@ -5,6 +5,92 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-17 – M14: Qualitätssicherung und Release
+
+**Umfang**
+
+- **Härtungs-Header in der Anwendung** (`server/src/plugins/securityHeaders.ts`):
+  Content-Security-Policy, `X-Content-Type-Options`, `X-Frame-Options`,
+  `Referrer-Policy`, `Permissions-Policy` und die beiden `Cross-Origin-*`-Header
+  auf jeder Antwort – Oberfläche, API und Fehlerseiten gleichermaßen. Die Policy
+  ist gegen das gebaute Bundle geprüft: kein Inline-Skript, kein Inline-Stil,
+  kein `data:` in der Stylesheet-Ausgabe. Zugeständnisse sind nur
+  `'wasm-unsafe-eval'` (Barcode-Decoder), `blob:` für Fotovorschau und
+  Kamerabild und `data:` für kleine eingebettete Bilder.
+- **Proxy-Beispiele nachgezogen:** nginx (beide), Apache, Caddy (beide Dateien),
+  Traefik (`dynamic.yml` und Labels) setzen nur noch
+  `Strict-Transport-Security`. Bei nginx wäre ein zweites `add_header`
+  zusätzlich beim Browser angekommen, nicht statt des ersten.
+- **Integrationstest über den ganzen Weg** (`server/src/routes/integration.test.ts`,
+  23 Fälle): Bootstrap-Administrator → Einladung → Registrierung → gescanntes
+  UPC-A als Produkt → Foto vom Telefon → Bewertungen zweier Konten → Suche,
+  Filter, Sortierung, Seiten → was nicht erlaubt ist → Löschen durch den
+  Administrator.
+- **Berechtigungsmatrix** (`server/src/routes/permissions.test.ts`): eine
+  Tabelle aller 28 Routen mit der jeweils nötigen Rolle. Die Liste wird gegen
+  den Router selbst abgeglichen, eine neue Route ohne Eintrag lässt den Test
+  fehlschlagen. Dazu die Sitzung eines gesperrten Kontos, die überall wie eine
+  anonyme Anfrage behandelt wird.
+- **Versionsschema** (README 9.1): SemVer, eine Nummer für das ganze
+  Repository, `0.1.0` als erste ausgelieferte Version. HISTORY.md ist das
+  Änderungsverzeichnis, `packaging/debian/changelog` der Paketeintrag;
+  `server/src/version.test.ts` besteht darauf, dass alle vier Manifeste und der
+  Changelog dieselbe Nummer nennen.
+- **Zwei Workflows** unter `.github/workflows/`: `ci.yml` (Format, Lint, Typen,
+  Tests, Bau; Debian-Paket inklusive Installation, Start, `/healthz`, `remove`
+  und `purge`; Container-Image inklusive Start und `/healthz`) und `release.yml`
+  (Tag `v*`: Paket für amd64 und arm64 auf Runnern der jeweiligen Architektur,
+  Multi-Arch-Image nach GHCR, GitHub-Release mit beiden `.deb`).
+- **Sicherheitsdurchsicht** mit drei Korrekturen: Anmeldungen unter einem
+  unbekannten Namen prüfen jetzt gegen einen Platzhalter-Hash, damit die
+  Antwortzeit nicht verrät, wer ein Konto hat; die Bildverarbeitung dekodiert
+  höchstens 100 Megapixel; API-Antworten tragen `Cache-Control: no-store`.
+- **Erster CI-Lauf hat gleich etwas gefunden:** Die Startprüfung des
+  syslog-Ziels meldete unter Umständen `spawnSync logger EPIPE` statt des
+  eigentlichen Grundes. `logger` ohne erreichbaren Socket endet, bevor die
+  Prüfzeile geschrieben ist; wer das Rennen gewinnt, hängt an der Maschine.
+  `EPIPE` ist jetzt kein Grund mehr für sich, sondern führt weiter zu Exit-Code
+  und stderr des Programms – also zu der Meldung, für die die Prüfung da ist.
+- **Installation gegengeprüft**: Paket gebaut, mit `dpkg -i` installiert,
+  Rechte kontrolliert (`config.toml` 0640 `root:product-rating`, `secret.env`
+  0600, Datenverzeichnisse 0750), Migrationen, CLI, Serverstart, Anmeldung,
+  Produktanlage, Header an der echten Instanz, danach `purge`. 484 Tests grün;
+  `lint`, `typecheck` und `format:check` fehlerfrei.
+
+**Entscheidungen**
+
+- **Die Header gehören in die Anwendung, nicht in den Proxy.** Seit M10 liefert
+  sie das HTML selbst aus und ist die einzige Stelle, die ihr eigenes Bundle
+  kennt. Ausnahme ist HSTS: hinter dem Proxy spricht die Anwendung einfaches
+  HTTP und kann nicht wissen, ob wirklich ein Zertifikat davorsteht.
+- **`0.1.0` und nicht `1.0.0`.** Der MVP ist vollständig, aber noch nirgends im
+  Alltag gelaufen. Die Eins vergibt der Projektinhaber nach der ersten
+  produktiven Installation; bis dahin steht MINOR für alles, was sonst MAJOR
+  wäre.
+- **Kein `CHANGELOG.md`.** HISTORY.md ist bereits das Verzeichnis der Arbeiten
+  und wird bei jedem Paket gepflegt; ein zweites Dokument liefe daneben her.
+  `packaging/debian/changelog` bleibt der kurze Paketeintrag, den `dpkg`
+  erwartet – gegen das Auseinanderlaufen steht der Test, nicht ein Generator.
+- **Beide Architekturen auf eigenen Runnern statt unter Emulation.**
+  `better-sqlite3`, `sharp` und `@node-rs/argon2` bringen native Binärdateien
+  mit, und `build-deb.sh` weigert sich zu Recht, ein Paket als etwas anderes zu
+  beschriften, als es gebaut wurde. Die arm64-Runner sind für öffentliche
+  Repositories kostenlos.
+- **Nur Actions von GitHub selbst.** Anmelden an der Registry, Bauen und das
+  Release laufen über `docker`, `docker buildx` und `gh` in Shell-Schritten.
+  Was ein Release veröffentlicht, soll von so wenigen fremden Stellen wie
+  möglich abhängen.
+- **Kein Ratenlimit für Uploads.** README hat eines behauptet, gebaut war nie
+  eines. Wer hochladen darf, ist angemeldet und gehört zum Haushalt; was
+  wirklich fehlte, war eine Grenze für die Bildgröße hinter der Bytegrenze –
+  die ist jetzt da. Der Punkt steht als Frage in TODO.md.
+- **Ein Platzhalter-Hash statt einer gleichlangen Wartezeit.** Eine künstliche
+  Verzögerung müsste geraten werden und wäre bei geänderten argon2-Parametern
+  wieder falsch; eine echte Prüfung gegen einen Hash, den niemand kennt, kostet
+  genau so viel wie eine echte Anmeldung.
+
+---
+
 ## 2026-08-16 – M13: CLI und Betrieb
 
 **Umfang**

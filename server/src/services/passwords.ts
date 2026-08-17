@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { hash, verify } from '@node-rs/argon2';
 import type { AppConfig } from '../config/index.js';
 
@@ -54,6 +55,39 @@ export async function verifyPassword(hashed: string, password: string): Promise<
   } catch {
     return false;
   }
+}
+
+/**
+ * A hash of a password nobody knows, verified against when the account of a
+ * login does not exist.
+ *
+ * Without it the route answers a login for an unknown name in under a
+ * millisecond and one for a known name after a tenth of a second, which tells
+ * anybody who can count who has an account here — exactly what the identical
+ * error message is there to prevent. So an unknown name is made to cost the
+ * same argon2id verification as a known one.
+ *
+ * The hash is built once and kept: it is derived from random bytes, it never
+ * leaves this module, and no password is ever going to match it. Raising the
+ * cost parameters while the process runs leaves it on the old ones, which
+ * costs a fraction of the time — this is a curtain, not a lock.
+ */
+let placeholder: Promise<string> | null = null;
+
+export function placeholderHash(parameters: Argon2Parameters): Promise<string> {
+  placeholder ??= hashPassword(randomBytes(32).toString('hex'), parameters);
+  return placeholder;
+}
+
+/**
+ * Answers a login for an account that does not exist — always `false`, and
+ * always after the same work a real verification would have cost.
+ */
+export async function verifyAgainstNobody(
+  password: string,
+  parameters: Argon2Parameters,
+): Promise<boolean> {
+  return verifyPassword(await placeholderHash(parameters), password);
 }
 
 /** Parsed `m`, `t` and `p` of an argon2 hash, if it looks like one. */

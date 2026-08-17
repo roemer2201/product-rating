@@ -12,6 +12,7 @@ import type { AppDatabase } from './db/index.js';
 import { registerAuth, SESSION_CLEANUP_INTERVAL_MS } from './plugins/auth.js';
 import { registerCsrfGuard } from './plugins/csrf.js';
 import { registerErrorHandler } from './plugins/errorHandler.js';
+import { registerSecurityHeaders } from './plugins/securityHeaders.js';
 import { registerStaticFrontend } from './plugins/staticFrontend.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerInviteRoutes } from './routes/invites.js';
@@ -66,6 +67,10 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   app.decorate('config', config);
   app.decorate('db', db);
   app.decorate('loginLimiter', new RateLimiter(config.auth.login_rate_limit_per_minute));
+
+  // First of the hooks, so every answer carries them - including the ones the
+  // plugins below produce on their own, such as a rejected upload.
+  registerSecurityHeaders(app);
 
   await app.register(cookie, { secret });
 

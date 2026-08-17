@@ -1,0 +1,136 @@
+# Continuous integration.
+#
+# Runs exactly what CLAUDE.md asks for before a commit - format, lint, types,
+# tests, build - and then the two things that only break when nobody looks:
+# the Debian package and the container image. Both are built here and thrown
+# away; publishing happens in release.yml on a tag.
+name: CI
+
+on:
+  push:
+    branches: [main, 'claude/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Nothing here writes to the repository.
+permissions:
+  contents: read
+
+# A second push onto the same branch makes the first run pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Format, lint, types, tests, build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # ci rather than install: the lock file is the authority, and a
+      # dependency that quietly moved has to fail here.
+      - run: npm ci
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      # Last, because it is the slowest and the least likely to fail on its
+      # own: what it proves is that server bundle and web client still build.
+      - name: Build
+        run: npm run build
+
+  package:
+    name: Debian package
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # build-deb.sh uses lintian when it is there, and a packaging mistake is
+      # exactly what it finds.
+      - name: Install lintian
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes lintian
+
+      - name: Build the package
+        run: npm run package:deb
+
+      # The package wants nodejs (>= 22), which neither Ubuntu 24.04 nor Debian
+      # 13 have in their own archive - the installation instructions say the
+      # same (README 7.2). This is the step a person would do first.
+      - name: Install Node.js from NodeSource
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location https://deb.nodesource.com/setup_22.x | sudo -E bash -
+          sudo apt-get install --yes nodejs
+
+      - name: Check that it installs, starts and answers
+        run: |
+          set -euo pipefail
+          package="$(find packaging/build -maxdepth 1 -name '*.deb' -print -quit)"
+          sudo apt-get install --yes "${PWD}/${package}"
+
+          # postinst creates the user, the directories and the secret and
+          # applies the migrations, but deliberately does not start a fresh
+          # installation - base_url has to be set first (README 7.2). The
+          # shipped default is the loopback address used here.
+          sudo systemctl start product-rating
+          curl --fail --silent --show-error --retry 10 --retry-delay 2 \
+            --retry-all-errors http://127.0.0.1:8080/healthz
+
+          # Removing has to leave the data behind, purging has to take the
+          # configuration with it; both are maintainer script paths that only
+          # ever run on someone's machine.
+          sudo systemctl stop product-rating
+          sudo apt-get remove --yes product-rating
+          test -d /var/lib/product-rating
+          sudo apt-get purge --yes product-rating
+          test ! -e /etc/product-rating
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debian-package
+          path: packaging/build/*.deb
+          retention-days: 7
+
+  image:
+    name: Container image
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the image
+        run: docker build --file docker/Dockerfile --tag product-rating:ci .
+
+      - name: Check that it starts and answers
+        run: |
+          set -euo pipefail
+          docker run --detach --name product-rating-ci \
+            --publish 127.0.0.1:8080:8080 product-rating:ci
+          # The entrypoint creates the secret and applies the migrations first,
+          # so the first attempts are expected to fail.
+          curl --fail --silent --show-error --retry 20 --retry-delay 2 \
+            --retry-all-errors http://127.0.0.1:8080/healthz
+          docker logs product-rating-ci
+          docker rm --force product-rating-ci

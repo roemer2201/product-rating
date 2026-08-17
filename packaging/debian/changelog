@@ -1,3 +1,14 @@
+product-rating (0.1.0) unstable; urgency=medium
+
+  * First released version. Versions follow semantic versioning; the entry
+    here has to match the version in package.json, which build-deb.sh reads.
+  * The application now sets its own hardening headers, including the
+    Content-Security-Policy. The shipped proxy examples only add HSTS.
+  * No change to the installation layout, the configuration or the database
+    schema compared to 0.0.0.
+
+ -- roemer2201 <roemer2201@users.noreply.github.com>  Mon, 17 Aug 2026 12:00:00 +0000
+
 product-rating (0.0.0) unstable; urgency=medium
 
   * Initial packaging (M11). Installs the API server and the built web

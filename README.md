@@ -4,8 +4,11 @@ Selbst-hostbare Web-App zum Erfassen und Bewerten von Produkten: EAN scannen ode
 eingeben, Foto hinterlegen, 0–5 Sterne vergeben. Die App läuft als PWA und lässt
 sich unter iOS zum Home-Bildschirm hinzufügen.
 
-> **Status:** Konzeptphase. Dieses Dokument beschreibt die geplante Architektur.
-> Der Umsetzungsstand steht in [TODO.md](TODO.md) und [HISTORY.md](HISTORY.md).
+> **Status:** Version 0.1.0, der MVP aus Abschnitt 1 ist gebaut – Server,
+> Oberfläche, Docker-Image und Debian-Paket. Was noch offen ist und was als
+> Nächstes kommt, steht in [TODO.md](TODO.md); was wann warum entschieden wurde,
+> in [HISTORY.md](HISTORY.md). Die `1.0.0` bekommt die erste Installation, die
+> im Alltag läuft (Abschnitt 9.1).
 
 ---
 
@@ -256,11 +259,48 @@ schneller, hält DB-Backups klein und erlaubt HTTP-Caching und Range-Requests.
   (inklusive GPS-Position) und entschärft manipulierte Bilddateien.
 - **Medienzugriff** ausschließlich über eine authentifizierte Route mit
   Berechtigungsprüfung – keine erratbaren Direktlinks im Webroot.
-- **Härtung:** Rate-Limit auf Login und Upload, CSRF-Schutz über `SameSite=Lax`
-  plus Origin-Prüfung, Content-Security-Policy, `/healthz`-Endpunkt.
+- **Härtung:** Rate-Limit auf die Anmeldung (je Adresse und je Benutzername),
+  CSRF-Schutz über `SameSite=Lax` plus Origin-Prüfung, `/healthz`-Endpunkt.
   Die Origin-Prüfung greift bei jeder schreibenden Anfrage, die ein
   Session-Cookie mitbringt: `Origin` beziehungsweise `Referer` muss zu
-  `server.base_url` oder zu `server.trusted_origins` passen.
+  `server.base_url` oder zu `server.trusted_origins` passen. Eine Anmeldung
+  unter einem Namen, den es nicht gibt, kostet dieselbe argon2id-Prüfung wie
+  eine echte – sonst verriete die Antwortzeit, wer hier ein Konto hat.
+- **Grenzen:** JSON-Rumpf höchstens 1 MiB, je Upload eine Datei bis
+  `uploads.max_file_size_mb`, und das Bild dahinter höchstens 100 Megapixel.
+  Die Bytegrenze allein reicht nicht: ein einfarbiges PNG von einigen hundert
+  Megapixeln passt in wenige Megabyte und würde beim Dekodieren den Speicher
+  sprengen. Uploads haben bewusst **kein** Ratenlimit – wer hochladen darf, ist
+  angemeldet und gehört zum Haushalt.
+- **Härtungs-Header** setzt die Anwendung auf jeder Antwort selbst, für
+  Oberfläche, API und Fehlerseiten gleichermaßen. Sie stehen an genau einer
+  Stelle (`server/src/plugins/securityHeaders.ts`), damit Anwendung und Proxy
+  nicht auseinanderlaufen:
+
+  | Header | Wert | Warum |
+  | --- | --- | --- |
+  | `Content-Security-Policy` | `default-src 'self'` und die Ableitungen unten | Alles kommt aus dem eigenen Bundle |
+  | `X-Content-Type-Options` | `nosniff` | Kein Raten am Content-Type vorbei |
+  | `X-Frame-Options` | `DENY` | Dasselbe wie `frame-ancestors`, für ältere Browser |
+  | `Referrer-Policy` | `same-origin` | Der eigene `Referer` bleibt – die Origin-Prüfung fällt darauf zurück |
+  | `Permissions-Policy` | `camera=(self)`, Rest leer | Der Scanner braucht die Kamera, sonst nichts |
+  | `Cross-Origin-Opener-Policy` | `same-origin` | Kein fremdes Fenster mit Zugriff |
+  | `Cross-Origin-Resource-Policy` | `same-origin` | Fotos und Bundle sind nicht zum Einbetten da |
+
+  In der Policy stehen neben `'self'` nur vier Zugeständnisse, jedes an einer
+  Stelle der Oberfläche festgemacht: `'wasm-unsafe-eval'` im `script-src` für
+  den WebAssembly-Decoder des Scanners (kein `eval()` von JavaScript),
+  `blob:` im `img-src` für die Vorschau eines gerade aufgenommenen Fotos und im
+  `media-src` für das Kamerabild, dazu `data:` im `img-src` für kleine
+  Bilddateien, die der Bau in das Bundle einbettet. `'unsafe-inline'` kommt
+  nirgends vor: der Bau erzeugt weder ein Inline-Skript noch einen Inline-Stil.
+  `upgrade-insecure-requests` kommt dazu, sobald `server.base_url` mit `https://`
+  beginnt.
+
+  Nicht dabei ist `Strict-Transport-Security`. Der gehört dem, der TLS
+  terminiert – die Anwendung dahinter spricht einfaches HTTP und kann nicht
+  wissen, ob wirklich ein Zertifikat davorsteht. Die Proxy-Beispiele unter
+  `packaging/examples/` setzen ihn deshalb, und sonst keinen.
 - **Kein ausgehender Netzwerkverkehr.** Es gibt bewusst keine Anbindung an eine
   externe Produktdatenbank; alle Produktdaten werden lokal erfasst.
 
@@ -655,10 +695,19 @@ Architektur läuft über QEMU (`docker run --privileged --rm tonistiigi/binfmt
 ### 7.2 Debian-Paket
 
 ```bash
+# Node.js 22 - weder Debian 13 noch Ubuntu 24.04 haben es im eigenen Archiv:
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install nodejs
+
 sudo apt install ./product-rating_<version>_<arch>.deb
 sudoedit /etc/product-rating/config.toml      # vor allem server.base_url
 sudo systemctl start product-rating
 ```
+
+Die Abhängigkeit `nodejs (>= 22)` ist der einzige Punkt, an dem die
+Installation eine fremde Paketquelle braucht. Wer NodeSource nicht einbinden
+will, kann Node auch anders installieren – das Paket verlangt nur, dass
+`node` in Version 22 oder neuer im `PATH` liegt.
 
 Das `postinst` aktiviert den Dienst, startet ihn bei einer Neuinstallation aber
 bewusst **nicht**: `server.base_url` muss der Adresse entsprechen, unter der der
@@ -730,7 +779,7 @@ mit einer eigenen [Übersicht](packaging/examples/README.md)):
 
 - **nginx** – `nginx/product-rating.conf`: Vhost mit TLS, `proxy_pass` auf
   `127.0.0.1:8080`, `client_max_body_size` passend zum Upload-Limit,
-  `X-Forwarded-*`-Header, Security-Header, gzip. Dazu
+  `X-Forwarded-*`-Header, HSTS, gzip. Dazu
   `nginx/product-rating-subpath.conf` für den Betrieb unter einem Unterpfad.
 - **Apache 2.4** – `apache2/product-rating.conf`: Vhost mit `mod_proxy`,
   `ProxyPreserveHost On`, `RequestHeader set X-Forwarded-Proto https`,
@@ -750,10 +799,14 @@ mit einer eigenen [Übersicht](packaging/examples/README.md)):
 Die logrotate-Regel ist keine Vorlage, sondern Teil des Pakets
 (`/etc/logrotate.d/product-rating`, als `conffile` registriert).
 
-Keins der Beispiele setzt Cache-Header: die Anwendung setzt sie selbst und ist
-die einzige Stelle, die die unveränderlichen Dateien unter `/assets/` von
-`index.html`, `sw.js` und dem Manifest unterscheiden kann (Abschnitt 2.2). Eine
-eigene Regel im Proxy überschriebe genau das.
+Keins der Beispiele setzt Cache- oder Härtungs-Header: beide setzt die
+Anwendung selbst. Bei den Cache-Headern ist sie die einzige Stelle, die die
+unveränderlichen Dateien unter `/assets/` von `index.html`, `sw.js` und dem
+Manifest unterscheiden kann (Abschnitt 2.2); bei der Content-Security-Policy
+ist sie die einzige Stelle, die ihr eigenes Bundle kennt (Abschnitt 4). Eine
+eigene Regel im Proxy überschriebe das eine und verdoppelte das andere.
+Ausgenommen ist `Strict-Transport-Security`, den die Beispiele setzen – nur die
+TLS-Seite weiß, dass wirklich ein Zertifikat davorsteht.
 
 **Betrieb unter einem Unterpfad.** Möglich, kostet aber einen eigenen Bau: der
 Pfad steckt in `index.html`, im Manifest, im Service Worker und in der
@@ -955,6 +1008,70 @@ packaging/  build-deb.sh, debian/ (control, Maintainer-Skripte, Unit,
 docker/     Dockerfile, Entrypoint, Container-Konfiguration, Compose-Dateien
             (einzeln und mit Caddy davor)
 ```
+
+### 9.1 Versionen und Release
+
+**Eine Version für das ganze Repository**, nach [SemVer](https://semver.org):
+`MAJOR.MINOR.PATCH`. Für eine Haushalts-App bedeutet das konkret:
+
+- **MAJOR** – ein Update braucht einen Handgriff: geänderte Konfigurations-
+  schlüssel, ein anderer Pfad, ein Bruch in der API.
+- **MINOR** – neue Funktionen, Migrationen, die von allein durchlaufen.
+- **PATCH** – Fehlerbehebungen und Sicherheitskorrekturen ohne neue Funktion.
+
+Bis zur ersten abgenommenen Installation bleibt die Reihe bei `0.x`; `1.0.0`
+vergibt der Projektinhaber, wenn eine Installation produktiv läuft. In der
+`0.x`-Reihe steht MINOR für alles, was sonst MAJOR wäre.
+
+**Quelle der Wahrheit sind die `package.json`-Dateien.** Daraus liest
+`product-rating version` und `/healthz` (über `server/package.json`) und
+`packaging/build-deb.sh` (über die Datei im Wurzelverzeichnis). Die
+Änderungsgeschichte steht in [HISTORY.md](HISTORY.md) – ein eigenes `CHANGELOG`
+gibt es bewusst nicht, es liefe daneben her. `packaging/debian/changelog` ist
+kein zweites Verzeichnis der Änderungen, sondern der kurze Paketeintrag, den
+`dpkg` erwartet. Dass alle Stellen dieselbe Nummer nennen, prüft
+`server/src/version.test.ts` bei jedem Testlauf.
+
+Ein Release besteht aus fünf Schritten:
+
+```bash
+# 1. Version in allen vier Manifesten setzen
+npm version 0.2.0 --workspaces --include-workspace-root --no-git-tag-version
+
+# 2. packaging/debian/changelog: neuen Eintrag oben ergänzen, Version gleich
+# 3. HISTORY.md: Eintrag mit Datum und Umfang
+# 4. Prüfen und committen
+npm run lint && npm run typecheck && npm test
+git commit -am "release: 0.2.0"
+
+# 5. Tag schieben - der Release-Workflow baut Pakete und Images
+git tag -a v0.2.0 -m "0.2.0"
+git push origin main --follow-tags
+```
+
+Der Tag trägt ein `v` davor, die Version im Paket nicht: aus `v0.2.0` wird
+`product-rating_0.2.0_amd64.deb`. Was der Workflow daraus baut, steht in
+Abschnitt 9.2.
+
+### 9.2 Continuous Integration
+
+Zwei Workflows unter `.github/workflows/`:
+
+- **`ci.yml`** läuft bei jedem Push und jedem Pull Request auf `main` und auf
+  `claude/**`: `npm ci`, `format:check`, `lint`, `typecheck`, `test`, `build`.
+  Dazu ein zweiter Job, der das Debian-Paket baut und mit `lintian` prüft, und
+  ein dritter, der das Container-Image baut (ohne es zu veröffentlichen). Damit
+  ist genau das abgedeckt, was CLAUDE.md vor jedem Commit verlangt – nur eben
+  auch dann, wenn es jemand vergisst.
+- **`release.yml`** läuft auf einen Tag `v*`: baut das Debian-Paket für `amd64`
+  und `arm64` – jeweils auf einem Runner der Architektur, weil
+  `better-sqlite3`, `sharp` und `@node-rs/argon2` native Binärdateien mitbringen
+  –, hängt beide `.deb` an ein GitHub-Release und schiebt ein Multi-Arch-Image
+  nach `ghcr.io/<owner>/product-rating` (Tags: die Version, `MAJOR.MINOR`,
+  `MAJOR` und `latest`).
+
+Beide Workflows brauchen keine eingerichteten Secrets: `GITHUB_TOKEN` reicht
+für Release und Registry.
 
 Weitere Dokumente: [CLAUDE.md](CLAUDE.md) (Arbeitsanweisungen und
 Projektkonventionen), [TODO.md](TODO.md) (Umsetzungsschritte),

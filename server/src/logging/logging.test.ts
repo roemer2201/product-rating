@@ -111,7 +111,15 @@ describe('syslog', () => {
 
   it('reports a helper that is missing or refuses the line', () => {
     expect(syslogProblem('test', 'product-rating-no-such-helper')).toContain('not found');
+
+    // `false` ends before the line is through, so writing it may or may not
+    // hit EPIPE first - which machine wins that race is not the point. What
+    // has to come out either way is the exit code, not the write error.
     expect(syslogProblem('test', 'false')).toContain('exited with 1');
+
+    // A helper that says something on stderr is quoted rather than reduced to
+    // its exit code, even when the write ran into the closed input.
+    expect(syslogProblem('test', 'sh')).toContain('sh:');
 
     // Every destination other than syslog needs nothing checked at all.
     expect(() => {

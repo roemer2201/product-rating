@@ -63,6 +63,33 @@ describe('normaliseEan', () => {
   });
 });
 
+describe('the mistakes the check digit is there for', () => {
+  /** Every code below is one slip away from a code that really exists. */
+  const valid = '4006381333931';
+
+  it('catches two digits typed the wrong way round', () => {
+    // 4006381333931 -> 4006383133931, the classic transposition.
+    expect(isValidEan('4006383133931')).toBe(false);
+    expect(isValidEan(valid)).toBe(true);
+  });
+
+  it('catches a single wrong digit in every position', () => {
+    for (let index = 0; index < valid.length - 1; index += 1) {
+      const digit = Number(valid[index]);
+      const changed = `${valid.slice(0, index)}${(digit + 1) % 10}${valid.slice(index + 1)}`;
+
+      expect(isValidEan(changed), `digit ${index} changed: ${changed}`).toBe(false);
+    }
+  });
+
+  it('rejects the fourteen digit code from a shipping case', () => {
+    // GTIN-14 of the same article: a leading packaging digit and its own check
+    // digit. It is not what is printed on the item, so it stays out.
+    expect(eanFormat('14006381333938')).toBeNull();
+    expect(normaliseEan('14006381333938')).toBeNull();
+  });
+});
+
 describe('eanSchema', () => {
   it('normalises on parse', () => {
     expect(eanSchema.parse(' 036000291452 ')).toBe('0036000291452');

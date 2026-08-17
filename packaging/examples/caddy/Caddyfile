@@ -40,15 +40,17 @@ produkte.example.org {
 	# are what this is for.
 	encode zstd gzip
 
+	# Only HSTS. The remaining hardening headers - Content-Security-Policy,
+	# X-Content-Type-Options, Referrer-Policy, X-Frame-Options,
+	# Permissions-Policy - are set by the application itself since M14, which
+	# is the one place that knows its own bundle. HSTS stays because the
+	# application speaks plain HTTP behind this proxy and cannot tell whether
+	# there is really a certificate in front of it.
 	header {
 		# The application is only reachable over HTTPS; a year is the usual
 		# value. Add "preload" only if the domain is really meant to go onto
 		# the preload list.
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-		X-Content-Type-Options "nosniff"
-		Referrer-Policy "same-origin"
-		# The interface is not meant to be embedded anywhere.
-		X-Frame-Options "DENY"
 	}
 
 	# No cache rules here, on purpose. The application sets Cache-Control

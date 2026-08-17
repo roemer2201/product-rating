@@ -28,15 +28,15 @@
 
 	encode zstd gzip
 
+	# Only HSTS. Content-Security-Policy, X-Content-Type-Options,
+	# Referrer-Policy, X-Frame-Options and Permissions-Policy are set by the
+	# application itself since M14; HSTS stays here because only this side
+	# knows that TLS is really terminated in front.
 	header {
 		# The application is only reachable over HTTPS; a year is the usual
 		# value. Add "preload" only if the domain is really meant to be
 		# submitted to the preload list.
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-		X-Content-Type-Options "nosniff"
-		Referrer-Policy "same-origin"
-		# The interface is not meant to be embedded anywhere.
-		X-Frame-Options "DENY"
 	}
 
 	log {

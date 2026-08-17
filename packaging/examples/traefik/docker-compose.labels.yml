@@ -51,15 +51,13 @@ services:
       traefik.http.services.product-rating.loadbalancer.healthcheck.path: /healthz
       traefik.http.services.product-rating.loadbalancer.healthcheck.interval: 30s
 
-      # Same headers as in dynamic.yml. No Cache-Control among them: the
-      # application sets it itself and is the only place that can tell an
-      # immutable /assets/ file from index.html, sw.js and the manifest, which
-      # have to stay revalidated.
+      # Same headers as in dynamic.yml, which means HSTS and nothing else. The
+      # hardening headers and Cache-Control both belong to the application: it
+      # is the only place that knows its own bundle, and the only one that can
+      # tell an immutable /assets/ file from index.html, sw.js and the
+      # manifest, which have to stay revalidated.
       traefik.http.middlewares.product-rating-headers.headers.stsseconds: '31536000'
       traefik.http.middlewares.product-rating-headers.headers.stsincludesubdomains: 'true'
-      traefik.http.middlewares.product-rating-headers.headers.contenttypenosniff: 'true'
-      traefik.http.middlewares.product-rating-headers.headers.referrerpolicy: same-origin
-      traefik.http.middlewares.product-rating-headers.headers.framedeny: 'true'
 
       # At least uploads.max_file_size_mb of the application (15 MB by default)
       # plus the overhead of the multipart body.

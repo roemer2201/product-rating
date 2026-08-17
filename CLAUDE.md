@@ -50,6 +50,7 @@ Rückfrage zu ändern** – auch dann nicht, wenn eine Alternative naheliegt.
 ## 3. Repository-Struktur
 
 ```
+.github/workflows/      ci.yml (Prüfungen, Paket, Image) und release.yml (Tag v*)
 server/                 Fastify-API
   src/routes/           HTTP-Routen, dünn: Validierung → Service → Antwort
   src/services/         Fachlogik (products, ratings, photos, auth, users)
@@ -105,6 +106,14 @@ README 8.1.
 
 Vor jedem Commit mindestens `npm run lint`, `npm run typecheck` und `npm test`
 laufen lassen und Fehlschläge berichten, nicht stillschweigend übergehen.
+Seit M14 läuft dasselbe (plus `format:check`, Debian-Paket und Container-Image)
+in `.github/workflows/ci.yml`.
+
+Version: eine Nummer für das ganze Repository, nach SemVer, gesetzt mit
+`npm version <ver> --workspaces --include-workspace-root --no-git-tag-version`.
+Sie steht in den vier `package.json` **und** in `packaging/debian/changelog`;
+`server/src/version.test.ts` besteht darauf, dass alle dasselbe sagen. Der
+vollständige Ablauf eines Release steht in README 9.1.
 
 ---
 
@@ -124,6 +133,11 @@ laufen lassen und Fehlschläge berichten, nicht stillschweigend übergehen.
   in `secret_file` mit `0600`.
 - Alle Eingaben serverseitig mit Zod validieren, auch wenn das Frontend bereits
   prüft.
+- Die Härtungs-Header stehen an genau einer Stelle
+  (`server/src/plugins/securityHeaders.ts`), nicht zusätzlich in den
+  Proxy-Beispielen. Wer dem Bundle etwas hinzufügt, das die Policy nicht
+  erlaubt – ein Inline-Skript, eine fremde Herkunft –, ändert die Policy dort
+  und begründet es im Kommentar, statt sie aufzuweichen.
 
 **Datenbank**
 
