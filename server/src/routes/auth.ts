@@ -18,6 +18,7 @@ import {
   argon2Parameters,
   hashPassword,
   needsRehash,
+  verifyAgainstNobody,
   verifyPassword,
 } from '../services/passwords.js';
 import { listSessions, revokeAllSessions, revokeSession } from '../services/sessions.js';
@@ -69,8 +70,13 @@ export function registerAuthRoutes(app: FastifyInstance): void {
       }
     }
 
+    // An unknown name costs the same argon2id verification as a known one, so
+    // the answer time does not say who has an account here.
     const user = findUserByUsername(app.db, username);
-    const matches = user === undefined ? false : await verifyPassword(user.passwordHash, password);
+    const matches =
+      user === undefined
+        ? await verifyAgainstNobody(password, argon2Parameters(app.config))
+        : await verifyPassword(user.passwordHash, password);
 
     if (user === undefined || !matches || user.disabledAt !== null) {
       for (const key of keys) app.loginLimiter.consume(key);

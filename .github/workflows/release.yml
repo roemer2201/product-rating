@@ -1,0 +1,221 @@
+# Release: everything a tag has to produce.
+#
+# Triggered by a tag "v<version>" (README 9.1). It builds the Debian package
+# for amd64 and arm64, publishes a multi architecture container image and hangs
+# both packages on a GitHub release.
+#
+# Both architectures are built on a runner of their own architecture, not under
+# emulation: better-sqlite3, sharp and @node-rs/argon2 carry native binaries,
+# and build-deb.sh refuses to label a package as something it was not built on.
+# The arm64 runners are free for public repositories.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+env:
+  # ghcr.io/<owner>/<repo>, which is lower case for this repository already.
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  verify:
+    name: Checks
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # A tag that does not match the manifests would produce a package whose
+      # name and content disagree. The test suite checks that the manifests
+      # agree with each other and with the Debian changelog.
+      - name: Check the tag against the version
+        id: version
+        run: |
+          set -euo pipefail
+          tagged="${GITHUB_REF_NAME#v}"
+          declared="$(node -p 'require("./package.json").version')"
+          if [ "${tagged}" != "${declared}" ]; then
+            echo "tag ${GITHUB_REF_NAME} does not match version ${declared} in package.json" >&2
+            exit 1
+          fi
+          echo "version=${declared}" >> "${GITHUB_OUTPUT}"
+
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+  package:
+    name: Debian package (${{ matrix.arch }})
+    needs: verify
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install lintian
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes lintian
+
+      - name: Build the package
+        run: npm run package:deb -- --version "${{ needs.verify.outputs.version }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debian-package-${{ matrix.arch }}
+          path: packaging/build/*.deb
+          if-no-files-found: error
+
+  image:
+    name: Container image (${{ matrix.arch }})
+    needs: verify
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to the registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+      # The default builder cannot push an image without a tag. A container
+      # builder can, which is what the two halves of the manifest below need:
+      # they are pushed by digest and only the merge job names them.
+      - name: Create a builder
+        run: docker buildx create --driver docker-container --use
+
+      - name: Build and push by digest
+        run: |
+          set -euo pipefail
+          docker buildx build \
+            --platform "linux/${{ matrix.arch }}" \
+            --file docker/Dockerfile \
+            --label "org.opencontainers.image.version=${{ needs.verify.outputs.version }}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --output "type=image,name=${IMAGE},push-by-digest=true,name-canonical=true,push=true" \
+            --metadata-file metadata.json \
+            .
+          digest="$(jq -r '."containerimage.digest"' metadata.json)"
+          mkdir -p digests
+          touch "digests/${digest#sha256:}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image-digest-${{ matrix.arch }}
+          path: digests/*
+          if-no-files-found: error
+
+  manifest:
+    name: Container image (manifest)
+    needs: [verify, image]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: image-digest-*
+          path: digests
+          merge-multiple: true
+
+      - name: Log in to the registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+      # One list over both architectures, under four names: the exact version,
+      # the minor and the major line for anyone who wants updates within them,
+      # and latest.
+      - name: Create the manifest list
+        run: |
+          set -euo pipefail
+          version="${{ needs.verify.outputs.version }}"
+          major="${version%%.*}"
+          minor="${version%.*}"
+
+          tags=()
+          for name in "${version}" "${minor}" "${major}" latest; do
+            tags+=(--tag "${IMAGE}:${name}")
+          done
+
+          sources=()
+          for digest in digests/*; do
+            sources+=("${IMAGE}@sha256:$(basename "${digest}")")
+          done
+
+          docker buildx imagetools create "${tags[@]}" "${sources[@]}"
+          docker buildx imagetools inspect "${IMAGE}:${version}"
+
+  release:
+    name: GitHub release
+    needs: [verify, package, manifest]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: debian-package-*
+          path: packages
+          merge-multiple: true
+
+      # The notes point at HISTORY.md rather than repeating it: it is the
+      # change log of this project (README 9.1) and it is written in German,
+      # like the rest of the documentation.
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          notes="$(mktemp)"
+          {
+            printf '## product-rating %s\n\n' "${VERSION}"
+            printf 'Änderungen: [HISTORY.md](%s/blob/%s/HISTORY.md)\n\n' \
+              "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" "${GITHUB_REF_NAME}"
+            printf '### Debian-Paket\n\n```bash\nsudo apt install ./product-rating_%s_<arch>.deb\n```\n\n' "${VERSION}"
+            printf '### Container\n\n```bash\ndocker pull %s:%s\n```\n' "${IMAGE}" "${VERSION}"
+          } > "${notes}"
+
+          gh release create "${GITHUB_REF_NAME}" packages/*.deb \
+            --title "product-rating ${VERSION}" \
+            --notes-file "${notes}"

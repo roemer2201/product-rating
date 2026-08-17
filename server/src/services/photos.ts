@@ -181,6 +181,30 @@ function mimeCandidates(format: string | undefined): string[] {
 }
 
 /**
+ * Largest picture that is decoded, in pixels.
+ *
+ * `uploads.max_file_size_mb` bounds the bytes on the wire but not the picture
+ * behind them: a PNG of a single colour compresses so well that a few hundred
+ * megapixels fit into a couple of megabytes, and decoding that costs three to
+ * four bytes of memory per pixel. On a NAS with two gigabytes of RAM one such
+ * upload is enough to end the process. A hundred megapixels is far above every
+ * phone camera whose files fit through the size limit, and bounds the decoder
+ * at a few hundred megabytes.
+ *
+ * sharp has a limit of its own (roughly 268 megapixels); this one is stricter
+ * and stated where the reasoning belongs.
+ */
+const MAX_INPUT_PIXELS = 100_000_000;
+
+/** Options every `sharp()` call in this module is opened with. */
+const SHARP_INPUT = {
+  // Tolerates the warnings real phone cameras produce and still refuses
+  // anything that cannot be decoded.
+  failOn: 'error',
+  limitInputPixels: MAX_INPUT_PIXELS,
+} as const;
+
+/**
  * Re-encodes an upload into a detail image and a thumbnail.
  *
  * `rotate()` without an argument applies the EXIF orientation and then drops
@@ -193,9 +217,7 @@ export async function processImage(config: AppConfig, input: Buffer): Promise<Pr
 
   let format: string | undefined;
   try {
-    // `failOn: 'error'` tolerates the warnings real phone cameras produce and
-    // still refuses anything that cannot be decoded.
-    format = (await sharp(input, { failOn: 'error' }).metadata()).format;
+    format = (await sharp(input, SHARP_INPUT).metadata()).format;
   } catch {
     // Named field and all: the client shows its message next to the picker,
     // and "not readable" is a different sentence than "wrong type".
@@ -214,7 +236,7 @@ export async function processImage(config: AppConfig, input: Buffer): Promise<Pr
   }
 
   const encode = async (edge: number, quality: number) => {
-    const pipeline = sharp(input, { failOn: 'error' }).rotate();
+    const pipeline = sharp(input, SHARP_INPUT).rotate();
     return (strip_exif ? pipeline : pipeline.keepMetadata())
       .resize({ width: edge, height: edge, fit: 'inside', withoutEnlargement: true })
       .webp({ quality })

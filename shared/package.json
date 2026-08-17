@@ -1,6 +1,6 @@
 {
   "name": "@product-rating/shared",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Types and schemas shared between the API server and the web client",
   "type": "module",

@@ -79,6 +79,11 @@ http:
     # their names across releases and are sent as no-cache. A customResponse
     # header for Cache-Control would overwrite exactly that and leave installed
     # home screen apps on an old bundle.
+    # Only HSTS. Content-Security-Policy, X-Content-Type-Options,
+    # Referrer-Policy, X-Frame-Options and Permissions-Policy are set by the
+    # application itself since M14, which is the one place that knows its own
+    # bundle. HSTS stays here because the application speaks plain HTTP behind
+    # this proxy and cannot tell whether a certificate is really in front.
     product-rating-headers:
       headers:
         # The application is only reachable over HTTPS; a year is the usual
@@ -86,10 +91,6 @@ http:
         # preload list.
         stsSeconds: 31536000
         stsIncludeSubdomains: true
-        contentTypeNosniff: true
-        referrerPolicy: 'same-origin'
-        # The interface is not meant to be embedded anywhere.
-        frameDeny: true
 
     # Photos are the largest thing that travels here. At least
     # uploads.max_file_size_mb of the application (15 MB by default) plus the

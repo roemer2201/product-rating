@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { parseConfig } from '../config/index.js';
-import { argon2Parameters, hashPassword, needsRehash, verifyPassword } from './passwords.js';
+import {
+  argon2Parameters,
+  hashPassword,
+  needsRehash,
+  placeholderHash,
+  verifyAgainstNobody,
+  verifyPassword,
+} from './passwords.js';
 
 const cheap = { memoryCost: 8 * 1024, timeCost: 1, parallelism: 1 };
 
@@ -59,5 +66,26 @@ describe('needsRehash', () => {
 
   it('flags anything that is not an argon2id hash', () => {
     expect(needsRehash('$2b$12$something', cheap)).toBe(true);
+  });
+});
+
+describe('the login of an account that does not exist', () => {
+  it('verifies against a real argon2id hash instead of returning early', async () => {
+    const hashed = await placeholderHash(cheap);
+
+    // Not a shortcut and not an empty string: it is a hash of the same shape
+    // the accounts have, so verifying against it costs the same work.
+    expect(hashed.startsWith('$argon2id$')).toBe(true);
+    expect(hashed).toContain('m=8192');
+  });
+
+  it('is the same hash every time, so no login pays for building one', async () => {
+    expect(await placeholderHash(cheap)).toBe(await placeholderHash(cheap));
+  });
+
+  it('never matches anything', async () => {
+    expect(await verifyAgainstNobody('', cheap)).toBe(false);
+    expect(await verifyAgainstNobody('a-long-enough-password', cheap)).toBe(false);
+    expect(await verifyAgainstNobody(await placeholderHash(cheap), cheap)).toBe(false);
   });
 });

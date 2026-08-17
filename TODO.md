@@ -188,9 +188,12 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
       `CapabilityBoundingSet`) ist bisher nur gelesen, nicht ausgeführt – in der
       Entwicklungsumgebung lief kein systemd. Geprüft wurde der Dienst als
       derselbe Systemnutzer mit demselben Aufruf, aber ohne die Sandbox
-- [ ] **[S]** Versionsschema festlegen (M14) und das Paket daraus versorgen –
+- [x] **[S]** Versionsschema festlegen (M14) und das Paket daraus versorgen –
       zurzeit nimmt `build-deb.sh` die `0.0.0` aus `package.json`, und
-      `packaging/debian/changelog` wird von Hand gepflegt
+      `packaging/debian/changelog` wird von Hand gepflegt. Erledigt: SemVer,
+      eine Nummer für das ganze Repository, `packaging/debian/changelog` bleibt
+      von Hand gepflegt, aber `server/src/version.test.ts` besteht darauf, dass
+      alle Stellen dieselbe nennen (README 9.1)
 - [ ] **[S]** Beim Löschen des Pakets bleibt `/opt` als von dpkg angelegtes
       Verzeichnis zurück; harmlos, aber es lohnt zu prüfen, ob das Paket den
       Eintrag für `/opt` selbst gar nicht mitliefern muss
@@ -231,14 +234,19 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 
 ## M14 – Qualitätssicherung und Release
 
-- [ ] **[M]** Integrationstests über die API: Registrierung → Produkt anlegen → Foto → Bewertung → Suche
-- [ ] **[S]** Testabdeckung für EAN-Validierung, Konfigurationsauflösung und Berechtigungen sicherstellen
-- [ ] **[M]** GitHub-Actions-Workflow: lint, typecheck, test, build
-- [ ] **[M]** Release-Workflow: Debian-Pakete (amd64, arm64) und Container-Images bauen und anhängen
-- [ ] **[S]** Versionsschema festlegen (SemVer) und `CHANGELOG` oder `HISTORY.md` als Quelle bestimmen. Dazu gehört `server/package.json`: daraus lesen seit M13 `product-rating version` und `/healthz`, und dort steht bislang `0.0.0`
-- [ ] **[S]** Sicherheitsdurchsicht vor dem ersten Release: Header, Cookies, Limits, Dateirechte
-- [ ] **[S]** Content-Security-Policy und die übrigen Sicherheits-Header setzen – README 4 nennt sie unter „Härtung“, umgesetzt ist bisher keiner; seit M10 liefert die Anwendung das HTML selbst aus, also gehört die Regel in den Server und nicht nur in die Proxy-Beispiele
-- [ ] **[S]** Installationsanleitung anhand einer Neuinstallation gegenprüfen
+- [x] **[M]** Integrationstests über die API: Registrierung → Produkt anlegen → Foto → Bewertung → Suche
+- [x] **[S]** Testabdeckung für EAN-Validierung, Konfigurationsauflösung und Berechtigungen sicherstellen
+- [x] **[M]** GitHub-Actions-Workflow: lint, typecheck, test, build
+- [x] **[M]** Release-Workflow: Debian-Pakete (amd64, arm64) und Container-Images bauen und anhängen
+- [x] **[S]** Versionsschema festlegen (SemVer) und `CHANGELOG` oder `HISTORY.md` als Quelle bestimmen. Dazu gehört `server/package.json`: daraus lesen seit M13 `product-rating version` und `/healthz`, und dort steht bislang `0.0.0`
+- [x] **[S]** Sicherheitsdurchsicht vor dem ersten Release: Header, Cookies, Limits, Dateirechte
+- [x] **[S]** Content-Security-Policy und die übrigen Sicherheits-Header setzen – README 4 nennt sie unter „Härtung“, umgesetzt ist bisher keiner; seit M10 liefert die Anwendung das HTML selbst aus, also gehört die Regel in den Server und nicht nur in die Proxy-Beispiele
+- [x] **[S]** Installationsanleitung anhand einer Neuinstallation gegenprüfen
+- [ ] **[S]** `1.0.0` vergeben, sobald die erste Installation produktiv läuft. M14 hat `0.1.0` gesetzt, weil bis dahin niemand die Anwendung im Alltag benutzt hat
+- [ ] **[S]** Ratenbegrenzung für Uploads nachrüsten oder endgültig verwerfen. README nannte sie unter „Härtung“, gebaut war sie nie; die Durchsicht hat den Text auf den Stand gebracht (Größenlimit, eine Datei je Anfrage, 100-Megapixel-Grenze). Ein angemeldetes Konto gehört zum Haushalt, deshalb ist der Nutzen gering – wenn, dann als Schutz gegen ein Skript, das eine Platte vollschreibt
+- [ ] **[S]** Die 100-Megapixel-Grenze der Bildverarbeitung ist ungetestet: ein Testbild dieser Größe zu erzeugen kostet mehr Speicher, als ein Testlauf haben sollte. Geprüft ist nur, dass die Option gesetzt wird
+- [ ] **[S]** Die beiden Workflows sind noch nie gelaufen – sie werden mit diesem Commit überhaupt erst angelegt. Beim ersten Lauf gegenprüfen: `ubuntu-24.04-arm` als Runner, das Anmelden an der GHCR, `push-by-digest` und das Zusammenführen der Manifeste
+- [ ] **[S]** Der Installationsdurchlauf lief ohne systemd (Container ohne PID 1): Verzeichnisse, Rechte, Secret, Migrationen, CLI, Start des Servers und `purge` sind geprüft, `systemctl start` und der Neustart beim Upgrade nicht. Der CI-Workflow holt genau das auf einem echten Runner nach
 
 ---
 
