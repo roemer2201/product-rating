@@ -45,6 +45,12 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
   unbekannten Namen prüfen jetzt gegen einen Platzhalter-Hash, damit die
   Antwortzeit nicht verrät, wer ein Konto hat; die Bildverarbeitung dekodiert
   höchstens 100 Megapixel; API-Antworten tragen `Cache-Control: no-store`.
+- **Erster CI-Lauf hat gleich etwas gefunden:** Die Startprüfung des
+  syslog-Ziels meldete unter Umständen `spawnSync logger EPIPE` statt des
+  eigentlichen Grundes. `logger` ohne erreichbaren Socket endet, bevor die
+  Prüfzeile geschrieben ist; wer das Rennen gewinnt, hängt an der Maschine.
+  `EPIPE` ist jetzt kein Grund mehr für sich, sondern führt weiter zu Exit-Code
+  und stderr des Programms – also zu der Meldung, für die die Prüfung da ist.
 - **Installation gegengeprüft**: Paket gebaut, mit `dpkg -i` installiert,
   Rechte kontrolliert (`config.toml` 0640 `root:product-rating`, `secret.env`
   0600, Datenverzeichnisse 0750), Migrationen, CLI, Serverstart, Anmeldung,

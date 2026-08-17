@@ -78,7 +78,15 @@ export function syslogProblem(tag: string, command = SYSLOG_COMMAND): string | n
 
   if (result.error !== undefined) {
     const code = (result.error as NodeJS.ErrnoException).code;
-    return code === 'ENOENT' ? `${command} was not found` : result.error.message;
+    if (code === 'ENOENT') return `${command} was not found`;
+
+    // `EPIPE` is not a reason of its own: it means the program started and
+    // ended before the line was written, which is exactly what a `logger`
+    // without a socket to talk to does. Its exit code and its stderr say what
+    // happened, so this falls through to them. Whether the write or the exit
+    // wins the race depends on the machine, and "spawnSync logger EPIPE" would
+    // be the less useful of the two answers either way.
+    if (code !== 'EPIPE') return result.error.message;
   }
 
   if (result.status !== 0) {
