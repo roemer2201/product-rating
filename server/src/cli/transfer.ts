@@ -13,8 +13,9 @@ import { loadRuntimeConfig, withDatabase } from './runtime.js';
  *
  * Both are about moving data between installations, not about saving one —
  * `backup` and `restore` do that, database file and all. What travels here are
- * products, verdicts and pictures, addressed by EAN and by user name, so the
- * other end may be a fresh installation, another host, or a spreadsheet.
+ * products, verdicts, recorded prices and pictures, addressed by EAN and by
+ * user name, so the other end may be a fresh installation, another host, or a
+ * spreadsheet.
  */
 
 const EXPORT_USAGE = `Usage: product-rating export --to DIR [OPTIONS]
@@ -24,12 +25,13 @@ Writes the catalogue into a directory:
   DIR/${EXPORT_JSON_FILE}     everything, in the form "product-rating import" reads
   DIR/products.csv    one row per product, with rating count and average
   DIR/ratings.csv     one row per rating
+  DIR/prices.csv      one row per recorded price
   DIR/photos/         the detail images, with --with-photos
 
 Accounts are deliberately not part of an export: it would turn a file into a
-set of credentials. Products, ratings and photos name their account by user
-name, and the import matches those names against the accounts of the target
-instance.
+set of credentials. Products, ratings, prices and photos name their account by
+user name, and the import matches those names against the accounts of the
+target instance.
 
 Options:
       --to DIR        Directory to write into; created if it is missing.
@@ -126,7 +128,7 @@ export const exportCommand: CliCommand = {
       io.out(result.directory);
       io.err(
         `${String(result.products)} product(s), ${String(result.ratings)} rating(s), ` +
-          `${String(result.photos)} photo(s)` +
+          `${String(result.prices)} price(s), ${String(result.photos)} photo(s)` +
           (result.photoFiles > 0 ? `, ${String(result.photoFiles)} image file(s)` : ''),
       );
 
@@ -186,6 +188,10 @@ export const importCommand: CliCommand = {
       io.out(
         `ratings: ${String(result.ratingsCreated)} new, ` +
           `${String(result.ratingsSkipped)} already here`,
+      );
+      io.out(
+        `prices: ${String(result.pricesCreated)} new, ` +
+          `${String(result.pricesSkipped)} already here`,
       );
       io.out(
         `photos: ${String(result.photosCreated)} new, ` +

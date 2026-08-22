@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { normaliseEan } from '@product-rating/shared';
 import type { AppConfig } from '../config/index.js';
 import type { AppDatabase, DbHandle } from '../db/index.js';
-import { photos, products, ratings, users, type ProductRow } from '../db/index.js';
+import { photos, prices, products, ratings, users, type ProductRow } from '../db/index.js';
 import { APP_VERSION } from '../version.js';
 import { ValidationError } from './errors.js';
 import { photoFilePath, storePhoto } from './photos.js';
@@ -21,7 +21,7 @@ import { photoFilePath, storePhoto } from './photos.js';
  * application. What is here is the readable form of the same content: products,
  * verdicts and pictures, addressed by EAN and by user name instead of by
  * identifier, so it survives a move to a fresh installation, a different host,
- * or a spreadsheet.
+ * or a spreadsheet: products, ratings, recorded prices and pictures.
  *
  * Accounts are not part of it. An export that carried password hashes around
  * would turn a file somebody mails to themselves into a set of credentials; the
@@ -32,6 +32,7 @@ import { photoFilePath, storePhoto } from './photos.js';
 export const EXPORT_JSON_FILE = 'export.json';
 export const EXPORT_PRODUCTS_CSV = 'products.csv';
 export const EXPORT_RATINGS_CSV = 'ratings.csv';
+export const EXPORT_PRICES_CSV = 'prices.csv';
 
 /** Directory holding the exported detail images. */
 export const EXPORT_PHOTOS_DIR = 'photos';
@@ -60,6 +61,15 @@ const exportedRatingSchema = z.object({
   updatedAt: z.string().optional(),
 });
 
+const exportedPriceSchema = z.object({
+  user: z.string().min(1),
+  cents: z.number().int().min(0),
+  currency: z.string().min(3).max(3),
+  shop: z.string().nullish(),
+  note: z.string().nullish(),
+  purchasedAt: z.string().optional(),
+});
+
 const exportedPhotoSchema = z.object({
   user: z.string().min(1),
   /** Path of the image inside the export, relative to the export directory. */
@@ -78,6 +88,7 @@ const exportedProductSchema = z.object({
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
   ratings: z.array(exportedRatingSchema).default([]),
+  prices: z.array(exportedPriceSchema).default([]),
   photos: z.array(exportedPhotoSchema).default([]),
 });
 
@@ -117,6 +128,8 @@ export interface ExportResult {
   files: string[];
   products: number;
   ratings: number;
+  /** Price rows written into the JSON file. */
+  prices: number;
   /** Photo rows written into the JSON file. */
   photos: number;
   /** Image files copied, `0` without `withPhotos`. */
@@ -143,6 +156,7 @@ function collectProducts(db: DbHandle, includeTrash: boolean): ExportedProduct[]
     .all();
 
   const ratingRows = db.select().from(ratings).orderBy(asc(ratings.createdAt)).all();
+  const priceRows = db.select().from(prices).orderBy(asc(prices.purchasedAt)).all();
   const photoRows = db
     .select()
     .from(photos)
@@ -169,6 +183,17 @@ function collectProducts(db: DbHandle, includeTrash: boolean): ExportedProduct[]
       }))
       // A rating whose account is gone has nothing to be attributed to.
       .filter((rating) => rating.user !== ''),
+    prices: priceRows
+      .filter((price) => price.productId === product.id)
+      .map((price) => ({
+        user: accounts.get(price.userId) ?? '',
+        cents: price.cents,
+        currency: price.currency,
+        shop: price.shop,
+        note: price.note,
+        purchasedAt: price.purchasedAt.toISOString(),
+      }))
+      .filter((price) => price.user !== ''),
     photos: photoRows
       .filter((photo) => photo.productId === product.id)
       .map((photo) => ({
@@ -202,6 +227,7 @@ export async function exportCatalogue(options: ExportOptions): Promise<ExportRes
   const files: string[] = [];
 
   const totalRatings = exported.reduce((sum, product) => sum + product.ratings.length, 0);
+  const totalPrices = exported.reduce((sum, product) => sum + product.prices.length, 0);
   const totalPhotos = exported.reduce((sum, product) => sum + product.photos.length, 0);
 
   if (format === 'json' || format === 'both') {
@@ -226,8 +252,14 @@ export async function exportCatalogue(options: ExportOptions): Promise<ExportRes
     const ratingsPath = join(target, EXPORT_RATINGS_CSV);
     await writeFile(ratingsPath, ratingsCsv(exported), { mode: 0o600 });
     files.push(ratingsPath);
+
+    const pricesPath = join(target, EXPORT_PRICES_CSV);
+    await writeFile(pricesPath, pricesCsv(exported), { mode: 0o600 });
+    files.push(pricesPath);
+
     onProgress?.(
-      `${EXPORT_PRODUCTS_CSV}, ${EXPORT_RATINGS_CSV}: ${String(totalRatings)} rating(s)`,
+      `${EXPORT_PRODUCTS_CSV}, ${EXPORT_RATINGS_CSV}, ${EXPORT_PRICES_CSV}: ` +
+        `${String(totalRatings)} rating(s), ${String(totalPrices)} price(s)`,
     );
   }
 
@@ -267,6 +299,7 @@ export async function exportCatalogue(options: ExportOptions): Promise<ExportRes
     files,
     products: exported.length,
     ratings: totalRatings,
+    prices: totalPrices,
     photos: totalPhotos,
     photoFiles,
     missingPhotoFiles,
@@ -361,6 +394,29 @@ function ratingsCsv(exported: ExportedProduct[]): string {
   return csvDocument(rows);
 }
 
+function pricesCsv(exported: ExportedProduct[]): string {
+  const rows: (string | number | null)[][] = [
+    ['ean', 'product', 'user', 'cents', 'currency', 'shop', 'note', 'purchased_at'],
+  ];
+
+  for (const product of exported) {
+    for (const price of product.prices) {
+      rows.push([
+        product.ean,
+        product.name,
+        price.user,
+        price.cents,
+        price.currency,
+        price.shop ?? null,
+        price.note ?? null,
+        price.purchasedAt ?? null,
+      ]);
+    }
+  }
+
+  return csvDocument(rows);
+}
+
 /* ----------------------------------------------------------------- import */
 
 export interface ImportOptions {
@@ -389,6 +445,9 @@ export interface ImportResult {
   ratingsCreated: number;
   /** Ratings that were already there; an existing verdict is never overwritten. */
   ratingsSkipped: number;
+  pricesCreated: number;
+  /** Prices that this file had already put here on an earlier run. */
+  pricesSkipped: number;
   photosCreated: number;
   photosSkipped: number;
   /** User names of the file that no account here answers to. */
@@ -483,6 +542,8 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
     productsSkipped: 0,
     ratingsCreated: 0,
     ratingsSkipped: 0,
+    pricesCreated: 0,
+    pricesSkipped: 0,
     photosCreated: 0,
     photosSkipped: 0,
     unknownUsers: [],
@@ -503,6 +564,7 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
   for (const product of file.products) {
     resolve(product.createdBy);
     for (const rating of product.ratings) resolve(rating.user);
+    for (const price of product.prices) resolve(price.user);
     for (const photo of product.photos) resolve(photo.user);
   }
 
@@ -573,6 +635,7 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
     // them against a row that does not exist would be a lie.
     if (dryRun && existing === undefined) {
       result.ratingsCreated += entry.ratings.length;
+      result.pricesCreated += entry.prices.length;
       result.photosCreated += entry.photos.length;
       continue;
     }
@@ -606,6 +669,53 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
             comment: rating.comment ?? null,
             createdAt: momentOf(rating.createdAt, now),
             updatedAt: momentOf(rating.updatedAt, now),
+          })
+          .run();
+      }
+    }
+
+    for (const price of entry.prices) {
+      const userId = resolve(price.user);
+      if (userId === undefined) {
+        result.problems.push(`${ean}: price of "${price.user}" has no account, skipped`);
+        continue;
+      }
+
+      const paidAt = momentOf(price.purchasedAt, now);
+
+      // Same account, same day, same amount: that is the entry this file
+      // already put here on an earlier run.
+      const already = db
+        .select({ id: prices.id })
+        .from(prices)
+        .where(
+          and(
+            eq(prices.productId, productId),
+            eq(prices.userId, userId),
+            eq(prices.purchasedAt, paidAt),
+            eq(prices.cents, price.cents),
+          ),
+        )
+        .get();
+
+      if (already !== undefined) {
+        result.pricesSkipped += 1;
+        continue;
+      }
+
+      result.pricesCreated += 1;
+      if (!dryRun) {
+        db.insert(prices)
+          .values({
+            id: randomUUID(),
+            productId,
+            userId,
+            cents: price.cents,
+            currency: price.currency,
+            shop: price.shop ?? null,
+            note: price.note ?? null,
+            purchasedAt: paidAt,
+            createdAt: now,
           })
           .run();
       }

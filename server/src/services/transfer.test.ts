@@ -5,12 +5,14 @@ import sharp from 'sharp';
 import { parseConfig, type AppConfig } from '../config/index.js';
 import { createTestDatabase, seedDatabase, type TestDatabase } from '../db/testing.js';
 import { listProductPhotos, storePhoto } from './photos.js';
+import { createPrice, listProductPrices } from './prices.js';
 import { listProducts, trashProduct } from './products.js';
 import { ValidationError } from './errors.js';
 import {
   exportCatalogue,
   importCatalogue,
   EXPORT_JSON_FILE,
+  EXPORT_PRICES_CSV,
   EXPORT_PRODUCTS_CSV,
   EXPORT_RATINGS_CSV,
 } from './transfer.js';
@@ -169,6 +171,39 @@ describe('exporting', () => {
       includeTrash: true,
     });
     expect(with_.products).toBe(2);
+  });
+});
+
+describe('prices in an export', () => {
+  it('travels with the product and arrives once, however often it is read', async () => {
+    const juice = productIdOf(source, '4260000000011');
+    createPrice(source.database.db, source.config, ANNA, juice, {
+      cents: 199,
+      shop: 'Bioladen',
+      note: null,
+      purchasedAt: '2026-08-10',
+    });
+
+    const exported = await exportCatalogue({
+      db: source.database.db,
+      config: source.config,
+      target: directory,
+      format: 'both',
+    });
+    expect(exported.prices).toBe(1);
+    expect(readFileSync(join(directory, EXPORT_PRICES_CSV), 'utf8')).toContain('Bioladen');
+
+    await importCatalogue({ db: target.database.db, config: target.config, source: directory });
+    const second = await importCatalogue({
+      db: target.database.db,
+      config: target.config,
+      source: directory,
+    });
+
+    expect(second.pricesSkipped).toBe(1);
+    const here = listProductPrices(target.database.db, productIdOf(target, '4260000000011'));
+    expect(here).toHaveLength(1);
+    expect(here[0]).toMatchObject({ cents: 199, currency: 'EUR', shop: 'Bioladen' });
   });
 });
 

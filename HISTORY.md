@@ -9,6 +9,10 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 **Umfang**
 
+- **Export und Import nehmen die Preise mit** (`prices` im JSON, `prices.csv`
+  daneben). Wiedererkannt wird ein Eintrag an Konto, Einkaufstag und Betrag,
+  damit derselbe Import zweimal nichts verdoppelt.
+
 - **Tabelle `prices`** (Migration `0004_product_prices.sql`): Betrag in der
   kleinsten Währungseinheit, Währung, Einkaufsort, Notiz, Einkaufsdatum, dazu
   Indizes auf (`product_id`, `purchased_at`), `user_id` und `shop` sowie ein

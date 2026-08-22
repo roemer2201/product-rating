@@ -1032,7 +1032,7 @@ Unterschied zu `backup`/`restore`:
 
 | | `backup` / `restore` | `export` / `import` |
 |---|---|---|
-| Umfang | ganze Instanz: Datenbankdatei, Konten, Sitzungen, Einladungen, Uploads | Produkte, Bewertungen, Fotos |
+| Umfang | ganze Instanz: Datenbankdatei, Konten, Sitzungen, Einladungen, Uploads | Produkte, Bewertungen, Preise, Fotos |
 | Form | SQLite-Datei und Bilddateien | JSON und CSV, Bilder als WebP |
 | Ziel | dieselbe Anwendung, meist dieselbe Maschine | eine andere Instanz, ein Tabellenprogramm |
 | Konten | kommen mit | müssen drüben existieren, Zuordnung über den Benutzernamen |
@@ -1049,12 +1049,13 @@ product-rating import --from /srv/umzug --owner anna   # dann einlesen
 /srv/umzug/export.json     alles, in der Form, die "import" liest
 /srv/umzug/products.csv    eine Zeile je Produkt, mit Anzahl und Durchschnitt
 /srv/umzug/ratings.csv     eine Zeile je Bewertung
+/srv/umzug/prices.csv      eine Zeile je erfasstem Preis
 /srv/umzug/photos/         die Detailbilder (nur mit --with-photos)
 ```
 
 **Konten sind bewusst nicht Teil eines Exports.** Eine Datei, die
 Passwort-Hashes mitnimmt, wäre ein Satz Zugangsdaten und keine Datensicherung.
-Produkte, Bewertungen und Fotos nennen ihr Konto deshalb über den
+Produkte, Bewertungen, Preise und Fotos nennen ihr Konto deshalb über den
 Benutzernamen; die Konten der Zielinstanz legt `product-rating user add` an.
 Ein Name, den die Zielinstanz nicht kennt, bricht den Import ab, **bevor**
 etwas geschrieben wird – `--owner <konto>` übernimmt solche Einträge
@@ -1065,7 +1066,7 @@ behält seine Daten (`--update` schreibt sie über und holt es zugleich aus dem
 Papierkorb); eine vorhandene Bewertung wird nie überschrieben – ein Urteil
 gehört dem, der es abgegeben hat. Damit ist derselbe Import zweimal
 ausführbar, ohne dass sich etwas verdoppelt: Fotos erkennt der Import an Konto
-und Aufnahmezeitpunkt wieder. Bilder laufen beim Einlesen durch denselben Weg
+und Aufnahmezeitpunkt wieder, Preise an Konto, Einkaufstag und Betrag. Bilder laufen beim Einlesen durch denselben Weg
 wie ein Upload – neu kodiert, Thumbnail erzeugt, Metadaten entfernt.
 
 **CSV** ist RFC 4180 mit Byte Order Mark, damit ein Tabellenprogramm
