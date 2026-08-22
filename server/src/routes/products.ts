@@ -8,16 +8,20 @@ import {
   type ProductDetail,
   type ProductListPage,
   type ProductWithRatings,
+  type TrashEntry,
 } from '@product-rating/shared';
 import { currentUser } from '../plugins/auth.js';
 import { productPhotos, removePhotoFiles } from '../services/photos.js';
 import {
   createProduct,
-  deleteProduct,
   getProduct,
   getProductByEan,
   listCategories,
   listProducts,
+  listTrash,
+  purgeProduct,
+  restoreProduct,
+  trashProduct,
   updateProduct,
 } from '../services/products.js';
 
@@ -26,7 +30,9 @@ import {
  *
  * Everything here is behind a login; the catalogue is shared, so any account
  * may add and correct products. Deleting is reserved for administrators,
- * because it takes other people's ratings and photos with it.
+ * because it takes other people's ratings and photos with it — and it is
+ * reversible: a deletion moves the product into the trash, only emptying the
+ * trash takes the rows and the image files along.
  */
 
 /**
@@ -43,10 +49,13 @@ export function registerProductRoutes(app: FastifyInstance): void {
     const input = createProductSchema.parse(request.body);
     const user = currentUser(request);
 
-    const product = createProduct(app.db, user.id, input);
+    const { product, restored } = createProduct(app.db, user.id, input);
 
-    request.log.info({ productId: product.id, ean: product.ean, by: user.id }, 'product created');
-    return reply.code(201).send({ product: product satisfies Product });
+    request.log.info(
+      { productId: product.id, ean: product.ean, by: user.id, restored },
+      restored ? 'product restored from the trash' : 'product created',
+    );
+    return reply.code(201).send({ product: product satisfies Product, restored });
   });
 
   app.get('/api/v1/products', { preHandler: app.requireUser }, async (request) => {
@@ -102,12 +111,66 @@ export function registerProductRoutes(app: FastifyInstance): void {
     },
   );
 
+  /**
+   * Moves a product into the trash. Nothing is lost here: the ratings, the
+   * photos and the EAN stay with the row, the catalogue simply stops showing
+   * it.
+   */
   app.delete<{ Params: { id: string } }>(
     '/api/v1/products/:id',
     { preHandler: app.requireAdmin },
     async (request) => {
       const admin = currentUser(request);
-      const removed = deleteProduct(app.db, request.params.id);
+      const trashed = trashProduct(app.db, request.params.id, admin.id);
+
+      request.log.info(
+        {
+          productId: trashed.product.id,
+          ean: trashed.product.ean,
+          by: admin.id,
+          ratings: trashed.ratings,
+          photos: trashed.photos,
+        },
+        'product moved to the trash',
+      );
+
+      return {
+        ok: true,
+        trashed: true,
+        removedRatings: trashed.ratings,
+        removedPhotos: trashed.photos,
+      };
+    },
+  );
+
+  /* ---------------------------------------------------------------- trash */
+
+  app.get('/api/v1/trash', { preHandler: app.requireAdmin }, async () => {
+    return { entries: listTrash(app.db) satisfies TrashEntry[] };
+  });
+
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/trash/:id/restore',
+    { preHandler: app.requireAdmin },
+    async (request) => {
+      const admin = currentUser(request);
+      const product = restoreProduct(app.db, request.params.id);
+
+      request.log.info(
+        { productId: product.id, ean: product.ean, by: admin.id },
+        'product restored',
+      );
+      return { product: product satisfies Product };
+    },
+  );
+
+  /** The only route that really removes a product, files included. */
+  app.delete<{ Params: { id: string } }>(
+    '/api/v1/trash/:id',
+    { preHandler: app.requireAdmin },
+    async (request) => {
+      const admin = currentUser(request);
+      const removed = purgeProduct(app.db, request.params.id);
 
       // The cascade takes the photo rows, not their files. Deleting them after
       // the transaction is the safe order: a leftover file is litter `fsck`
@@ -123,7 +186,7 @@ export function registerProductRoutes(app: FastifyInstance): void {
           photos: removed.removedPhotos.length,
           files,
         },
-        'product deleted',
+        'product purged',
       );
 
       return {

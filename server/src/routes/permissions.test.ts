@@ -207,6 +207,21 @@ const ROUTES: RouteRule[] = [
     payload: { position: 0 },
   },
 
+  { method: 'GET', url: '/api/v1/trash', pattern: '/api/v1/trash', access: 'admin' },
+  {
+    method: 'POST',
+    url: `/api/v1/trash/${UNKNOWN_ID}/restore`,
+    pattern: '/api/v1/trash/:id/restore',
+    access: 'admin',
+    payload: {},
+  },
+  {
+    method: 'DELETE',
+    url: `/api/v1/trash/${UNKNOWN_ID}`,
+    pattern: '/api/v1/trash/:id',
+    access: 'admin',
+  },
+
   { method: 'GET', url: '/api/v1/ratings/mine', pattern: '/api/v1/ratings/mine', access: 'user' },
   {
     method: 'GET',

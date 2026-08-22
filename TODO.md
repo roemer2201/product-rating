@@ -254,7 +254,7 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 
 - [x] Mehrere Fotos pro Produkt inklusive Sortierung
 - [ ] Tags und freie Kategorien mit Autovervollständigung
-- [ ] Papierkorb mit Wiederherstellung statt endgültigem Löschen
+- [x] Papierkorb mit Wiederherstellung statt endgültigem Löschen
 - [ ] Export nach CSV und JSON, Import zum Umzug
 - [ ] Offline-Erfassung mit Sync-Queue (IndexedDB) und Konfliktbehandlung
 - [ ] Statistiken: Bewertungsverteilung, meistbewertete Marken

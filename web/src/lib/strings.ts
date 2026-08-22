@@ -214,9 +214,9 @@ export const strings = {
     toExisting: 'Zum vorhandenen Produkt',
     deleteTitle: 'Produkt löschen',
     deleteWarning:
-      'Das Produkt wird mit allen Bewertungen und Fotos aller Nutzer entfernt. Das lässt sich nicht rückgängig machen.',
-    deleteConfirm: 'Endgültig löschen',
-    deleted: 'Das Produkt wurde gelöscht.',
+      'Das Produkt wandert mit allen Bewertungen und Fotos in den Papierkorb. Eine Administratorin oder ein Administrator kann es von dort zurückholen, bis der Papierkorb geleert wird.',
+    deleteConfirm: 'In den Papierkorb',
+    deleted: 'Das Produkt liegt im Papierkorb.',
     adminOnlyDelete: 'Produkte löschen dürfen nur Administratoren.',
     noBrand: 'Ohne Marke',
     noCategory: 'Ohne Kategorie',
@@ -380,6 +380,19 @@ export const strings = {
     inviteStatusOpen: 'Offen',
     inviteStatusUsed: 'Eingelöst',
     inviteStatusExpired: 'Abgelaufen',
+
+    trashTitle: 'Papierkorb',
+    trashIntro:
+      'Gelöschte Produkte liegen hier, bis sie zurückgeholt oder endgültig entfernt werden.',
+    trashEmpty: 'Der Papierkorb ist leer.',
+    trashDeletedAt: (date: string) => `Gelöscht am ${date}`,
+    trashDeletedBy: (username: string) => `von ${username}`,
+    trashContents: (ratings: number, photos: number) =>
+      `${ratings === 1 ? '1 Bewertung' : `${ratings} Bewertungen`}, ` +
+      `${photos === 1 ? '1 Foto' : `${photos} Fotos`}`,
+    trashRestore: 'Zurückholen',
+    trashPurge: 'Endgültig löschen',
+    trashPurgeConfirm: 'Wirklich endgültig löschen?',
   },
 } as const;
 

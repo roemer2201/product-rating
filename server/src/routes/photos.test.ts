@@ -495,14 +495,29 @@ describe('handing out an image', () => {
 });
 
 describe('deleting a product', () => {
-  it('takes the image files along', async () => {
+  it('keeps the image files until the trash is emptied', async () => {
     const photo = await uploadPhoto(annaCookie);
     const second = await uploadPhoto(bertCookie);
     const rows = [photo.id, second.id].map((id) => findPhotoById(harness.app.db, id));
 
-    const response = await harness.app.inject({
+    const trashed = await harness.app.inject({
       method: 'DELETE',
       url: `/api/v1/products/${productId}`,
+      headers: writeHeaders(adminCookie),
+    });
+    expect(trashed.statusCode).toBe(200);
+    expect(trashed.json()).toMatchObject({ trashed: true, removedPhotos: 2 });
+
+    // Still on disk: a product in the trash is meant to come back whole.
+    const first = rows[0];
+    expect(first).toBeDefined();
+    if (first !== undefined) {
+      expect(existsSync(photoFilePath(harness.config, first, 'full'))).toBe(true);
+    }
+
+    const response = await harness.app.inject({
+      method: 'DELETE',
+      url: `/api/v1/trash/${productId}`,
       headers: writeHeaders(adminCookie),
     });
 

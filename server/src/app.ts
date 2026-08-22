@@ -20,6 +20,8 @@ import { registerPhotoRoutes } from './routes/photos.js';
 import { registerProductRoutes } from './routes/products.js';
 import { registerRatingRoutes } from './routes/ratings.js';
 import { registerUserRoutes } from './routes/users.js';
+import { removePhotoFiles } from './services/photos.js';
+import { purgeExpiredTrash } from './services/products.js';
 import { RateLimiter } from './services/rateLimit.js';
 import { APP_VERSION } from './version.js';
 
@@ -136,16 +138,51 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   registerRatingRoutes(app);
   registerPhotoRoutes(app);
 
+  /**
+   * Empties the trash of everything older than `app.trash_retention_days`.
+   *
+   * The rows go first and the files afterwards, in that order: a leftover file
+   * is litter `fsck` reports, a file deleted before a failed transaction would
+   * be gone for good.
+   */
+  const purgeTrash = async (): Promise<void> => {
+    const purged = purgeExpiredTrash(db, config.app.trash_retention_days);
+    if (purged.length === 0) return;
+
+    let files = 0;
+    for (const entry of purged) {
+      files += await removePhotoFiles(config, entry.removedPhotos);
+    }
+
+    app.log.info(
+      {
+        products: purged.length,
+        ratings: purged.reduce((sum, entry) => sum + entry.removedRatings, 0),
+        photos: purged.reduce((sum, entry) => sum + entry.removedPhotos.length, 0),
+        files,
+        retentionDays: config.app.trash_retention_days,
+      },
+      'trash emptied',
+    );
+  };
+
   if (options.sessionCleanup !== false) {
     // Expired sessions are swept at start-up and once a day afterwards. The
     // timer is unref'd so it never keeps the process alive on its own.
     const removed = app.cleanupSessions();
     if (removed > 0) app.log.info({ removed }, 'expired sessions removed');
 
+    // The trash is swept on the same schedule; retention is counted in days,
+    // so once a day is as precise as the setting can be anyway.
+    await purgeTrash();
+
     const timer = setInterval(() => {
       const count = app.cleanupSessions();
       app.loginLimiter.sweep();
       if (count > 0) app.log.info({ removed: count }, 'expired sessions removed');
+      void purgeTrash().catch((error: unknown) => {
+        app.log.error({ err: error }, 'emptying the trash failed');
+      });
     }, SESSION_CLEANUP_INTERVAL_MS);
     timer.unref();
 

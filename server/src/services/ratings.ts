@@ -23,6 +23,7 @@ import {
 } from './pagination.js';
 import {
   findProductById,
+  notTrashed,
   ownRatings,
   selectProducts,
   toProductWithRatings,
@@ -188,14 +189,17 @@ export function listOwnRatings(
   const order = query.order ?? defaultOrderFor(sort);
   const expression = sortExpression(sort);
 
+  // Joined against `products`, because a rating of a product in the trash is
+  // not part of this list either — the count has to say the same as the rows.
   const total =
     db
       .select({ value: sql<number>`count(*)` })
       .from(ratings)
-      .where(eq(ratings.userId, userId))
+      .innerJoin(products, eq(products.id, ratings.productId))
+      .where(and(eq(ratings.userId, userId), notTrashed))
       .get()?.value ?? 0;
 
-  const filters: SQL[] = [sql`${ownRatings.id} is not null`];
+  const filters: SQL[] = [sql`${ownRatings.id} is not null`, notTrashed];
   if (query.cursor !== undefined) {
     const cursor = decodeCursor(query.cursor, sort, order);
     filters.push(keysetCondition(expression, order, products.id, cursor));

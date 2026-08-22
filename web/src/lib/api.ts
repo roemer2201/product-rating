@@ -21,6 +21,7 @@ import type {
   ResetPasswordInput,
   SessionInfo,
   SortOrder,
+  TrashEntry,
   UpdateProductInput,
   UpdateUserInput,
   UpsertRatingInput,
@@ -370,10 +371,27 @@ export const api = {
     update: (id: string, input: UpdateProductInput) =>
       request<{ product: Product }>(`/${path('products', id)}`, { method: 'PATCH', json: input }),
 
-    /** Administrators only; takes ratings, photos and their files with it. */
+    /**
+     * Administrators only; moves the product to the trash. Ratings, photos and
+     * the EAN stay with it until the trash is emptied.
+     */
     remove: (id: string) =>
-      request<{ ok: true; removedRatings: number; removedPhotos: number }>(
+      request<{ ok: true; trashed: true; removedRatings: number; removedPhotos: number }>(
         `/${path('products', id)}`,
+        { method: 'DELETE' },
+      ),
+  },
+
+  trash: {
+    list: () => request<{ entries: TrashEntry[] }>('/trash'),
+
+    restore: (id: string) =>
+      request<{ product: Product }>(`/${path('trash', id, 'restore')}`, { method: 'POST' }),
+
+    /** The only call that really removes a product, image files included. */
+    purge: (id: string) =>
+      request<{ ok: true; removedRatings: number; removedPhotos: number }>(
+        `/${path('trash', id)}`,
         { method: 'DELETE' },
       ),
   },

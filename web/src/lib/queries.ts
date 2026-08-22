@@ -26,6 +26,7 @@ import type {
   RegisterInput,
   ResetPasswordInput,
   SessionInfo,
+  TrashEntry,
   UpdateProductInput,
   UpdateUserInput,
   UpsertRatingInput,
@@ -89,6 +90,7 @@ export const queryKeys = {
     all: ['ratings'] as const,
     mine: (params: MyRatingsParams) => ['ratings', 'mine', params] as const,
   },
+  trash: ['trash'] as const,
   invites: ['invites'] as const,
   users: ['users'] as const,
 };
@@ -302,6 +304,7 @@ export function useUpdateProduct(
   });
 }
 
+/** Moves a product to the trash; an administrator can bring it back from there. */
 export function useDeleteProduct(): UseMutationResult<void, Error, string> {
   const client = useQueryClient();
 
@@ -313,6 +316,46 @@ export function useDeleteProduct(): UseMutationResult<void, Error, string> {
       client.removeQueries({ queryKey: queryKeys.products.byId(id) });
       void client.invalidateQueries({ queryKey: queryKeys.products.all });
       void client.invalidateQueries({ queryKey: queryKeys.ratings.all });
+      void client.invalidateQueries({ queryKey: queryKeys.trash });
+    },
+  });
+}
+
+/* ----------------------------------------------------------------- trash */
+
+export function useTrash(): UseQueryResult<TrashEntry[], Error> {
+  return useQuery({
+    queryKey: queryKeys.trash,
+    queryFn: async () => (await api.trash.list()).entries,
+    staleTime: CACHE_TIMES.admin,
+  });
+}
+
+export function useRestoreProduct(): UseMutationResult<void, Error, string> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.trash.restore(id);
+    },
+    onSuccess: () => {
+      // The product is part of the catalogue again, with everything on it.
+      void client.invalidateQueries({ queryKey: queryKeys.products.all });
+      void client.invalidateQueries({ queryKey: queryKeys.ratings.all });
+      void client.invalidateQueries({ queryKey: queryKeys.trash });
+    },
+  });
+}
+
+export function usePurgeProduct(): UseMutationResult<void, Error, string> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.trash.purge(id);
+    },
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.trash });
     },
   });
 }

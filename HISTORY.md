@@ -5,6 +5,44 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-22 – Backlog: Papierkorb statt endgültigem Löschen
+
+**Umfang**
+
+- **`products.deleted_at` / `products.deleted_by`** (Migration
+  `0002_product_trash.sql`, Index auf `deleted_at`). `DELETE
+  /api/v1/products/:id` setzt beide, statt zu löschen; Bewertungen, Fotos und
+  Bilddateien bleiben unangetastet liegen.
+- **Jede lesende Abfrage filtert:** Katalog, Suche, Einzelabruf, EAN-Suche,
+  Kategorievorschläge und „Meine Bewertungen“ (samt `total`) sehen ein Produkt
+  im Papierkorb nicht mehr. Auch Bewerten, Ändern und Foto-Upload finden es
+  nicht – `findProductById()` blendet es aus.
+- **Drei Routen für Administratoren:** `GET /api/v1/trash`,
+  `POST /api/v1/trash/:id/restore`, `DELETE /api/v1/trash/:id`. Nur die letzte
+  löscht wirklich und räumt die Bilddateien ab.
+- **`app.trash_retention_days`** (Standard 30, `0` = nie): Beim Start und
+  danach täglich – auf demselben Timer wie das Aufräumen der Sitzungen – wird
+  geleert, was länger als die Aufbewahrungsfrist im Papierkorb liegt.
+- **Verwaltung** bekommt einen Abschnitt „Papierkorb“ mit Zurückholen und
+  endgültigem Löschen (zwei Klicks). Auf der Produktseite heißt die Schaltfläche
+  jetzt „In den Papierkorb“.
+
+**Entscheidungen**
+
+- *Ein Filter statt einer zweiten Tabelle.* Wiederherstellen ist damit ein
+  einziges `UPDATE`, und die EAN bleibt belegt – ein zweiter Scan legt kein
+  Duplikat neben das gerade gelöschte Produkt.
+- *Eine belegte EAN aus dem Papierkorb holt das Produkt zurück.* Ein `409` wäre
+  eine Sackgasse: Löschen und Papierkorb gehören Administratoren, das Konto am
+  Regal käme also nicht weiter. Die neu eingegebenen Daten gewinnen, Bewertungen
+  und Fotos kommen mit; die Antwort sagt es über `restored`.
+- *Bilder bleiben abrufbar, solange das Produkt im Papierkorb liegt.* Sie sind
+  ohnehin nur mit Sitzung und bekannter ID erreichbar, und ein Produkt soll
+  vollständig zurückkommen.
+- *Endgültiges Löschen setzt den Papierkorb voraus.* `DELETE /api/v1/trash/:id`
+  weigert sich bei einem Produkt, das noch im Katalog steht – sonst wäre der
+  Papierkorb ein Vorschlag und kein Netz.
+
 ## 2026-08-22 – Backlog: Fotoreihenfolge je Produkt
 
 **Umfang**

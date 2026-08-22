@@ -116,6 +116,23 @@ export interface ProductDetail extends ProductWithRatings {
 }
 
 /**
+ * One product in the trash, as the administration area lists it.
+ *
+ * The counts say what would come back with a restore and what a purge would
+ * take along — the two numbers that make the decision, without loading the
+ * ratings and photos themselves.
+ */
+export interface TrashEntry {
+  product: Product;
+  deletedAt: string;
+  deletedBy: string | null;
+  /** Name of the account that deleted it; `null` if that account is gone. */
+  deletedByUsername: string | null;
+  ratings: number;
+  photos: number;
+}
+
+/**
  * One page of the product list. Paging works on a cursor rather than an offset
  * so that a product added while scrolling cannot shift the following pages.
  */

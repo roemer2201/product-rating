@@ -224,7 +224,7 @@ users     (id, username, email, password_hash, role, created_at, disabled_at)
 sessions  (id, user_id, expires_at, user_agent, created_at, last_seen_at)
 invites   (code, created_by, expires_at, used_by, used_at)
 products  (id, ean UNIQUE, name, brand, category, notes,
-           created_by, created_at, updated_at)
+           created_by, created_at, updated_at, deleted_at, deleted_by)
 ratings   (id, product_id, user_id, stars 0..5, comment, created_at, updated_at)
            UNIQUE (product_id, user_id)
 photos    (id, product_id, user_id, filename, mime, width, height,
@@ -318,7 +318,27 @@ vorbehalten, weil es fremde Bewertungen und Fotos mitnimmt.
 | `GET /api/v1/products/categories` | angemeldet | Bereits verwendete Kategorien als Vorschlagsliste |
 | `GET /api/v1/products/:id` | angemeldet | Produkt inklusive eigener Bewertung, Durchschnitt und Anzahl |
 | `PATCH /api/v1/products/:id` | angemeldet | Name, Marke, Kategorie oder Notizen ändern |
-| `DELETE /api/v1/products/:id` | admin | Produkt samt Bewertungen und Fotos entfernen |
+| `DELETE /api/v1/products/:id` | admin | Produkt in den Papierkorb legen (umkehrbar) |
+| `GET /api/v1/trash` | admin | Inhalt des Papierkorbs, jüngste Löschung zuerst |
+| `POST /api/v1/trash/:id/restore` | admin | Produkt aus dem Papierkorb zurückholen |
+| `DELETE /api/v1/trash/:id` | admin | Produkt endgültig entfernen, samt Bewertungen, Fotos und Dateien |
+
+**Papierkorb.** Löschen ist zweistufig. `DELETE /api/v1/products/:id` setzt
+`deleted_at` und `deleted_by`: die Zeile bleibt mitsamt Bewertungen, Fotos und
+Bilddateien liegen, jede lesende Abfrage sieht sie nur nicht mehr – Katalog,
+Suche, Kategorievorschläge, „Meine Bewertungen“ und das Nachschlagen per EAN.
+Erst `DELETE /api/v1/trash/:id` löscht wirklich, und nur das entfernt die
+Dateien von der Platte. Nach `app.trash_retention_days` erledigt der Server das
+von selbst (Standard 30 Tage, `0` schaltet es ab); geprüft wird beim Start und
+danach einmal täglich, zusammen mit dem Aufräumen abgelaufener Sitzungen.
+
+Die EAN bleibt belegt, solange ein Produkt im Papierkorb liegt – der
+`UNIQUE`-Index kennt keinen Papierkorb. Wer dieselbe EAN erneut anlegt, holt das
+Produkt deshalb **zurück**, statt eine Fehlermeldung zu bekommen: die frisch
+eingegebenen Daten überschreiben Name, Marke, Kategorie und Notizen, die alten
+Bewertungen und Fotos kommen mit. Ein `409` wäre hier eine Sackgasse – wer am
+Regal steht, darf den Papierkorb in der Regel gar nicht sehen. Die Antwort auf
+`POST /api/v1/products` trägt dafür das Feld `restored`.
 
 **EAN-Normalisierung.** Akzeptiert werden EAN-13, EAN-8 und UPC-A, jeweils mit
 Prüfung der Prüfziffer. Gespeichert und nachgeschlagen wird immer die auf
@@ -612,6 +632,7 @@ Konfigurationsdatei aufgelöst, ohne Datei gegen das Arbeitsverzeichnis.
 |---|---|---|---|
 | `title` | Zeichenkette | `product-rating` | Anzeigename der Instanz |
 | `external_lookup` | Wahrheitswert | `false` | Reserviert; `true` wird abgelehnt, solange es keine Implementierung gibt |
+| `trash_retention_days` | Zahl 0–3650 | `30` | Tage im Papierkorb bis zum endgültigen Entfernen; `0` = nie automatisch |
 
 ### 6.2 Startprüfungen
 

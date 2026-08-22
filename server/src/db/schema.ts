@@ -96,11 +96,20 @@ export const products = sqliteTable(
     updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
       .notNull()
       .$defaultFn(() => new Date()),
+    /**
+     * Set when a product goes into the trash. The row stays where it is, with
+     * its ratings and photos, so restoring is one statement — and the EAN
+     * stays claimed, which is what keeps a scan from silently creating a
+     * second product beside the one somebody just deleted.
+     */
+    deletedAt: integer('deleted_at', { mode: 'timestamp_ms' }),
+    deletedBy: text('deleted_by').references(() => users.id, { onDelete: 'set null' }),
   },
   (table) => [
     index('products_name_idx').on(table.name),
     index('products_brand_idx').on(table.brand),
     index('products_category_idx').on(table.category),
+    index('products_deleted_at_idx').on(table.deletedAt),
   ],
 );
 
