@@ -269,6 +269,14 @@ export const strings = {
     remove: 'Bewertung entfernen',
     removed: 'Deine Bewertung wurde entfernt.',
     zeroHint: 'Null Sterne sind ein Urteil – wer nicht bewerten will, lässt es leer.',
+
+    /* Die Bewertungen der anderen im Haushalt, auf der Produktseite. */
+    householdTitle: 'Bewertungen im Haushalt',
+    householdEmpty: 'Dieses Produkt hat noch niemand bewertet.',
+    householdOnlyYours: 'Bisher hast nur du bewertet.',
+    householdYou: 'Du',
+    householdUnknownUser: 'Gelöschtes Konto',
+    householdRatedAt: (date: string) => `Bewertet am ${date}`,
   },
 
   /* ------------------------------------------------------------- catalogue */

@@ -5,7 +5,7 @@ import { Route, Routes } from 'react-router';
 import { ProductPage } from '@/routes/ProductPage';
 import { strings } from '@/lib/strings';
 import { mockFetch, testUser } from '@/testing/fetchMock';
-import { makePhoto, makeProductDetail, makeRating } from '@/testing/fixtures';
+import { makePhoto, makeProductDetail, makeProductRating, makeRating } from '@/testing/fixtures';
 import { renderWithProviders } from '@/testing/render';
 import { mockUpload } from '@/testing/xhrMock';
 
@@ -218,6 +218,38 @@ describe('ProductPage', () => {
     expect(await screen.findByRole('button', { name: strings.photo.retry })).toBeInTheDocument();
     // The prepared picture is still there, so retrying is one tap.
     expect(screen.getByAltText(strings.photo.previewAlt)).toBeInTheDocument();
+  });
+
+  it('shows what the household thought, with the own verdict marked', async () => {
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      {
+        path: '/products/prod-1',
+        body: {
+          product: makeProductDetail({
+            ratings: { average: 3.5, count: 2 },
+            ownRating: makeRating({ stars: 5 }),
+            allRatings: [
+              makeProductRating({
+                username: 'bert',
+                userId: 'user-bert',
+                stars: 2,
+                comment: 'zu süß',
+              }),
+              makeProductRating({ username: 'anna', userId: testUser.id, stars: 5 }),
+            ],
+          }),
+        },
+      },
+    ]);
+
+    renderProduct();
+
+    expect(await screen.findByText('bert')).toBeInTheDocument();
+    expect(screen.getByText('zu süß')).toBeInTheDocument();
+    // Only the caller's own entry carries the marker.
+    expect(screen.getAllByText(strings.rating.householdYou)).toHaveLength(1);
   });
 
   it('shows the photos of a product with the primary one marked', async () => {

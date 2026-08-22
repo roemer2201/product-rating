@@ -385,6 +385,10 @@ export function useUpsertRating(): UseMutationResult<
           ? current
           : { ...current, ownRating: result.rating, ratings: result.ratings },
       );
+      // The patch above is what the screen shows immediately. The
+      // invalidation below covers the detail query too — its key starts with
+      // `products` — and that is what brings the household's verdicts up to
+      // date, which this answer does not carry.
       void client.invalidateQueries({ queryKey: queryKeys.products.all });
       void client.invalidateQueries({ queryKey: queryKeys.ratings.all });
     },

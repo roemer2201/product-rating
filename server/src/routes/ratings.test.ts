@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   RATING_COMMENT_MAX_LENGTH,
+  type ProductDetail,
   type ProductWithRatings,
   type RatingListPage,
 } from '@product-rating/shared';
@@ -229,6 +230,63 @@ describe('saving a rating', () => {
 
     const forAnna = await readProduct(productIds.oats, annaCookie);
     expect(forAnna.ownRating?.stars).toBe(5);
+  });
+});
+
+describe('the ratings of the household', () => {
+  it('lists every verdict with the name behind it, newest first', async () => {
+    await putRating(productIds.juice, { stars: 5, comment: 'trüb, wie er soll' }, annaCookie);
+    await putRating(productIds.juice, { stars: 2 }, bertCookie);
+
+    const response = await harness.app.inject({
+      method: 'GET',
+      url: `/api/v1/products/${productIds.juice}`,
+      headers: { cookie: annaCookie },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const detail = response.json().product as ProductDetail;
+
+    expect(detail.allRatings.map((entry) => entry.username)).toEqual(['bert', 'anna']);
+    expect(detail.allRatings.map((entry) => entry.stars)).toEqual([2, 5]);
+    expect(detail.allRatings.find((entry) => entry.username === 'anna')?.comment).toBe(
+      'trüb, wie er soll',
+    );
+    // The caller's own rating stays where it was; the list is the addition.
+    expect(detail.ownRating?.stars).toBe(5);
+  });
+
+  it('shows every verdict to everybody, and lets nobody change a foreign one', async () => {
+    await putRating(productIds.juice, { stars: 4 }, bertCookie);
+
+    const seen = await harness.app.inject({
+      method: 'GET',
+      url: `/api/v1/products/${productIds.juice}`,
+      headers: { cookie: annaCookie },
+    });
+    expect((seen.json().product as ProductDetail).allRatings).toHaveLength(1);
+
+    // Rating the same product writes anna's own row, it does not touch bert's.
+    await putRating(productIds.juice, { stars: 1 }, annaCookie);
+
+    const after = await harness.app.inject({
+      method: 'GET',
+      url: `/api/v1/products/${productIds.juice}`,
+      headers: { cookie: bertCookie },
+    });
+    const detail = after.json().product as ProductDetail;
+    expect(detail.allRatings).toHaveLength(2);
+    expect(detail.allRatings.find((entry) => entry.username === 'bert')?.stars).toBe(4);
+  });
+
+  it('stays empty for a product nobody has rated', async () => {
+    const response = await harness.app.inject({
+      method: 'GET',
+      url: `/api/v1/products/${productIds.toothpaste}`,
+      headers: { cookie: annaCookie },
+    });
+
+    expect((response.json().product as ProductDetail).allRatings).toEqual([]);
   });
 });
 

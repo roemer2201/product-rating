@@ -316,7 +316,7 @@ vorbehalten, weil es fremde Bewertungen und Fotos mitnimmt.
 | `GET /api/v1/products` | angemeldet | Liste mit Suche, Filtern, Sortierung und Cursor-Pagination |
 | `GET /api/v1/products/by-ean/:ean` | angemeldet | Nachschlagen nach dem Scan |
 | `GET /api/v1/products/categories` | angemeldet | Bereits verwendete Kategorien als Vorschlagsliste |
-| `GET /api/v1/products/:id` | angemeldet | Produkt inklusive eigener Bewertung, Durchschnitt und Anzahl |
+| `GET /api/v1/products/:id` | angemeldet | Produkt inklusive eigener Bewertung, Durchschnitt, Anzahl, Fotos und aller Bewertungen |
 | `PATCH /api/v1/products/:id` | angemeldet | Name, Marke, Kategorie oder Notizen ändern |
 | `DELETE /api/v1/products/:id` | admin | Produkt in den Papierkorb legen (umkehrbar) |
 | `GET /api/v1/trash` | admin | Inhalt des Papierkorbs, jüngste Löschung zuerst |
@@ -410,6 +410,19 @@ Kachel wie im Katalog verwenden lässt. Gegenüber
 `GET /api/v1/products?ratedByMe=true` kann diese Route zusätzlich nach der
 eigenen Sternzahl und dem Bewertungsdatum sortieren; der Cursor arbeitet wie
 beim Katalog über (Sortierwert, ID).
+
+**Fremde Bewertungen.** Die Einzelabfrage eines Produkts liefert unter
+`allRatings` **alle** Bewertungen dieses Produkts – die eigene eingeschlossen,
+jüngstes Urteil zuerst –, jeweils mit Sternen, Kommentar, Datum und dem
+Benutzernamen dahinter. Mehr als der Name verlässt die Kontodaten nicht. Der
+gemeinsame Katalog lebt davon: „Kaufen wir das wieder?“ beantwortet im Haushalt
+selten einer allein, und ein Durchschnitt von 3,5 sagt nichts darüber, ob sich
+zwei einig oder uneins waren. Ändern lässt sich weiterhin nur die eigene
+Bewertung – die schreibenden Routen sprechen ausschließlich „meine Bewertung
+dieses Produkts“ an.
+
+Die Liste bleibt bewusst aus dem Katalog heraus: eine Kachel zeigt eine Zahl,
+und die Bewertungen jedes Produkts mitzulesen wäre auf jeder Seite zu bezahlen.
 
 **Aggregation.** Durchschnitt und Anzahl reisen als korrelierte Unterabfragen
 mit der Produktzeile mit – eine Abfrage für die ganze Liste, kein Nachladen je

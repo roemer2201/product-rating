@@ -5,6 +5,35 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-22 – Backlog: fremde Bewertungen sichtbar machen
+
+**Umfang**
+
+- **`ProductDetail.allRatings`**: `GET /api/v1/products/:id` (und
+  `…/by-ean/:ean`) liefert jede Bewertung des Produkts – die eigene
+  eingeschlossen –, mit Sternen, Kommentar, Datum und Benutzernamen, jüngstes
+  Urteil zuerst (`listProductRatings()` in `services/ratings.ts`).
+- **Produktseite** zeigt darunter den Abschnitt „Bewertungen im Haushalt“; der
+  eigene Eintrag trägt die Kennzeichnung „Du“, ein gelöschtes Konto steht als
+  „Gelöschtes Konto“ da.
+- **Nach dem Speichern der eigenen Bewertung** wird die Detailabfrage neu
+  geholt: die Antwort der Schreibroute trägt Durchschnitt und eigene Bewertung,
+  aber nicht die Liste der anderen.
+
+**Entscheidungen**
+
+- *Nur der Benutzername verlässt das Konto.* Ein Haushalt kennt sich; alles
+  Weitere über ein Konto geht die anderen nichts an.
+- *Die Liste bleibt aus dem Katalog heraus.* Eine Kachel zeigt eine Zahl – die
+  Bewertungen jedes Produkts mitzulesen wäre auf jeder Listenseite zu bezahlen.
+  Sie hängt deshalb an der Einzelabfrage, wie die Fotos.
+- *Die eigene Bewertung steht doppelt in der Antwort* (`ownRating` und in
+  `allRatings`). Die Liste ist damit vollständig lesbar, ohne dass die Seite
+  zwei Quellen zusammensetzen muss, und `ownRating` bleibt die eine Stelle, die
+  der Editor kennt.
+- *Nichts wird schreibbar.* Die Routen adressieren weiterhin nur „meine
+  Bewertung dieses Produkts“ – eine fremde lässt sich gar nicht erst ansprechen.
+
 ## 2026-08-22 – Backlog: Export nach JSON und CSV, Import zum Umzug
 
 **Umfang**

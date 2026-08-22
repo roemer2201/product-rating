@@ -1,4 +1,10 @@
-import type { Photo, ProductDetail, ProductWithRatings, Rating } from '@product-rating/shared';
+import type {
+  Photo,
+  ProductDetail,
+  ProductRating,
+  ProductWithRatings,
+  Rating,
+} from '@product-rating/shared';
 import { testUser } from '@/testing/fetchMock';
 
 /**
@@ -11,6 +17,11 @@ import { testUser } from '@/testing/fetchMock';
 
 /** A valid EAN-13; the check digit matters, these are not random digits. */
 export const TEST_EAN = '4260000000011';
+
+/** A rating of somebody else, as the product page lists it. */
+export function makeProductRating(overrides: Partial<ProductRating> = {}): ProductRating {
+  return { ...makeRating(), username: 'anna', ...overrides };
+}
 
 export function makeRating(overrides: Partial<Rating> = {}): Rating {
   return {
@@ -58,7 +69,7 @@ export function makeProduct(overrides: Partial<ProductWithRatings> = {}): Produc
 }
 
 export function makeProductDetail(overrides: Partial<ProductDetail> = {}): ProductDetail {
-  return { ...makeProduct(), photos: [], ...overrides };
+  return { ...makeProduct(), photos: [], allRatings: [], ...overrides };
 }
 
 /** One page of a product list, as `GET /api/v1/products` answers it. */

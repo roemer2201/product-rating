@@ -12,6 +12,7 @@ import {
 } from '@product-rating/shared';
 import { currentUser } from '../plugins/auth.js';
 import { productPhotos, removePhotoFiles } from '../services/photos.js';
+import { listProductRatings } from '../services/ratings.js';
 import {
   createProduct,
   getProduct,
@@ -36,12 +37,18 @@ import {
  */
 
 /**
- * Adds the photo rows to a single product. The list deliberately stays without
- * them and carries `primaryPhotoId` alone — a card shows one image, and reading
- * every photo of every product would be paid for on each page.
+ * Fills a single product up to what the detail page needs: its photos and every
+ * rating it carries. The list deliberately stays without both and reports
+ * `primaryPhotoId` and the average alone — a card shows one image and one
+ * number, and reading the photos and verdicts of every product would be paid
+ * for on each page.
  */
-function withPhotos(app: FastifyInstance, product: ProductWithRatings): ProductDetail {
-  return { ...product, photos: productPhotos(app.db, product.id) };
+function withDetails(app: FastifyInstance, product: ProductWithRatings): ProductDetail {
+  return {
+    ...product,
+    photos: productPhotos(app.db, product.id),
+    allRatings: listProductRatings(app.db, product.id),
+  };
 }
 
 export function registerProductRoutes(app: FastifyInstance): void {
@@ -84,7 +91,7 @@ export function registerProductRoutes(app: FastifyInstance): void {
     async (request) => {
       const ean = eanSchema.parse(request.params.ean);
       const product = getProductByEan(app.db, currentUser(request).id, ean);
-      return { product: withPhotos(app, product) };
+      return { product: withDetails(app, product) };
     },
   );
 
@@ -93,7 +100,7 @@ export function registerProductRoutes(app: FastifyInstance): void {
     { preHandler: app.requireUser },
     async (request) => {
       const product = getProduct(app.db, currentUser(request).id, request.params.id);
-      return { product: withPhotos(app, product) };
+      return { product: withDetails(app, product) };
     },
   );
 

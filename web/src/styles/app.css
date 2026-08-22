@@ -761,6 +761,47 @@ a {
   white-space: pre-wrap;
 }
 
+/* --- What the household thought ------------------------------------------- */
+
+.verdict-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.verdict {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.verdict__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.verdict__name {
+  display: flex;
+  gap: var(--space-1);
+  align-items: center;
+  font-weight: 600;
+}
+
+.verdict__comment {
+  margin-top: var(--space-1);
+  white-space: pre-wrap;
+}
+
+.verdict__meta {
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+
 /* --- Photos --------------------------------------------------------------- */
 
 .photo-grid {

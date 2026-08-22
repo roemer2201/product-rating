@@ -91,6 +91,19 @@ export interface Photo {
   createdAt: string;
 }
 
+/**
+ * A rating as the product page shows it: the same fields plus the name of the
+ * account it belongs to.
+ *
+ * The catalogue is shared, so the verdicts of the household are what makes it
+ * useful — "should we buy this again" is rarely a question one person answers
+ * alone. Only the name travels, never anything else about the account.
+ */
+export interface ProductRating extends Rating {
+  /** `null` if the account behind the rating no longer exists. */
+  username: string | null;
+}
+
 /** Aggregated rating information returned alongside a product. */
 export interface RatingSummary {
   average: number | null;
@@ -113,6 +126,13 @@ export interface ProductWithRatings extends Product {
 export interface ProductDetail extends ProductWithRatings {
   /** In the order the product carries them; the first one is the primary. */
   photos: Photo[];
+  /**
+   * Every rating of this product, the caller's own included, newest verdict
+   * first. The list stays out of the catalogue list on purpose: a card shows
+   * an average, and reading the ratings of every product would be paid for on
+   * each page.
+   */
+  allRatings: ProductRating[];
 }
 
 /**
