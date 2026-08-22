@@ -44,6 +44,32 @@ const USERS = {
   body: { users: [ADMIN, { ...testUser, username: 'anna' }] },
 };
 
+const TRASH = {
+  path: '/trash',
+  body: {
+    entries: [
+      {
+        product: {
+          id: 'prod-9',
+          ean: '4260000000011',
+          name: 'Apfelsaft',
+          brand: 'Bio Hof',
+          category: 'Getränke',
+          notes: null,
+          createdBy: ADMIN.id,
+          createdAt: '2026-08-01T10:00:00.000Z',
+          updatedAt: '2026-08-10T10:00:00.000Z',
+        },
+        deletedAt: '2026-08-14T10:00:00.000Z',
+        deletedBy: ADMIN.id,
+        deletedByUsername: 'chef',
+        ratings: 2,
+        photos: 1,
+      },
+    ],
+  },
+};
+
 function renderAdmin() {
   return renderWithProviders(
     <Routes>
@@ -64,7 +90,7 @@ describe('AdminPage', () => {
   });
 
   it('lists invites with their state', async () => {
-    mockFetch([{ path: '/auth/me', body: { user: ADMIN } }, INVITES, USERS]);
+    mockFetch([{ path: '/auth/me', body: { user: ADMIN } }, INVITES, USERS, TRASH]);
 
     renderAdmin();
 
@@ -83,6 +109,7 @@ describe('AdminPage', () => {
       { path: '/invites', method: 'POST', body: { invite: INVITES.body.invites[0] } },
       INVITES,
       USERS,
+      TRASH,
     ]);
 
     renderAdmin();
@@ -100,12 +127,52 @@ describe('AdminPage', () => {
     });
   });
 
+  it('lists the trash with what a restore would bring back', async () => {
+    mockFetch([{ path: '/auth/me', body: { user: ADMIN } }, INVITES, USERS, TRASH]);
+
+    renderAdmin();
+
+    expect(await screen.findByText('Apfelsaft')).toBeInTheDocument();
+    expect(screen.getByText(/2 Bewertungen, 1 Foto/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: strings.admin.trashRestore })).toBeInTheDocument();
+  });
+
+  it('asks a second time before a product is gone for good', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([
+      { path: '/auth/me', body: { user: ADMIN } },
+      { path: '/trash/prod-9', method: 'DELETE', body: { ok: true } },
+      INVITES,
+      USERS,
+      TRASH,
+    ]);
+
+    renderAdmin();
+    await screen.findByText('Apfelsaft');
+
+    await user.click(screen.getByRole('button', { name: strings.admin.trashPurge }));
+    // The first tap only arms the button; nothing has left the server yet.
+    expect(
+      fetchMock.mock.calls.some(([, init]) => (init as RequestInit)?.method === 'DELETE'),
+    ).toBe(false);
+
+    await user.click(screen.getByRole('button', { name: strings.admin.trashPurgeConfirm }));
+
+    await waitFor(() => {
+      const purge = fetchMock.mock.calls.find(
+        ([url, init]) =>
+          String(url).endsWith('/trash/prod-9') && (init as RequestInit)?.method === 'DELETE',
+      );
+      expect(purge).toBeDefined();
+    });
+  });
+
   it('copies a registration link rather than the bare code', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn(() => Promise.resolve());
     vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
 
-    mockFetch([{ path: '/auth/me', body: { user: ADMIN } }, INVITES, USERS]);
+    mockFetch([{ path: '/auth/me', body: { user: ADMIN } }, INVITES, USERS, TRASH]);
 
     renderAdmin();
     await screen.findByText('A1B2-C3D4-E5F6');
@@ -128,7 +195,7 @@ describe('AdminPage', () => {
       clipboard: { writeText: vi.fn(() => Promise.reject(new Error('denied'))) },
     });
 
-    mockFetch([{ path: '/auth/me', body: { user: ADMIN } }, INVITES, USERS]);
+    mockFetch([{ path: '/auth/me', body: { user: ADMIN } }, INVITES, USERS, TRASH]);
 
     renderAdmin();
     await screen.findByText('A1B2-C3D4-E5F6');
@@ -145,6 +212,7 @@ describe('AdminPage', () => {
       { path: '/users/user-1/password', method: 'POST', body: { ok: true, revokedSessions: 1 } },
       INVITES,
       USERS,
+      TRASH,
     ]);
 
     renderAdmin();
@@ -177,6 +245,7 @@ describe('AdminPage', () => {
       { path: '/users/user-1', method: 'PATCH', body: { user: testUser } },
       INVITES,
       USERS,
+      TRASH,
     ]);
 
     renderAdmin();

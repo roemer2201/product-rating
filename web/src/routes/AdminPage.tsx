@@ -8,20 +8,27 @@ import { formatDate } from '@/lib/format';
 import {
   useCreateInvite,
   useInvites,
+  usePurgeProduct,
   useResetPassword,
+  useRestoreProduct,
   useRevokeInvite,
   useSession,
+  useTrash,
   useUpdateUser,
   useUsers,
 } from '@/lib/queries';
 import { strings } from '@/lib/strings';
 
 /**
- * Users and invites, for administrators.
+ * Users, invites and the trash, for administrators.
  *
  * Reached from the settings rather than from the bottom navigation: it is used
  * when someone joins the household or leaves it, which is a handful of times in
  * the life of an instance. The navigation belongs to what is used daily.
+ *
+ * The trash sits here for the same reason deleting is an administrator's job:
+ * what is in it belongs to everybody, and bringing a product back brings other
+ * people's ratings and photos with it.
  */
 
 /** The share link, so an invite can be sent as one tap instead of a code to type. */
@@ -44,6 +51,9 @@ export function AdminPage() {
   const createInvite = useCreateInvite();
   const revokeInvite = useRevokeInvite();
   const updateUser = useUpdateUser();
+  const trash = useTrash();
+  const restoreProduct = useRestoreProduct();
+  const purgeProduct = usePurgeProduct();
 
   const resetPassword = useResetPassword();
 
@@ -53,6 +63,8 @@ export function AdminPage() {
   /** The account whose password is being set, and the value typed for it. */
   const [resetting, setResetting] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
+  /** The product whose final deletion is waiting for a second tap. */
+  const [purging, setPurging] = useState<string | null>(null);
 
   // Nothing here is readable without the role anyway — the server refuses every
   // one of these routes — but a screen full of 403s is a poor way to say so.
@@ -326,6 +338,81 @@ export function AdminPage() {
                 </li>
               );
             })}
+          </ul>
+        )}
+      </section>
+
+      <section className="section">
+        <h2 className="section__title">{strings.admin.trashTitle}</h2>
+        <p className="section__intro">{strings.admin.trashIntro}</p>
+
+        {restoreProduct.error !== null && (
+          <ErrorNotice message={errorMessage(restoreProduct.error)} />
+        )}
+        {purgeProduct.error !== null && <ErrorNotice message={errorMessage(purgeProduct.error)} />}
+
+        {trash.isPending ? (
+          <SkeletonList rows={2} />
+        ) : trash.error !== null ? (
+          <ErrorNotice
+            message={errorMessage(trash.error)}
+            onRetry={() => {
+              void trash.refetch();
+            }}
+          />
+        ) : trash.data.length === 0 ? (
+          <EmptyState text={strings.admin.trashEmpty} />
+        ) : (
+          <ul className="admin-list">
+            {trash.data.map((entry) => (
+              <li className="admin-row" key={entry.product.id}>
+                <div className="admin-row__body">
+                  <span className="admin-row__name">{entry.product.name}</span>
+                  <span className="admin-row__meta">
+                    {strings.admin.trashDeletedAt(formatDate(entry.deletedAt))}
+                    {entry.deletedByUsername !== null &&
+                      ` ${strings.admin.trashDeletedBy(entry.deletedByUsername)}`}{' '}
+                    · {strings.admin.trashContents(entry.ratings, entry.photos)}
+                  </span>
+                  <span className="admin-row__note">{entry.product.ean}</span>
+                </div>
+
+                <div className="admin-row__actions">
+                  <button
+                    type="button"
+                    className="button button--quiet"
+                    onClick={() => {
+                      restoreProduct.mutate(entry.product.id);
+                    }}
+                    disabled={restoreProduct.isPending}
+                  >
+                    {strings.admin.trashRestore}
+                  </button>
+
+                  {/* Two taps, because this is the one deletion without a way back. */}
+                  <button
+                    type="button"
+                    className="button button--quiet button--danger"
+                    onClick={() => {
+                      if (purging === entry.product.id) {
+                        purgeProduct.mutate(entry.product.id, {
+                          onSettled: () => {
+                            setPurging(null);
+                          },
+                        });
+                      } else {
+                        setPurging(entry.product.id);
+                      }
+                    }}
+                    disabled={purgeProduct.isPending}
+                  >
+                    {purging === entry.product.id
+                      ? strings.admin.trashPurgeConfirm
+                      : strings.admin.trashPurge}
+                  </button>
+                </div>
+              </li>
+            ))}
           </ul>
         )}
       </section>

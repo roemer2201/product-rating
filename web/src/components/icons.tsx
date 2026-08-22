@@ -116,6 +116,24 @@ export function BackIcon({ className }: IconProps) {
   );
 }
 
+/** Moves a photo towards the front of the gallery. */
+export function ArrowUpIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" />
+    </svg>
+  );
+}
+
+/** Moves a photo towards the end of the gallery. */
+export function ArrowDownIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M12 5v14M5.5 12.5 12 19l6.5-6.5" />
+    </svg>
+  );
+}
+
 export function SearchIcon({ className }: IconProps) {
   return (
     <svg {...base} className={className}>

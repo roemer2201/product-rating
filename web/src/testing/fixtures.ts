@@ -1,4 +1,11 @@
-import type { Photo, ProductDetail, ProductWithRatings, Rating } from '@product-rating/shared';
+import type {
+  Photo,
+  Price,
+  ProductDetail,
+  ProductRating,
+  ProductWithRatings,
+  Rating,
+} from '@product-rating/shared';
 import { testUser } from '@/testing/fetchMock';
 
 /**
@@ -11,6 +18,11 @@ import { testUser } from '@/testing/fetchMock';
 
 /** A valid EAN-13; the check digit matters, these are not random digits. */
 export const TEST_EAN = '4260000000011';
+
+/** A rating of somebody else, as the product page lists it. */
+export function makeProductRating(overrides: Partial<ProductRating> = {}): ProductRating {
+  return { ...makeRating(), username: 'anna', ...overrides };
+}
 
 export function makeRating(overrides: Partial<Rating> = {}): Rating {
   return {
@@ -32,8 +44,26 @@ export function makePhoto(overrides: Partial<Photo> = {}): Photo {
     mime: 'image/webp',
     width: 1600,
     height: 1200,
+    position: 0,
     isPrimary: true,
     createdAt: '2026-08-10T08:00:00.000Z',
+    ...overrides,
+  };
+}
+
+/** One recorded price, as the product page lists it. */
+export function makePrice(overrides: Partial<Price> = {}): Price {
+  return {
+    id: 'price-1',
+    productId: 'prod-1',
+    userId: testUser.id,
+    username: 'anna',
+    cents: 199,
+    currency: 'EUR',
+    shop: 'Bioladen',
+    note: null,
+    purchasedAt: '2026-08-10T12:00:00.000Z',
+    createdAt: '2026-08-10T12:00:00.000Z',
     ...overrides,
   };
 }
@@ -57,7 +87,7 @@ export function makeProduct(overrides: Partial<ProductWithRatings> = {}): Produc
 }
 
 export function makeProductDetail(overrides: Partial<ProductDetail> = {}): ProductDetail {
-  return { ...makeProduct(), photos: [], ...overrides };
+  return { ...makeProduct(), photos: [], allRatings: [], prices: [], ...overrides };
 }
 
 /** One page of a product list, as `GET /api/v1/products` answers it. */

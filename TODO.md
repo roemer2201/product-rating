@@ -252,17 +252,17 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 
 ## Backlog (nach dem MVP)
 
-- [ ] Mehrere Fotos pro Produkt inklusive Sortierung
+- [x] Mehrere Fotos pro Produkt inklusive Sortierung
 - [ ] Tags und freie Kategorien mit Autovervollständigung
-- [ ] Papierkorb mit Wiederherstellung statt endgültigem Löschen
-- [ ] Export nach CSV und JSON, Import zum Umzug
+- [x] Papierkorb mit Wiederherstellung statt endgültigem Löschen
+- [x] Export nach CSV und JSON, Import zum Umzug
 - [ ] Offline-Erfassung mit Sync-Queue (IndexedDB) und Konfliktbehandlung
 - [ ] Statistiken: Bewertungsverteilung, meistbewertete Marken
-- [ ] Fremde Bewertungen sichtbar machen: wer im Haushalt hat wie viele Sterne vergeben – bisher liefert die API nur Durchschnitt, Anzahl und die eigene Bewertung
-- [ ] FTS5-Suche nachrüsten, falls die `LIKE`-Suche mit wachsendem Katalog spürbar langsam wird
+- [x] Fremde Bewertungen sichtbar machen: wer im Haushalt hat wie viele Sterne vergeben – bisher liefert die API nur Durchschnitt, Anzahl und die eigene Bewertung
+- [x] FTS5-Suche nachrüsten, falls die `LIKE`-Suche mit wachsendem Katalog spürbar langsam wird
 - [ ] TOTP-Zweitfaktor
 - [ ] Optionale Delegation der Authentifizierung an Reverse-Proxy-SSO
-- [ ] Preisverlauf und Einkaufsort je Produkt
+- [x] Preisverlauf und Einkaufsort je Produkt
 - [ ] Teilen einer Produktansicht per zeitlich begrenztem Link
 - [ ] Barrierefreiheitsdurchgang (Fokusreihenfolge, Kontraste, Screenreader)
 - [ ] Mehrere Fotos gleichzeitig auswählen und hochladen (die Ansicht nimmt bewusst eines nach dem anderen)

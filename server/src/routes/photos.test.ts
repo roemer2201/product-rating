@@ -273,6 +273,51 @@ describe('the primary photo', () => {
   });
 });
 
+describe('the order of the gallery', () => {
+  it('moves a photo and answers with the whole gallery', async () => {
+    const first = await uploadPhoto(annaCookie);
+    const second = await uploadPhoto(annaCookie);
+    const third = await uploadPhoto(annaCookie);
+
+    const response = await harness.app.inject({
+      method: 'PUT',
+      url: `/api/v1/photos/${third.id}/position`,
+      headers: writeHeaders(annaCookie),
+      payload: { position: 0 },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const gallery = response.json().photos as Photo[];
+    expect(gallery.map((entry) => entry.id)).toEqual([third.id, first.id, second.id]);
+    expect(gallery.map((entry) => entry.position)).toEqual([0, 1, 2]);
+
+    const product = await readProduct();
+    expect(product.photos.map((entry) => entry.id)).toEqual([third.id, first.id, second.id]);
+    expect(product.primaryPhotoId).toBe(third.id);
+  });
+
+  it('refuses a photo of another account and a position that is not a number', async () => {
+    const theirs = await uploadPhoto(bertCookie);
+    const mine = await uploadPhoto(annaCookie);
+
+    const foreign = await harness.app.inject({
+      method: 'PUT',
+      url: `/api/v1/photos/${theirs.id}/position`,
+      headers: writeHeaders(annaCookie),
+      payload: { position: 0 },
+    });
+    expect(foreign.statusCode).toBe(403);
+
+    const invalid = await harness.app.inject({
+      method: 'PUT',
+      url: `/api/v1/photos/${mine.id}/position`,
+      headers: writeHeaders(annaCookie),
+      payload: { position: -1 },
+    });
+    expect(invalid.statusCode).toBe(400);
+  });
+});
+
 describe('deleting a photo', () => {
   it('removes the row and the files from disk', async () => {
     const photo = await uploadPhoto();
@@ -450,14 +495,29 @@ describe('handing out an image', () => {
 });
 
 describe('deleting a product', () => {
-  it('takes the image files along', async () => {
+  it('keeps the image files until the trash is emptied', async () => {
     const photo = await uploadPhoto(annaCookie);
     const second = await uploadPhoto(bertCookie);
     const rows = [photo.id, second.id].map((id) => findPhotoById(harness.app.db, id));
 
-    const response = await harness.app.inject({
+    const trashed = await harness.app.inject({
       method: 'DELETE',
       url: `/api/v1/products/${productId}`,
+      headers: writeHeaders(adminCookie),
+    });
+    expect(trashed.statusCode).toBe(200);
+    expect(trashed.json()).toMatchObject({ trashed: true, removedPhotos: 2 });
+
+    // Still on disk: a product in the trash is meant to come back whole.
+    const first = rows[0];
+    expect(first).toBeDefined();
+    if (first !== undefined) {
+      expect(existsSync(photoFilePath(harness.config, first, 'full'))).toBe(true);
+    }
+
+    const response = await harness.app.inject({
+      method: 'DELETE',
+      url: `/api/v1/trash/${productId}`,
       headers: writeHeaders(adminCookie),
     });
 

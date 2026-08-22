@@ -330,14 +330,59 @@ describe('searching and filtering', () => {
     expect(namesOf(page)).toEqual(['Haferflocken', 'Müsli Knusper']);
   });
 
-  it('searches an EAN by prefix', async () => {
+  it('searches an EAN, whole or in part', async () => {
     expect(namesOf(await listProducts(`?q=${EAN.oats}`))).toEqual(['Haferflocken']);
     expect(namesOf(await listProducts('?q=4260000000011'))).toEqual(['Apfelsaft']);
+    // The trigram index finds the tail of a barcode too, which is what someone
+    // reading the last digits off a label types.
+    expect(namesOf(await listProducts('?q=0000028'))).toEqual(['Haferflocken']);
   });
 
-  it('treats wildcards in a search term as text', async () => {
-    const page = await listProducts('?q=%25');
-    expect(page.total).toBe(0);
+  it('finds a word inside a compound', async () => {
+    // The case a word based index cannot do and German needs constantly.
+    expect(namesOf(await listProducts('?q=knusper'))).toEqual(['Müsli Knusper']);
+    expect(namesOf(await listProducts('?q=flocken'))).toEqual(['Haferflocken']);
+  });
+
+  it('narrows down with every word instead of widening', async () => {
+    expect(namesOf(await listProducts('?q=k%C3%B6lln%20m%C3%BCsli'))).toEqual(['Müsli Knusper']);
+    // Two words that are nowhere together find nothing.
+    expect((await listProducts('?q=k%C3%B6lln%20zahnpasta')).total).toBe(0);
+  });
+
+  it('falls back to LIKE for a word the index cannot answer', async () => {
+    // Two characters are shorter than a trigram; the answer has to be exact
+    // all the same.
+    expect(namesOf(await listProducts('?q=%C3%BCs'))).toEqual(['Müsli Knusper']);
+  });
+
+  it('treats wildcards and quotes in a search term as text', async () => {
+    expect((await listProducts('?q=%25')).total).toBe(0);
+    expect((await listProducts('?q=%22apfel')).total).toBe(0);
+    // A hyphen would be query syntax to FTS5 if the term were not quoted.
+    expect((await listProducts('?q=bio-hof')).total).toBe(0);
+  });
+
+  it('keeps the index in step with the catalogue', async () => {
+    const renamed = await harness.app.inject({
+      method: 'PATCH',
+      url: `/api/v1/products/${productIds.juice}`,
+      headers: writeHeaders(annaCookie),
+      payload: { name: 'Birnensaft' },
+    });
+    expect(renamed.statusCode).toBe(200);
+
+    expect((await listProducts('?q=apfel')).total).toBe(0);
+    expect(namesOf(await listProducts('?q=birnen'))).toEqual(['Birnensaft']);
+
+    // A product in the trash is out of the catalogue, index or not.
+    const trashed = await harness.app.inject({
+      method: 'DELETE',
+      url: `/api/v1/products/${productIds.juice}`,
+      headers: writeHeaders(adminCookie),
+    });
+    expect(trashed.statusCode).toBe(200);
+    expect((await listProducts('?q=birnen')).total).toBe(0);
   });
 
   it('filters by category, ignoring case', async () => {

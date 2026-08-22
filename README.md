@@ -19,15 +19,20 @@ sich unter iOS zum Home-Bildschirm hinzufügen.
 - Anmeldung mit Benutzername und Passwort (Session-Cookie)
 - EAN per Kamera scannen (EAN-13, EAN-8, UPC-A) oder manuell eingeben
 - Produkt anlegen und bearbeiten: Name, Marke, Kategorie, Notizen
-- Ein Foto pro Produkt aufnehmen oder hochladen
-- Bewertung von 0 bis 5 Sternen, optional mit Kommentar
-- Produktliste mit Suche (Name, Marke, EAN) und Filter/Sortierung nach Bewertung
+- Beliebig viele Fotos pro Produkt aufnehmen oder hochladen, in fester
+  Reihenfolge; das erste ist das Hauptbild
+- Bewertung von 0 bis 5 Sternen, optional mit Kommentar – die eigene ist
+  änderbar, die der anderen im Haushalt sichtbar
+- Preisverlauf je Produkt mit Einkaufsort
+- Produktliste mit Volltextsuche (Name, Marke, EAN) und Filter/Sortierung nach
+  Bewertung
+- Papierkorb: Gelöschtes lässt sich zurückholen
+- Export nach JSON und CSV, Import zum Umzug (Kommandozeile)
 - Installierbar als PWA auf dem iOS-Home-Bildschirm
 
 **Später** (siehe [TODO.md](TODO.md), Abschnitt Backlog)
 
-- Mehrere Fotos pro Produkt, Tags, Papierkorb
-- CSV-/JSON-Export, Statistiken
+- Tags mit Autovervollständigung, Statistiken
 - Offline-Erfassung mit Sync-Queue
 
 ---
@@ -224,11 +229,16 @@ users     (id, username, email, password_hash, role, created_at, disabled_at)
 sessions  (id, user_id, expires_at, user_agent, created_at, last_seen_at)
 invites   (code, created_by, expires_at, used_by, used_at)
 products  (id, ean UNIQUE, name, brand, category, notes,
-           created_by, created_at, updated_at)
+           created_by, created_at, updated_at, deleted_at, deleted_by)
 ratings   (id, product_id, user_id, stars 0..5, comment, created_at, updated_at)
            UNIQUE (product_id, user_id)
 photos    (id, product_id, user_id, filename, mime, width, height,
-           is_primary, created_at)
+           position, created_at)
+
+prices    (id, product_id, user_id, cents, currency, shop, note,
+           purchased_at, created_at)
+
+products_fts (name, brand, ean, product_id)   FTS5, Trigramme, per Trigger gepflegt
 ```
 
 Fotos werden **nicht** als BLOB in der Datenbank abgelegt: das Dateisystem ist
@@ -316,9 +326,29 @@ vorbehalten, weil es fremde Bewertungen und Fotos mitnimmt.
 | `GET /api/v1/products` | angemeldet | Liste mit Suche, Filtern, Sortierung und Cursor-Pagination |
 | `GET /api/v1/products/by-ean/:ean` | angemeldet | Nachschlagen nach dem Scan |
 | `GET /api/v1/products/categories` | angemeldet | Bereits verwendete Kategorien als Vorschlagsliste |
-| `GET /api/v1/products/:id` | angemeldet | Produkt inklusive eigener Bewertung, Durchschnitt und Anzahl |
+| `GET /api/v1/products/:id` | angemeldet | Produkt inklusive eigener Bewertung, Durchschnitt, Anzahl, Fotos und aller Bewertungen |
 | `PATCH /api/v1/products/:id` | angemeldet | Name, Marke, Kategorie oder Notizen ändern |
-| `DELETE /api/v1/products/:id` | admin | Produkt samt Bewertungen und Fotos entfernen |
+| `DELETE /api/v1/products/:id` | admin | Produkt in den Papierkorb legen (umkehrbar) |
+| `GET /api/v1/trash` | admin | Inhalt des Papierkorbs, jüngste Löschung zuerst |
+| `POST /api/v1/trash/:id/restore` | admin | Produkt aus dem Papierkorb zurückholen |
+| `DELETE /api/v1/trash/:id` | admin | Produkt endgültig entfernen, samt Bewertungen, Fotos und Dateien |
+
+**Papierkorb.** Löschen ist zweistufig. `DELETE /api/v1/products/:id` setzt
+`deleted_at` und `deleted_by`: die Zeile bleibt mitsamt Bewertungen, Fotos und
+Bilddateien liegen, jede lesende Abfrage sieht sie nur nicht mehr – Katalog,
+Suche, Kategorievorschläge, „Meine Bewertungen“ und das Nachschlagen per EAN.
+Erst `DELETE /api/v1/trash/:id` löscht wirklich, und nur das entfernt die
+Dateien von der Platte. Nach `app.trash_retention_days` erledigt der Server das
+von selbst (Standard 30 Tage, `0` schaltet es ab); geprüft wird beim Start und
+danach einmal täglich, zusammen mit dem Aufräumen abgelaufener Sitzungen.
+
+Die EAN bleibt belegt, solange ein Produkt im Papierkorb liegt – der
+`UNIQUE`-Index kennt keinen Papierkorb. Wer dieselbe EAN erneut anlegt, holt das
+Produkt deshalb **zurück**, statt eine Fehlermeldung zu bekommen: die frisch
+eingegebenen Daten überschreiben Name, Marke, Kategorie und Notizen, die alten
+Bewertungen und Fotos kommen mit. Ein `409` wäre hier eine Sackgasse – wer am
+Regal steht, darf den Papierkorb in der Regel gar nicht sehen. Die Antwort auf
+`POST /api/v1/products` trägt dafür das Feld `restored`.
 
 **EAN-Normalisierung.** Akzeptiert werden EAN-13, EAN-8 und UPC-A, jeweils mit
 Prüfung der Prüfziffer. Gespeichert und nachgeschlagen wird immer die auf
@@ -343,13 +373,25 @@ Die Antwort ist `{ products, nextCursor, total }`. Der Cursor merkt sich die
 Sortierung, mit der er entstanden ist; wird sie gewechselt, antwortet die Route
 mit `400`, statt Produkte zu überspringen oder doppelt zu liefern.
 
-**Suche.** Die Suche arbeitet mit `LIKE` über Name und Marke, nicht mit einer
-FTS5-Tabelle: bei bis zu sechsstelligen Produktzahlen und wenigen Nutzern ist
-der Tabellendurchlauf schnell genug, und FTS5 könnte weder Teilwörter noch die
-Schreibweise mit Umlauten ohne zusätzliche Konfiguration. Groß- und
-Kleinschreibung werden über die Anwendungsfunktion `pr_lower()` verglichen,
-weil SQLites eingebautes `lower()` nur ASCII kennt und „Müller“ sonst nicht auf
-„müller“ passen würde.
+**Suche.** `q` läuft über `products_fts`, eine FTS5-Tabelle mit dem
+**Trigramm-Tokenizer** (`tokenize='trigram remove_diacritics 1'`) über Name,
+Marke und EAN. Drei Trigger auf `products` halten sie aktuell; angelegt und
+gefüllt wird sie in der Migration `0003_product_search.sql`.
+
+Trigramme statt Wörtern, weil Deutsch es verlangt: „saft“ findet „Apfelsaft“,
+was ein wortbasierter Index nie täte. Groß-/Kleinschreibung und diakritische
+Zeichen faltet der Tokenizer selbst, „müsli“, „MÜSLI“ und „musli“ sind also
+dasselbe. Ziffern verhalten sich genauso – anders als früher findet auch das
+Ende eines Barcodes sein Produkt und nicht nur der Anfang.
+
+Jedes Wort des Suchbegriffs wird in Anführungszeichen gesetzt, damit ein
+Bindestrich, ein Umlaut oder ein Anführungszeichen Text bleibt und keine
+Abfragesyntax wird; mehrere Wörter verbindet FTS5 mit UND – wer „kölln müsli“
+tippt, engt ein. Ein Wort mit weniger als drei Zeichen kann ein Trigramm-Index
+nicht beantworten; solche Suchen laufen weiter über `LIKE` mit der
+Anwendungsfunktion `pr_lower()`, die – anders als SQLites eingebautes `lower()`
+– die vollen Unicode-Regeln kennt. Das Ergebnis bleibt damit in jedem Fall
+exakt, nur der Weg dorthin unterscheidet sich.
 
 ### 4.2 Routen zu Bewertungen
 
@@ -391,6 +433,19 @@ Kachel wie im Katalog verwenden lässt. Gegenüber
 eigenen Sternzahl und dem Bewertungsdatum sortieren; der Cursor arbeitet wie
 beim Katalog über (Sortierwert, ID).
 
+**Fremde Bewertungen.** Die Einzelabfrage eines Produkts liefert unter
+`allRatings` **alle** Bewertungen dieses Produkts – die eigene eingeschlossen,
+jüngstes Urteil zuerst –, jeweils mit Sternen, Kommentar, Datum und dem
+Benutzernamen dahinter. Mehr als der Name verlässt die Kontodaten nicht. Der
+gemeinsame Katalog lebt davon: „Kaufen wir das wieder?“ beantwortet im Haushalt
+selten einer allein, und ein Durchschnitt von 3,5 sagt nichts darüber, ob sich
+zwei einig oder uneins waren. Ändern lässt sich weiterhin nur die eigene
+Bewertung – die schreibenden Routen sprechen ausschließlich „meine Bewertung
+dieses Produkts“ an.
+
+Die Liste bleibt bewusst aus dem Katalog heraus: eine Kachel zeigt eine Zahl,
+und die Bewertungen jedes Produkts mitzulesen wäre auf jeder Seite zu bezahlen.
+
 **Aggregation.** Durchschnitt und Anzahl reisen als korrelierte Unterabfragen
 mit der Produktzeile mit – eine Abfrage für die ganze Liste, kein Nachladen je
 Produkt. Beide laufen über den Index `ratings_product_user_unique`, dessen
@@ -400,7 +455,44 @@ gleich schnell, müsste aber auch dann alles zusammenzählen, wenn nur ein
 einzelnes Produkt gefragt ist – und genau das ist die häufigste Anfrage nach
 einem Scan.
 
-### 4.3 Routen zu Fotos
+### 4.3 Routen zu Preisen
+
+Der Preisverlauf beantwortet eine Frage: „War es letztes Mal billiger, und wo?“
+Erfassen darf ihn jedes angemeldete Konto – was etwas kostet, ist eine Tatsache
+über den Haushalt. Ein Eintrag gehört aber dem Konto, das ihn geschrieben hat;
+Löschen bleibt ihm und den Administratoren, dieselbe Regel wie bei Fotos.
+
+| Route | Rolle | Zweck |
+|---|---|---|
+| `POST /api/v1/products/:id/prices` | angemeldet | Preis erfassen |
+| `DELETE /api/v1/prices/:id` | Eigentümer, admin | Eintrag entfernen |
+| `GET /api/v1/prices/shops` | angemeldet | Bereits verwendete Einkaufsorte als Vorschlagsliste |
+
+Gelesen wird der Verlauf über `GET /api/v1/products/:id`, der ihn unter
+`prices` mitliefert (jüngster Einkauf zuerst, höchstens 50 Einträge). Eine
+eigene Leseroute gibt es bewusst nicht: Ein Preis ist nur neben seinem Produkt
+interessant.
+
+**Körper von `POST`:** `{ "cents": 199, "shop": "Bioladen", "note": "Angebot",
+"purchasedAt": "2026-08-10" }`. Nur `cents` ist Pflicht.
+
+**Beträge sind ganze Zahlen in der kleinsten Einheit der Währung**, nie
+Dezimalzahlen: 1,10 + 2,20 ergibt binär nicht 3,30, und ein Preisverlauf, der
+sich verrechnet, ist schlimmer als keiner. Der Client rechnet um, was jemand
+tippt (`web/src/lib/money.ts`, Komma und Punkt gleichermaßen), und formatiert
+zurück über `Intl` – wie ein Betrag aussieht, entscheidet also das Telefon.
+
+**Die Währung steht am Eintrag**, kopiert aus `app.currency` beim Anlegen.
+Bezahlt ist bezahlt: Wird die Instanz später umgestellt, bleiben alte Einträge,
+was sie waren.
+
+**Das Einkaufsdatum** ist optional und heute, wenn es fehlt. Es darf in der
+Vergangenheit liegen – ein Kassenbon aus der Jackentasche ist genau der Fall –,
+aber nicht in der Zukunft (ein Tag Toleranz für Uhren und Zeitzonen). Ein
+reines Datum (`YYYY-MM-DD`) wird als Mittag UTC gelesen, damit der Tag der Tag
+bleibt, den jemand eingetippt hat.
+
+### 4.4 Routen zu Fotos
 
 Hochladen darf jedes angemeldete Konto – der Katalog ist gemeinsam. Ein Foto
 gehört aber dem Konto, das es aufgenommen hat: Löschen und Zum-Hauptbild-Machen
@@ -410,7 +502,8 @@ bleiben ihm und den Administratoren vorbehalten.
 |---|---|---|
 | `POST /api/v1/products/:id/photos` | angemeldet | Foto hochladen (`multipart/form-data`, Feld `photo`) |
 | `DELETE /api/v1/photos/:id` | Eigentümer, admin | Foto samt Dateien entfernen |
-| `PUT /api/v1/photos/:id/primary` | Eigentümer, admin | Foto zum Hauptbild des Produkts machen |
+| `PUT /api/v1/photos/:id/primary` | Eigentümer, admin | Foto zum Hauptbild des Produkts machen (Kurzform für Position 0) |
+| `PUT /api/v1/photos/:id/position` | Eigentümer, admin | Foto in der Reihenfolge verschieben (`{ "position": 0…999 }`) |
 | `GET /api/v1/media/:id?size=thumb\|full` | angemeldet | Bild ausliefern; Standard `full` |
 
 **Verarbeitung.** Weder der Dateiname noch der vom Client angegebene MIME-Typ
@@ -432,11 +525,18 @@ der Server; was der Client seine Datei genannt hat, erreicht die Platte nie.
 Geschrieben wird über `paths.temp` und einen abschließenden `rename`, damit nie
 eine halbe Datei sichtbar ist.
 
-**Hauptbild.** Das erste Foto eines Produkts wird automatisch zum Hauptbild,
-weitere nur auf ausdrückliche Anforderung. „Hauptbild“ ist eine Eigenschaft des
-Produkts, nicht des Kontos, deshalb setzt `PUT …/primary` das Kennzeichen der
-übrigen Fotos zurück. Wird das Hauptbild gelöscht, rückt das älteste verbliebene
-Foto nach – ein Produkt verliert sein Bild also nicht.
+**Reihenfolge und Hauptbild.** Ein Produkt trägt beliebig viele Fotos in einer
+festen Reihenfolge; `photos.position` zählt von null an und bleibt lückenlos.
+Das Foto auf Position 0 ist das Hauptbild – „Hauptbild“ wird also *abgeleitet*
+und nicht ein zweites Mal gespeichert, sodass Kachel und Detailseite nicht
+auseinanderlaufen können. Neue Fotos hängen sich hinten an, das erste wird damit
+von selbst zum Hauptbild. `PUT …/position` verschiebt ein Foto (eine Position
+hinter dem Ende bedeutet „ans Ende“) und antwortet mit der neuen Reihenfolge
+des ganzen Produkts; `PUT …/primary` ist die Kurzform für Position 0. Wird ein
+Foto gelöscht, rücken die übrigen auf – ein Produkt verliert sein Bild also
+nicht. Verschieben gehört wie Löschen dem Konto, das das Foto aufgenommen hat,
+und den Administratoren: die Reihenfolge ist zwar eine Eigenschaft des Produkts,
+das einzelne Bild aber nicht.
 
 **Auslieferung.** `GET /api/v1/media/:id` verlangt eine Sitzung wie jede andere
 Route; es gibt bewusst kein statisches Verzeichnis im Webroot und keine
@@ -604,6 +704,8 @@ Konfigurationsdatei aufgelöst, ohne Datei gegen das Arbeitsverzeichnis.
 |---|---|---|---|
 | `title` | Zeichenkette | `product-rating` | Anzeigename der Instanz |
 | `external_lookup` | Wahrheitswert | `false` | Reserviert; `true` wird abgelehnt, solange es keine Implementierung gibt |
+| `trash_retention_days` | Zahl 0–3650 | `30` | Tage im Papierkorb bis zum endgültigen Entfernen; `0` = nie automatisch |
+| `currency` | ISO-4217-Code | `EUR` | Währung neuer Preiseinträge; wird in den Eintrag kopiert |
 
 ### 6.2 Startprüfungen
 
@@ -842,6 +944,11 @@ gilt für `/` und beide überschrieben sich gegenseitig.
   der Datenbank und Beschreibbarkeit des Upload-Verzeichnisses – Status `200`
   mit `{"status":"ok",…}`, sonst `503` mit `"degraded"`. Dazu strukturierte Logs
   nach stdout, Datei oder syslog (8.2).
+- **Umzug und Auswertung:** `product-rating export --to <verzeichnis>` schreibt
+  den Katalog in lesbarer Form (8.3), `product-rating import --from
+  <verzeichnis>` liest ihn in eine andere Instanz. Das ist ausdrücklich **kein**
+  Backup – dafür ist `backup`/`restore` da, das die Datenbankdatei samt Konten
+  mitnimmt.
 - **Konsistenzprüfung:** `product-rating fsck --uploads` vergleicht das
   Upload-Verzeichnis in beide Richtungen mit der Fototabelle: Dateien, zu denen
   keine Zeile mehr existiert, und Zeilen, deren Datei fehlt. Gemeldet wird
@@ -864,6 +971,8 @@ Konsole. Im Container liegt derselbe Befehl unter
 | `invite create\|list\|revoke` | Einladungscodes ausgeben, auflisten, zurückziehen |
 | `backup --to <dir>` | Snapshot aus `VACUUM INTO` plus Fotos, `--keep-days N` als Aufbewahrungsgrenze |
 | `restore --from <dir>` | Snapshot zurückspielen, nach ausdrücklicher Bestätigung (`--yes` überspringt sie) |
+| `export --to <dir>` | Katalog als JSON und/oder CSV schreiben, `--with-photos` nimmt die Bilder mit |
+| `import --from <dir>` | Export einlesen; `--owner`, `--update`, `--dry-run` |
 | `fsck --uploads` | Upload-Verzeichnis gegen die Fototabelle prüfen, `--repair` löscht verwaiste Dateien |
 | `help [befehl]`, `version` | Hilfe und Version |
 
@@ -915,6 +1024,54 @@ Anmeldeversuche stehen unter einem einheitlichen Ereignisnamen im Log:
 dazu Benutzername, IP und – nur im Log, nie in der Antwort – der Grund
 (`unknown_user`, `wrong_password`, `account_disabled`). Damit lässt sich „alle
 Fehlversuche dieser Adresse“ abfragen, ohne nach Sätzen zu suchen.
+
+### 8.3 Export und Import
+
+`export` und `import` bewegen **Daten**, nicht eine Installation. Der
+Unterschied zu `backup`/`restore`:
+
+| | `backup` / `restore` | `export` / `import` |
+|---|---|---|
+| Umfang | ganze Instanz: Datenbankdatei, Konten, Sitzungen, Einladungen, Uploads | Produkte, Bewertungen, Preise, Fotos |
+| Form | SQLite-Datei und Bilddateien | JSON und CSV, Bilder als WebP |
+| Ziel | dieselbe Anwendung, meist dieselbe Maschine | eine andere Instanz, ein Tabellenprogramm |
+| Konten | kommen mit | müssen drüben existieren, Zuordnung über den Benutzernamen |
+
+```bash
+product-rating export --to /srv/umzug --format both --with-photos
+product-rating import --from /srv/umzug --dry-run      # erst schauen
+product-rating import --from /srv/umzug --owner anna   # dann einlesen
+```
+
+**Was geschrieben wird:**
+
+```
+/srv/umzug/export.json     alles, in der Form, die "import" liest
+/srv/umzug/products.csv    eine Zeile je Produkt, mit Anzahl und Durchschnitt
+/srv/umzug/ratings.csv     eine Zeile je Bewertung
+/srv/umzug/prices.csv      eine Zeile je erfasstem Preis
+/srv/umzug/photos/         die Detailbilder (nur mit --with-photos)
+```
+
+**Konten sind bewusst nicht Teil eines Exports.** Eine Datei, die
+Passwort-Hashes mitnimmt, wäre ein Satz Zugangsdaten und keine Datensicherung.
+Produkte, Bewertungen, Preise und Fotos nennen ihr Konto deshalb über den
+Benutzernamen; die Konten der Zielinstanz legt `product-rating user add` an.
+Ein Name, den die Zielinstanz nicht kennt, bricht den Import ab, **bevor**
+etwas geschrieben wird – `--owner <konto>` übernimmt solche Einträge
+stattdessen.
+
+**Zusammenführen statt Ersetzen.** Ein Produkt, das drüben schon existiert,
+behält seine Daten (`--update` schreibt sie über und holt es zugleich aus dem
+Papierkorb); eine vorhandene Bewertung wird nie überschrieben – ein Urteil
+gehört dem, der es abgegeben hat. Damit ist derselbe Import zweimal
+ausführbar, ohne dass sich etwas verdoppelt: Fotos erkennt der Import an Konto
+und Aufnahmezeitpunkt wieder, Preise an Konto, Einkaufstag und Betrag. Bilder laufen beim Einlesen durch denselben Weg
+wie ein Upload – neu kodiert, Thumbnail erzeugt, Metadaten entfernt.
+
+**CSV** ist RFC 4180 mit Byte Order Mark, damit ein Tabellenprogramm
+„Getränke“ liest und nicht „GetrÃ¤nke“. Es ist ein reines Ausgabeformat;
+eingelesen wird die JSON-Datei.
 
 ---
 

@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type { Photo, User } from '@product-rating/shared';
 import { ErrorNotice } from '@/components/Feedback';
-import { CheckIcon, PhotoIcon, TrashIcon } from '@/components/icons';
+import { ArrowDownIcon, ArrowUpIcon, CheckIcon, PhotoIcon, TrashIcon } from '@/components/icons';
 import { api, errorMessage } from '@/lib/api';
 import { preparePhoto, type PreparedPhoto } from '@/lib/image';
-import { useDeletePhoto, useSetPrimaryPhoto, useUploadPhoto } from '@/lib/queries';
+import { useDeletePhoto, useMovePhoto, useSetPrimaryPhoto, useUploadPhoto } from '@/lib/queries';
 import { strings } from '@/lib/strings';
 
 /**
@@ -18,6 +18,11 @@ import { strings } from '@/lib/strings';
  *
  * A failed upload keeps the prepared picture, so retrying is one tap and not
  * another trip to the camera.
+ *
+ * The tiles are shown in the order the product carries them, and the first one
+ * is the picture on the card. Moving a photo is therefore the same act as
+ * promoting it, which is why the arrows and "Als Hauptbild" sit next to each
+ * other instead of in two different places.
  */
 
 interface PhotoManagerProps {
@@ -38,6 +43,7 @@ export function PhotoManager({ productId, photos, user }: PhotoManagerProps) {
   const upload = useUploadPhoto();
   const remove = useDeletePhoto();
   const setPrimary = useSetPrimaryPhoto();
+  const move = useMovePhoto();
 
   // An object URL is a reference the browser holds until it is told otherwise.
   useEffect(() => {
@@ -126,6 +132,36 @@ export function PhotoManager({ productId, photos, user }: PhotoManagerProps) {
               />
 
               <div className="photo-grid__actions">
+                {mayChange(photo) && (
+                  <span className="photo-grid__order">
+                    <button
+                      type="button"
+                      className="button button--quiet"
+                      onClick={() =>
+                        move.mutate({ photoId: photo.id, productId, position: index - 1 })
+                      }
+                      disabled={index === 0 || move.isPending}
+                      aria-label={strings.photo.moveUpFor(index + 1)}
+                      title={strings.photo.moveUp}
+                    >
+                      <ArrowUpIcon className="button__icon" />
+                    </button>
+
+                    <button
+                      type="button"
+                      className="button button--quiet"
+                      onClick={() =>
+                        move.mutate({ photoId: photo.id, productId, position: index + 1 })
+                      }
+                      disabled={index === photos.length - 1 || move.isPending}
+                      aria-label={strings.photo.moveDownFor(index + 1)}
+                      title={strings.photo.moveDown}
+                    >
+                      <ArrowDownIcon className="button__icon" />
+                    </button>
+                  </span>
+                )}
+
                 {photo.isPrimary ? (
                   <span className="badge badge--primary">
                     <CheckIcon className="badge__icon" />
@@ -161,8 +197,11 @@ export function PhotoManager({ productId, photos, user }: PhotoManagerProps) {
         </ul>
       )}
 
+      {photos.length > 1 && <p className="section__intro">{strings.photo.orderHint}</p>}
+
       {remove.error !== null && <ErrorNotice message={errorMessage(remove.error)} />}
       {setPrimary.error !== null && <ErrorNotice message={errorMessage(setPrimary.error)} />}
+      {move.error !== null && <ErrorNotice message={errorMessage(move.error)} />}
 
       <div className="photo-upload">
         <label className="button">

@@ -28,6 +28,13 @@ export const PRODUCT_LIST_MAX_LIMIT = 100;
  */
 export const PRODUCT_CATEGORY_SUGGESTION_LIMIT = 200;
 
+/**
+ * Upper bound on the entries `GET /api/v1/trash` returns. The trash is emptied
+ * on a schedule and holds the mistakes of a household; the limit only keeps a
+ * script that deleted a thousand products from turning the answer into a wait.
+ */
+export const TRASH_LIST_LIMIT = 200;
+
 /** Fields the product list can be sorted by. */
 export const PRODUCT_SORT_FIELDS = ['name', 'created', 'updated', 'rating'] as const;
 export type ProductSortField = (typeof PRODUCT_SORT_FIELDS)[number];

@@ -84,7 +84,45 @@ export interface Photo {
   mime: string;
   width: number;
   height: number;
+  /** Place in the gallery of its product, counted from zero and kept dense. */
+  position: number;
+  /** True for `position === 0`: the picture the product card shows. */
   isPrimary: boolean;
+  createdAt: string;
+}
+
+/**
+ * A rating as the product page shows it: the same fields plus the name of the
+ * account it belongs to.
+ *
+ * The catalogue is shared, so the verdicts of the household are what makes it
+ * useful — "should we buy this again" is rarely a question one person answers
+ * alone. Only the name travels, never anything else about the account.
+ */
+export interface ProductRating extends Rating {
+  /** `null` if the account behind the rating no longer exists. */
+  username: string | null;
+}
+
+/**
+ * One recorded price of a product: what it cost, where, and when.
+ *
+ * The amount is a whole number in the smallest unit of `currency`, never a
+ * decimal — the client formats it, nothing calculates with a floating point
+ * number on the way. The currency travels with the entry because it is what was
+ * paid, not what the instance is set to today.
+ */
+export interface Price {
+  id: string;
+  productId: string;
+  userId: string;
+  /** Name of the account that recorded it; `null` if that account is gone. */
+  username: string | null;
+  cents: number;
+  currency: string;
+  shop: string | null;
+  note: string | null;
+  purchasedAt: string;
   createdAt: string;
 }
 
@@ -108,8 +146,38 @@ export interface ProductWithRatings extends Product {
  * be paid for on each page.
  */
 export interface ProductDetail extends ProductWithRatings {
-  /** Primary photo first, oldest first after that. */
+  /** In the order the product carries them; the first one is the primary. */
   photos: Photo[];
+  /**
+   * Every rating of this product, the caller's own included, newest verdict
+   * first. The list stays out of the catalogue list on purpose: a card shows
+   * an average, and reading the ratings of every product would be paid for on
+   * each page.
+   */
+  allRatings: ProductRating[];
+  /**
+   * The recorded prices, most recent purchase first, at most
+   * `PRICE_LIST_LIMIT` of them. Like the ratings, this hangs off the single
+   * product and not off the list.
+   */
+  prices: Price[];
+}
+
+/**
+ * One product in the trash, as the administration area lists it.
+ *
+ * The counts say what would come back with a restore and what a purge would
+ * take along — the two numbers that make the decision, without loading the
+ * ratings and photos themselves.
+ */
+export interface TrashEntry {
+  product: Product;
+  deletedAt: string;
+  deletedBy: string | null;
+  /** Name of the account that deleted it; `null` if that account is gone. */
+  deletedByUsername: string | null;
+  ratings: number;
+  photos: number;
 }
 
 /**

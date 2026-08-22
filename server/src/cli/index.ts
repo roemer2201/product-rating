@@ -9,6 +9,7 @@ import { migrateCommand } from './migrate.js';
 import { UsageError } from './options.js';
 import { restoreCommand } from './restore.js';
 import { serveCommand } from './serve.js';
+import { exportCommand, importCommand } from './transfer.js';
 import { userCommand } from './users.js';
 
 /**
@@ -29,6 +30,8 @@ export const COMMANDS: readonly CliCommand[] = [
   inviteCommand,
   backupCommand,
   restoreCommand,
+  exportCommand,
+  importCommand,
   fsckCommand,
 ];
 

@@ -287,3 +287,35 @@ describe('backup, restore and fsck', () => {
     expect(result.err).toContain('app.db');
   });
 });
+
+describe('export and import', () => {
+  it('writes both formats and reads its own file back', async () => {
+    const target = join(directory, 'export');
+
+    const exported = await run(['export', '--to', target, '--format', 'both']);
+    expect(exported.code).toBe(0);
+    expect(exported.out).toBe(target);
+    expect(readFileSync(join(target, 'export.json'), 'utf8')).toContain('product-rating-export');
+    expect(readFileSync(join(target, 'products.csv'), 'utf8')).toContain('ean,name,brand');
+
+    // The same instance reads it back: everything is already here, so nothing
+    // is created and nothing is doubled.
+    const imported = await run(['import', '--from', target]);
+    expect(imported.code).toBe(0);
+    expect(imported.out).toContain('products: 0 new');
+  });
+
+  it('rejects a format it does not know', async () => {
+    const result = await run(['export', '--to', join(directory, 'nope'), '--format', 'xml']);
+
+    expect(result.code).toBe(2);
+    expect(result.err).toContain('--format');
+  });
+
+  it('says where an import file is missing instead of writing half of it', async () => {
+    const result = await run(['import', '--from', join(directory, 'not-there')]);
+
+    expect(result.code).toBe(1);
+    expect(result.err).toContain('export.json');
+  });
+});

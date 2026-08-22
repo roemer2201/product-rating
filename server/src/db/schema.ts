@@ -96,11 +96,20 @@ export const products = sqliteTable(
     updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
       .notNull()
       .$defaultFn(() => new Date()),
+    /**
+     * Set when a product goes into the trash. The row stays where it is, with
+     * its ratings and photos, so restoring is one statement — and the EAN
+     * stays claimed, which is what keeps a scan from silently creating a
+     * second product beside the one somebody just deleted.
+     */
+    deletedAt: integer('deleted_at', { mode: 'timestamp_ms' }),
+    deletedBy: text('deleted_by').references(() => users.id, { onDelete: 'set null' }),
   },
   (table) => [
     index('products_name_idx').on(table.name),
     index('products_brand_idx').on(table.brand),
     index('products_category_idx').on(table.category),
+    index('products_deleted_at_idx').on(table.deletedAt),
   ],
 );
 
@@ -143,12 +152,56 @@ export const photos = sqliteTable(
     mime: text('mime').notNull(),
     width: integer('width').notNull(),
     height: integer('height').notNull(),
-    isPrimary: integer('is_primary', { mode: 'boolean' }).notNull().default(false),
+    /**
+     * Place of the photo in the gallery of its product, counted from zero and
+     * kept dense. Position zero is the picture on the card, so "primary" is a
+     * consequence of the order instead of a second, separately stored truth
+     * that could disagree with it.
+     */
+    position: integer('position').notNull().default(0),
     createdAt: createdAt(),
   },
   (table) => [
     index('photos_product_id_idx').on(table.productId),
+    index('photos_product_position_idx').on(table.productId, table.position),
     index('photos_user_id_idx').on(table.userId),
+  ],
+);
+
+export const prices = sqliteTable(
+  'prices',
+  {
+    id: text('id').primaryKey(),
+    productId: text('product_id')
+      .notNull()
+      .references(() => products.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /**
+     * The amount in the smallest unit of the currency. Money is never a
+     * floating point number: 1.10 + 2.20 is not 3.30 in binary, and a price
+     * history that adds up wrongly is worse than none.
+     */
+    cents: integer('cents').notNull(),
+    /**
+     * Copied from `app.currency` when the entry is written, not read from the
+     * configuration afterwards: what was paid in a currency stays paid in that
+     * currency, even if the instance is switched over later.
+     */
+    currency: text('currency').notNull(),
+    /** Where it was bought. Free text — a household knows its own shops. */
+    shop: text('shop'),
+    note: text('note'),
+    /** The day of the purchase, which is rarely the day of the entry. */
+    purchasedAt: integer('purchased_at', { mode: 'timestamp_ms' }).notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index('prices_product_purchased_idx').on(table.productId, table.purchasedAt),
+    index('prices_user_id_idx').on(table.userId),
+    index('prices_shop_idx').on(table.shop),
+    check('prices_cents_positive', sql`${table.cents} >= 0`),
   ],
 );
 
@@ -164,3 +217,5 @@ export type RatingRow = typeof ratings.$inferSelect;
 export type NewRatingRow = typeof ratings.$inferInsert;
 export type PhotoRow = typeof photos.$inferSelect;
 export type NewPhotoRow = typeof photos.$inferInsert;
+export type PriceRow = typeof prices.$inferSelect;
+export type NewPriceRow = typeof prices.$inferInsert;

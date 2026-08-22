@@ -423,7 +423,7 @@ describe('what the catalogue does not allow', () => {
     expect(after.statusCode).toBe(401);
   });
 
-  it('lets the administrator remove the product with everything on it', async () => {
+  it('lets the administrator move the product to the trash and bring it back', async () => {
     const response = await harness.app.inject({
       method: 'DELETE',
       url: `/api/v1/products/${productId}`,
@@ -431,7 +431,60 @@ describe('what the catalogue does not allow', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({ ok: true, removedRatings: 2, removedPhotos: 1 });
+    expect(response.json()).toMatchObject({
+      ok: true,
+      trashed: true,
+      removedRatings: 2,
+      removedPhotos: 1,
+    });
+
+    // Out of the catalogue for everybody …
+    const hidden = await harness.app.inject({
+      method: 'GET',
+      url: `/api/v1/products/${productId}`,
+      headers: { cookie: annaCookie },
+    });
+    expect(hidden.statusCode).toBe(404);
+
+    // … but whole in the trash, ratings and photos included.
+    const trash = await harness.app.inject({
+      method: 'GET',
+      url: '/api/v1/trash',
+      headers: { cookie: adminCookie },
+    });
+    expect(trash.statusCode).toBe(200);
+    expect(trash.json().entries).toMatchObject([{ ratings: 2, photos: 1 }]);
+
+    const restored = await harness.app.inject({
+      method: 'POST',
+      url: `/api/v1/trash/${productId}/restore`,
+      headers: writeHeaders(adminCookie),
+    });
+    expect(restored.statusCode).toBe(200);
+
+    const back = await harness.app.inject({
+      method: 'GET',
+      url: `/api/v1/products/${productId}`,
+      headers: { cookie: annaCookie },
+    });
+    expect(back.statusCode).toBe(200);
+    expect(back.json().product.ratings).toMatchObject({ count: 2 });
+  });
+
+  it('removes the product for good once the trash is emptied', async () => {
+    await harness.app.inject({
+      method: 'DELETE',
+      url: `/api/v1/products/${productId}`,
+      headers: writeHeaders(adminCookie),
+    });
+
+    const purged = await harness.app.inject({
+      method: 'DELETE',
+      url: `/api/v1/trash/${productId}`,
+      headers: writeHeaders(adminCookie),
+    });
+    expect(purged.statusCode).toBe(200);
+    expect(purged.json()).toMatchObject({ ok: true, removedRatings: 2, removedPhotos: 1 });
 
     const gone = await harness.app.inject({
       method: 'GET',

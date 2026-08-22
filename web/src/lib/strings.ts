@@ -214,9 +214,9 @@ export const strings = {
     toExisting: 'Zum vorhandenen Produkt',
     deleteTitle: 'Produkt löschen',
     deleteWarning:
-      'Das Produkt wird mit allen Bewertungen und Fotos aller Nutzer entfernt. Das lässt sich nicht rückgängig machen.',
-    deleteConfirm: 'Endgültig löschen',
-    deleted: 'Das Produkt wurde gelöscht.',
+      'Das Produkt wandert mit allen Bewertungen und Fotos in den Papierkorb. Eine Administratorin oder ein Administrator kann es von dort zurückholen, bis der Papierkorb geleert wird.',
+    deleteConfirm: 'In den Papierkorb',
+    deleted: 'Das Produkt liegt im Papierkorb.',
     adminOnlyDelete: 'Produkte löschen dürfen nur Administratoren.',
     noBrand: 'Ohne Marke',
     noCategory: 'Ohne Kategorie',
@@ -241,10 +241,43 @@ export const strings = {
     empty: 'Noch kein Foto.',
     setPrimary: 'Als Hauptbild',
     isPrimary: 'Hauptbild',
+    moveUp: 'Nach vorn',
+    moveDown: 'Nach hinten',
+    moveUpFor: (index: number) => `Foto ${index} nach vorn schieben`,
+    moveDownFor: (index: number) => `Foto ${index} nach hinten schieben`,
+    orderHint: 'Das erste Foto ist das Hauptbild und steht auf den Kacheln im Katalog.',
     remove: 'Foto löschen',
     removed: 'Das Foto wurde gelöscht.',
     foreign: 'Fotos anderer Nutzer lassen sich nicht löschen.',
     alt: (index: number) => `Produktfoto ${index}`,
+  },
+
+  /* ---------------------------------------------------------------- prices */
+
+  price: {
+    title: 'Preise',
+    intro: 'Was hat es zuletzt gekostet, und wo?',
+    empty: 'Noch kein Preis erfasst.',
+    add: 'Preis erfassen',
+    adding: 'Wird gespeichert …',
+    amount: 'Preis',
+    amountHint: 'Zum Beispiel 1,99 – Komma oder Punkt, beides geht.',
+    amountInvalid: 'Bitte einen Betrag wie 1,99 eingeben.',
+    shop: 'Einkaufsort',
+    shopHint: 'Wo gekauft? Vorhandene Orte stehen zur Auswahl.',
+    shopList: 'Bereits verwendete Einkaufsorte',
+    noShop: 'Ohne Ort',
+    note: 'Notiz',
+    noteHint: 'Zum Beispiel „Angebot“ oder „500-g-Packung“.',
+    date: 'Einkaufsdatum',
+    dateHint: 'Standard ist heute; ein Kassenbon von letzter Woche darf zurückdatiert werden.',
+    lowest: 'Günstigster erfasster Preis',
+    latest: 'Zuletzt bezahlt',
+    remove: 'Preis löschen',
+    removeFor: (amount: string) => `Eintrag über ${amount} löschen`,
+    recordedBy: (username: string) => `erfasst von ${username}`,
+    unknownUser: 'Gelöschtes Konto',
+    capped: 'Es werden die 50 jüngsten Einträge gezeigt.',
   },
 
   /* --------------------------------------------------------------- ratings */
@@ -264,6 +297,14 @@ export const strings = {
     remove: 'Bewertung entfernen',
     removed: 'Deine Bewertung wurde entfernt.',
     zeroHint: 'Null Sterne sind ein Urteil – wer nicht bewerten will, lässt es leer.',
+
+    /* Die Bewertungen der anderen im Haushalt, auf der Produktseite. */
+    householdTitle: 'Bewertungen im Haushalt',
+    householdEmpty: 'Dieses Produkt hat noch niemand bewertet.',
+    householdOnlyYours: 'Bisher hast nur du bewertet.',
+    householdYou: 'Du',
+    householdUnknownUser: 'Gelöschtes Konto',
+    householdRatedAt: (date: string) => `Bewertet am ${date}`,
   },
 
   /* ------------------------------------------------------------- catalogue */
@@ -375,6 +416,19 @@ export const strings = {
     inviteStatusOpen: 'Offen',
     inviteStatusUsed: 'Eingelöst',
     inviteStatusExpired: 'Abgelaufen',
+
+    trashTitle: 'Papierkorb',
+    trashIntro:
+      'Gelöschte Produkte liegen hier, bis sie zurückgeholt oder endgültig entfernt werden.',
+    trashEmpty: 'Der Papierkorb ist leer.',
+    trashDeletedAt: (date: string) => `Gelöscht am ${date}`,
+    trashDeletedBy: (username: string) => `von ${username}`,
+    trashContents: (ratings: number, photos: number) =>
+      `${ratings === 1 ? '1 Bewertung' : `${ratings} Bewertungen`}, ` +
+      `${photos === 1 ? '1 Foto' : `${photos} Fotos`}`,
+    trashRestore: 'Zurückholen',
+    trashPurge: 'Endgültig löschen',
+    trashPurgeConfirm: 'Wirklich endgültig löschen?',
   },
 } as const;
 

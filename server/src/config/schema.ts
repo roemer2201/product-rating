@@ -106,6 +106,24 @@ const appSection = z
      * rejected until an implementation exists.
      */
     external_lookup: z.boolean().default(false),
+    /**
+     * Days a deleted product stays in the trash before it is removed for good.
+     * `0` keeps it until somebody empties the trash by hand — the honest
+     * setting for a household that would rather decide itself when a photo is
+     * gone.
+     */
+    trash_retention_days: z.int().min(0).max(3650).default(30),
+    /**
+     * Currency recorded prices are entered in, as an ISO 4217 code. It is
+     * copied into every new entry rather than read at display time, so a
+     * changed setting does not rewrite what was paid last year.
+     */
+    currency: z
+      .string()
+      .trim()
+      .toUpperCase()
+      .regex(/^[A-Z]{3}$/, 'must be a three letter ISO 4217 code such as EUR')
+      .default('EUR'),
   })
   .refine((value) => value.external_lookup === false, {
     message: 'external_lookup is not implemented; this application makes no outbound requests',

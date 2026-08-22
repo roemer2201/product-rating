@@ -33,3 +33,21 @@ export const mediaQuerySchema = z.object({
 });
 
 export type MediaQuery = z.infer<typeof mediaQuerySchema>;
+
+/**
+ * Highest position a photo can be moved to. The bound exists so a mistyped
+ * number cannot walk a photo past every gallery a household will ever have;
+ * the service clamps to the number of photos the product really carries.
+ */
+export const PHOTO_MAX_POSITION = 999;
+
+/**
+ * Body of `PUT /api/v1/photos/:id/position`: where in the gallery the photo
+ * goes. Zero is the front, and the front is what the product
+ * card shows — moving a photo there is the same act as promoting it.
+ */
+export const movePhotoSchema = z.object({
+  position: z.int().min(0).max(PHOTO_MAX_POSITION),
+});
+
+export type MovePhotoInput = z.infer<typeof movePhotoSchema>;

@@ -5,8 +5,11 @@ import type {
   CreateProductInput,
   CreateUserInput,
   Invite,
+  CreatePriceInput,
   LoginInput,
+  MovePhotoInput,
   Photo,
+  Price,
   PhotoSize,
   Product,
   ProductDetail,
@@ -20,6 +23,7 @@ import type {
   ResetPasswordInput,
   SessionInfo,
   SortOrder,
+  TrashEntry,
   UpdateProductInput,
   UpdateUserInput,
   UpsertRatingInput,
@@ -369,10 +373,27 @@ export const api = {
     update: (id: string, input: UpdateProductInput) =>
       request<{ product: Product }>(`/${path('products', id)}`, { method: 'PATCH', json: input }),
 
-    /** Administrators only; takes ratings, photos and their files with it. */
+    /**
+     * Administrators only; moves the product to the trash. Ratings, photos and
+     * the EAN stay with it until the trash is emptied.
+     */
     remove: (id: string) =>
-      request<{ ok: true; removedRatings: number; removedPhotos: number }>(
+      request<{ ok: true; trashed: true; removedRatings: number; removedPhotos: number }>(
         `/${path('products', id)}`,
+        { method: 'DELETE' },
+      ),
+  },
+
+  trash: {
+    list: () => request<{ entries: TrashEntry[] }>('/trash'),
+
+    restore: (id: string) =>
+      request<{ product: Product }>(`/${path('trash', id, 'restore')}`, { method: 'POST' }),
+
+    /** The only call that really removes a product, image files included. */
+    purge: (id: string) =>
+      request<{ ok: true; removedRatings: number; removedPhotos: number }>(
+        `/${path('trash', id)}`,
         { method: 'DELETE' },
       ),
   },
@@ -419,12 +440,32 @@ export const api = {
     setPrimary: (id: string) =>
       request<{ photo: Photo }>(`/${path('photos', id, 'primary')}`, { method: 'PUT' }),
 
+    /** Moves a photo inside the gallery; answers with the new order. */
+    move: (id: string, position: number) =>
+      request<{ photos: Photo[] }>(`/${path('photos', id, 'position')}`, {
+        method: 'PUT',
+        json: { position } satisfies MovePhotoInput,
+      }),
+
     /**
      * Source for an `<img>`. The route wants a session, which the browser
      * attaches by itself because the URL is same origin.
      */
     url: (id: string, size: PhotoSize = 'full') =>
       `${API_BASE}/${path('media', id)}${buildQuery({ size })}`,
+  },
+
+  prices: {
+    /** Shops that have been entered before, for the suggestion list. */
+    shops: () => request<{ shops: string[] }>('/prices/shops'),
+
+    add: (productId: string, input: CreatePriceInput) =>
+      request<{ price: Price }>(`/${path('products', productId, 'prices')}`, {
+        method: 'POST',
+        json: input,
+      }),
+
+    remove: (id: string) => request<{ ok: true }>(`/${path('prices', id)}`, { method: 'DELETE' }),
   },
 
   invites: {

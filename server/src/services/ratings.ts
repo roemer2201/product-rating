@@ -4,6 +4,7 @@ import type { SQLiteColumn } from 'drizzle-orm/sqlite-core';
 import {
   toRatingSummary,
   type MyRatingsQuery,
+  type ProductRating,
   type RatedProduct,
   type Rating,
   type RatingListPage,
@@ -12,7 +13,7 @@ import {
   type UpsertRatingInput,
 } from '@product-rating/shared';
 import type { DbHandle } from '../db/index.js';
-import { products, ratings, type RatingRow } from '../db/index.js';
+import { products, ratings, users, type RatingRow } from '../db/index.js';
 import { NotFoundError } from './errors.js';
 import {
   decodeCursor,
@@ -23,6 +24,7 @@ import {
 } from './pagination.js';
 import {
   findProductById,
+  notTrashed,
   ownRatings,
   selectProducts,
   toProductWithRatings,
@@ -71,6 +73,25 @@ export function ratingSummary(db: DbHandle, productId: string): RatingSummary {
     .get();
 
   return toRatingSummary(row?.average ?? null, row?.count ?? 0);
+}
+
+/**
+ * Every rating of one product, newest verdict first, with the name of the
+ * account behind it.
+ *
+ * Reading a shared catalogue means reading what the others thought of it. The
+ * name is all that is exposed — a household knows its members anyway, and
+ * anything more about an account is nobody else's business.
+ */
+export function listProductRatings(db: DbHandle, productId: string): ProductRating[] {
+  return db
+    .select({ rating: ratings, username: users.username })
+    .from(ratings)
+    .leftJoin(users, eq(users.id, ratings.userId))
+    .where(eq(ratings.productId, productId))
+    .orderBy(desc(ratings.updatedAt), asc(ratings.id))
+    .all()
+    .map((row) => ({ ...toPublicRating(row.rating), username: row.username }));
 }
 
 export interface RatingChange {
@@ -188,14 +209,17 @@ export function listOwnRatings(
   const order = query.order ?? defaultOrderFor(sort);
   const expression = sortExpression(sort);
 
+  // Joined against `products`, because a rating of a product in the trash is
+  // not part of this list either — the count has to say the same as the rows.
   const total =
     db
       .select({ value: sql<number>`count(*)` })
       .from(ratings)
-      .where(eq(ratings.userId, userId))
+      .innerJoin(products, eq(products.id, ratings.productId))
+      .where(and(eq(ratings.userId, userId), notTrashed))
       .get()?.value ?? 0;
 
-  const filters: SQL[] = [sql`${ownRatings.id} is not null`];
+  const filters: SQL[] = [sql`${ownRatings.id} is not null`, notTrashed];
   if (query.cursor !== undefined) {
     const cursor = decodeCursor(query.cursor, sort, order);
     filters.push(keysetCondition(expression, order, products.id, cursor));

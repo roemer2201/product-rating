@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { copyFile, mkdir, readdir, rename, rmdir, stat, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join, posix, relative, sep } from 'node:path';
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import sharp from 'sharp';
 import { PHOTO_FIELD, type Photo, type PhotoSize } from '@product-rating/shared';
 import type { AppConfig } from '../config/index.js';
@@ -265,7 +265,10 @@ export function toPublicPhoto(row: PhotoRow): Photo {
     mime: row.mime,
     width: row.width,
     height: row.height,
-    isPrimary: row.isPrimary,
+    position: row.position,
+    // Derived, never stored: the picture on the card is whichever photo comes
+    // first, so the two can never tell different stories.
+    isPrimary: row.position === 0,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -274,13 +277,18 @@ export function findPhotoById(db: DbHandle, id: string): PhotoRow | undefined {
   return db.select().from(photos).where(eq(photos.id, id)).get();
 }
 
-/** Photos of a product, primary first and oldest first after that. */
+/**
+ * Photos of a product in the order the product carries them.
+ *
+ * Position is the only criterion; the creation date and the identifier only
+ * break a tie that a half applied renumbering could leave behind.
+ */
 export function listProductPhotos(db: DbHandle, productId: string): PhotoRow[] {
   return db
     .select()
     .from(photos)
     .where(eq(photos.productId, productId))
-    .orderBy(desc(photos.isPrimary), asc(photos.createdAt), asc(photos.id))
+    .orderBy(asc(photos.position), asc(photos.createdAt), asc(photos.id))
     .all();
 }
 
@@ -341,9 +349,10 @@ export async function storePhoto(options: StorePhotoOptions): Promise<StoredPhot
     mime: PHOTO_MIME,
     width: image.width,
     height: image.height,
-    // The first photo of a product carries the product; later ones have to be
-    // promoted deliberately.
-    isPrimary: listProductPhotos(db, productId).length === 0,
+    // Appended at the end of the gallery. The first photo therefore lands on
+    // position zero and carries the product; later ones have to be moved
+    // forward deliberately.
+    position: listProductPhotos(db, productId).length,
     createdAt: now,
   };
 
@@ -380,39 +389,95 @@ export async function deletePhoto(
   if (row === undefined) throw new NotFoundError('photo not found');
   requireOwnership(row, user);
 
-  db.delete(photos).where(eq(photos.id, photoId)).run();
+  db.transaction((tx) => {
+    tx.delete(photos).where(eq(photos.id, photoId)).run();
+    // Closing the gap is what promotes the successor: the photo that moves to
+    // position zero is the one the card shows from now on, so a product never
+    // loses its picture.
+    renumber(tx, row.productId);
+  });
+
   const filesRemoved = await removePhotoFiles(config, [row]);
 
-  // No successor is promoted: the product query falls back to the oldest
-  // remaining photo on its own, so a product never loses its picture.
   return { photo: toPublicPhoto(row), filesRemoved };
+}
+
+/**
+ * Writes the positions of a product's photos back as 0, 1, 2 … in the order
+ * they currently have.
+ *
+ * Every change to the gallery ends here, so the positions stay dense and the
+ * first photo is always the one on position zero — a gap would leave a product
+ * without a primary photo even though it has pictures.
+ */
+function renumber(db: DbHandle, productId: string): PhotoRow[] {
+  const rows = listProductPhotos(db, productId);
+
+  rows.forEach((row, index) => {
+    if (row.position !== index) {
+      db.update(photos).set({ position: index }).where(eq(photos.id, row.id)).run();
+    }
+  });
+
+  return rows.map((row, index) => ({ ...row, position: index }));
+}
+
+/**
+ * Moves a photo to a place in the gallery of its product.
+ *
+ * The order is a property of the product, but a photo is not: rearranging one
+ * is the owner's business and the administrators', the same rule that governs
+ * deleting. A position beyond the end means "last" — the client counts tiles on
+ * a screen that may be a moment behind the server.
+ */
+export function movePhoto(
+  db: DbHandle,
+  user: { id: string; role: string },
+  photoId: string,
+  position: number,
+): Photo[] {
+  const row = findPhotoById(db, photoId);
+  if (row === undefined) throw new NotFoundError('photo not found');
+  requireOwnership(row, user);
+
+  return db.transaction((tx) => {
+    const current = listProductPhotos(tx, row.productId);
+    const from = current.findIndex((entry) => entry.id === photoId);
+    const to = Math.min(position, current.length - 1);
+
+    if (from >= 0 && from !== to) {
+      const reordered = [...current];
+      const [moved] = reordered.splice(from, 1);
+      if (moved !== undefined) reordered.splice(to, 0, moved);
+
+      // Out of the way first: the two writes below would otherwise collide on
+      // positions that are still taken by their old owners.
+      reordered.forEach((entry, index) => {
+        tx.update(photos).set({ position: index }).where(eq(photos.id, entry.id)).run();
+      });
+    }
+
+    return renumber(tx, row.productId).map(toPublicPhoto);
+  });
 }
 
 /**
  * Makes a photo the one shown on cards and in the list.
  *
- * "Primary" is a property of the product, not of an account, so promoting one
- * photo demotes the others. Both statements run in one transaction; a half
- * applied change would leave a product with two primary photos.
+ * Being primary is being first, so promoting a photo is moving it to the front
+ * of the gallery. Keeping the two as one act is what stops the card and the
+ * detail page from disagreeing about which picture belongs to the product.
  */
 export function setPrimaryPhoto(
   db: DbHandle,
   user: { id: string; role: string },
   photoId: string,
 ): Photo {
-  const row = findPhotoById(db, photoId);
-  if (row === undefined) throw new NotFoundError('photo not found');
-  requireOwnership(row, user);
+  const gallery = movePhoto(db, user, photoId, 0);
 
-  db.transaction((tx) => {
-    tx.update(photos)
-      .set({ isPrimary: false })
-      .where(and(eq(photos.productId, row.productId), eq(photos.isPrimary, true)))
-      .run();
-    tx.update(photos).set({ isPrimary: true }).where(eq(photos.id, photoId)).run();
-  });
-
-  return toPublicPhoto({ ...row, isPrimary: true });
+  const promoted = gallery.find((entry) => entry.id === photoId);
+  if (promoted === undefined) throw new NotFoundError('photo not found');
+  return promoted;
 }
 
 /* ------------------------------------------------------------------ fsck */

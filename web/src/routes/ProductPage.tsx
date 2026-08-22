@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { updateProductSchema } from '@product-rating/shared';
 import { ErrorNotice, ErrorScreen, SkeletonBlock } from '@/components/Feedback';
 import { PhotoManager } from '@/components/PhotoManager';
+import { PriceHistory } from '@/components/PriceHistory';
 import { ProductForm, type ProductFormValues } from '@/components/ProductForm';
 import { RatingEditor } from '@/components/RatingEditor';
 import { StarDisplay } from '@/components/StarRating';
@@ -15,11 +16,12 @@ import { strings } from '@/lib/strings';
 /**
  * One product: picture, verdicts, and the two ways to change it.
  *
- * The screen shows three different things that all look like "the rating": the
- * caller's own stars, the household average, and how many people voted. Keeping
- * them apart visually matters more here than anywhere else in the app — the
- * average is the answer to "should we buy this again", the own rating is the
- * only thing this device may change.
+ * The screen shows four different things that all look like "the rating": the
+ * caller's own stars, the household average, how many people voted, and what
+ * each of them thought. Keeping them apart visually matters more here than
+ * anywhere else in the app — the average is the answer to "should we buy this
+ * again", the list underneath says why, and the own rating is the only thing
+ * this device may change.
  *
  * Correcting the product data is open to everyone, because the catalogue is
  * shared and a typo at the shelf should not need an administrator. Deleting is
@@ -174,6 +176,46 @@ export function ProductPage() {
         productId={detail.id}
         rating={detail.ownRating}
       />
+
+      <section className="section">
+        <h2 className="section__title">{strings.rating.householdTitle}</h2>
+
+        {detail.allRatings.length === 0 ? (
+          <p className="section__intro">{strings.rating.householdEmpty}</p>
+        ) : (
+          <>
+            {detail.allRatings.length === 1 && detail.allRatings[0]?.userId === user?.id && (
+              <p className="section__intro">{strings.rating.householdOnlyYours}</p>
+            )}
+
+            <ul className="verdict-list">
+              {detail.allRatings.map((entry) => (
+                <li className="verdict" key={`${entry.userId}-${entry.updatedAt}`}>
+                  <div className="verdict__head">
+                    <span className="verdict__name">
+                      {entry.username ?? strings.rating.householdUnknownUser}
+                      {entry.userId === user?.id && (
+                        <span className="badge">{strings.rating.householdYou}</span>
+                      )}
+                    </span>
+                    <StarDisplay stars={entry.stars} />
+                  </div>
+
+                  {entry.comment !== null && <p className="verdict__comment">{entry.comment}</p>}
+
+                  <p className="verdict__meta">
+                    {strings.rating.householdRatedAt(formatDate(entry.updatedAt))}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </section>
+
+      {user !== null && user !== undefined && (
+        <PriceHistory productId={detail.id} prices={detail.prices} user={user} />
+      )}
 
       {user !== null && user !== undefined && (
         <PhotoManager productId={detail.id} photos={detail.photos} user={user} />

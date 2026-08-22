@@ -13,10 +13,12 @@ import {
 import type {
   ChangePasswordInput,
   CreateInviteInput,
+  CreatePriceInput,
   CreateProductInput,
   Invite,
   LoginInput,
   Photo,
+  Price,
   Product,
   ProductDetail,
   ProductListPage,
@@ -26,6 +28,7 @@ import type {
   RegisterInput,
   ResetPasswordInput,
   SessionInfo,
+  TrashEntry,
   UpdateProductInput,
   UpdateUserInput,
   UpsertRatingInput,
@@ -89,6 +92,8 @@ export const queryKeys = {
     all: ['ratings'] as const,
     mine: (params: MyRatingsParams) => ['ratings', 'mine', params] as const,
   },
+  shops: ['shops'] as const,
+  trash: ['trash'] as const,
   invites: ['invites'] as const,
   users: ['users'] as const,
 };
@@ -302,6 +307,7 @@ export function useUpdateProduct(
   });
 }
 
+/** Moves a product to the trash; an administrator can bring it back from there. */
 export function useDeleteProduct(): UseMutationResult<void, Error, string> {
   const client = useQueryClient();
 
@@ -313,6 +319,46 @@ export function useDeleteProduct(): UseMutationResult<void, Error, string> {
       client.removeQueries({ queryKey: queryKeys.products.byId(id) });
       void client.invalidateQueries({ queryKey: queryKeys.products.all });
       void client.invalidateQueries({ queryKey: queryKeys.ratings.all });
+      void client.invalidateQueries({ queryKey: queryKeys.trash });
+    },
+  });
+}
+
+/* ----------------------------------------------------------------- trash */
+
+export function useTrash(): UseQueryResult<TrashEntry[], Error> {
+  return useQuery({
+    queryKey: queryKeys.trash,
+    queryFn: async () => (await api.trash.list()).entries,
+    staleTime: CACHE_TIMES.admin,
+  });
+}
+
+export function useRestoreProduct(): UseMutationResult<void, Error, string> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.trash.restore(id);
+    },
+    onSuccess: () => {
+      // The product is part of the catalogue again, with everything on it.
+      void client.invalidateQueries({ queryKey: queryKeys.products.all });
+      void client.invalidateQueries({ queryKey: queryKeys.ratings.all });
+      void client.invalidateQueries({ queryKey: queryKeys.trash });
+    },
+  });
+}
+
+export function usePurgeProduct(): UseMutationResult<void, Error, string> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.trash.purge(id);
+    },
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.trash });
     },
   });
 }
@@ -342,6 +388,10 @@ export function useUpsertRating(): UseMutationResult<
           ? current
           : { ...current, ownRating: result.rating, ratings: result.ratings },
       );
+      // The patch above is what the screen shows immediately. The
+      // invalidation below covers the detail query too — its key starts with
+      // `products` — and that is what brings the household's verdicts up to
+      // date, which this answer does not carry.
       void client.invalidateQueries({ queryKey: queryKeys.products.all });
       void client.invalidateQueries({ queryKey: queryKeys.ratings.all });
     },
@@ -424,6 +474,30 @@ export function useDeletePhoto(): UseMutationResult<void, Error, PhotoVariables>
   });
 }
 
+export interface MovePhotoVariables extends PhotoVariables {
+  position: number;
+}
+
+/**
+ * Moves a photo inside the gallery. The answer is the whole new order, but the
+ * detail query is refetched rather than patched: the gallery is small, and a
+ * second device may have added a photo in the meantime.
+ */
+export function useMovePhoto(): UseMutationResult<Photo[], Error, MovePhotoVariables> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ photoId, position }: MovePhotoVariables) =>
+      (await api.photos.move(photoId, position)).photos,
+    onSuccess: (_photos, { productId }) => {
+      void client.invalidateQueries({ queryKey: queryKeys.products.byId(productId) });
+      // Position zero is the picture on the card, so the lists move with it.
+      void client.invalidateQueries({ queryKey: queryKeys.products.all });
+      void client.invalidateQueries({ queryKey: queryKeys.ratings.all });
+    },
+  });
+}
+
 export function useSetPrimaryPhoto(): UseMutationResult<Photo, Error, PhotoVariables> {
   const client = useQueryClient();
 
@@ -433,6 +507,54 @@ export function useSetPrimaryPhoto(): UseMutationResult<Photo, Error, PhotoVaria
       void client.invalidateQueries({ queryKey: queryKeys.products.byId(productId) });
       void client.invalidateQueries({ queryKey: queryKeys.products.all });
       void client.invalidateQueries({ queryKey: queryKeys.ratings.all });
+    },
+  });
+}
+
+/* ----------------------------------------------------------------- prices */
+
+/** The shops entered before, for the suggestion list of the price form. */
+export function useShops(): UseQueryResult<string[], Error> {
+  return useQuery({
+    queryKey: queryKeys.shops,
+    queryFn: async () => (await api.prices.shops()).shops,
+    // Suggestions may lag a little; a shop entered elsewhere is not urgent.
+    staleTime: CACHE_TIMES.own,
+  });
+}
+
+export interface AddPriceVariables {
+  productId: string;
+  input: CreatePriceInput;
+}
+
+export function useAddPrice(): UseMutationResult<Price, Error, AddPriceVariables> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ productId, input }: AddPriceVariables) =>
+      (await api.prices.add(productId, input)).price,
+    onSuccess: (_price, { productId }) => {
+      void client.invalidateQueries({ queryKey: queryKeys.products.byId(productId) });
+      void client.invalidateQueries({ queryKey: queryKeys.shops });
+    },
+  });
+}
+
+export interface DeletePriceVariables {
+  priceId: string;
+  productId: string;
+}
+
+export function useDeletePrice(): UseMutationResult<void, Error, DeletePriceVariables> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ priceId }: DeletePriceVariables) => {
+      await api.prices.remove(priceId);
+    },
+    onSuccess: (_result, { productId }) => {
+      void client.invalidateQueries({ queryKey: queryKeys.products.byId(productId) });
     },
   });
 }

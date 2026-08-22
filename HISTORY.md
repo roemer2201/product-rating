@@ -5,6 +5,220 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-22 – Backlog: Preisverlauf und Einkaufsort
+
+**Umfang**
+
+- **Export und Import nehmen die Preise mit** (`prices` im JSON, `prices.csv`
+  daneben). Wiedererkannt wird ein Eintrag an Konto, Einkaufstag und Betrag,
+  damit derselbe Import zweimal nichts verdoppelt.
+
+- **Tabelle `prices`** (Migration `0004_product_prices.sql`): Betrag in der
+  kleinsten Währungseinheit, Währung, Einkaufsort, Notiz, Einkaufsdatum, dazu
+  Indizes auf (`product_id`, `purchased_at`), `user_id` und `shop` sowie ein
+  CHECK gegen negative Beträge.
+- **Routen** (README 4.3): `POST /api/v1/products/:id/prices`,
+  `DELETE /api/v1/prices/:id`, `GET /api/v1/prices/shops`. Gelesen wird der
+  Verlauf über die Produkt-Detailabfrage (`ProductDetail.prices`, jüngster
+  Einkauf zuerst, höchstens 50 Einträge).
+- **Konfiguration** `app.currency` (Standard `EUR`).
+- **Oberfläche**: Abschnitt „Preise“ auf der Produktseite mit dem zuletzt
+  bezahlten und dem günstigsten Preis obendrüber, der Liste darunter und einem
+  Formular mit Vorschlagsliste für den Einkaufsort. `web/src/lib/money.ts`
+  rechnet Eingaben in Cent um (Komma wie Punkt) und formatiert über `Intl`
+  zurück.
+
+**Entscheidungen**
+
+- *Ganze Zahlen, keine Dezimalzahlen.* 1,10 + 2,20 ergibt binär nicht 3,30 – ein
+  Preisverlauf, der sich verrechnet, ist schlimmer als keiner. Auf der Leitung
+  stehen Cent, gerechnet wird nirgends mit Gleitkomma.
+- *Die Währung steht am Eintrag, nicht nur in der Konfiguration.* Bezahlt ist
+  bezahlt; eine spätere Umstellung der Instanz schreibt die Vergangenheit nicht
+  um.
+- *Erfassen darf jedes Konto, löschen nur der Eigentümer* (und Administratoren)
+  – dieselbe Aufteilung wie bei Fotos: die Tatsache gehört dem Haushalt, der
+  Eintrag dem, der ihn geschrieben hat.
+- *Keine eigene Leseroute.* Ein Preis ist nur neben seinem Produkt interessant,
+  also hängt die Liste wie Fotos und Bewertungen an der Einzelabfrage – und
+  bleibt aus der Katalogliste heraus.
+- *Ein reines Datum wird als Mittag UTC gelesen*, damit der eingetippte Tag in
+  jeder Zeitzone der eingetippte Tag bleibt. Zukunft ist ausgeschlossen, mit
+  einem Tag Toleranz für schnell gehende Uhren.
+
+## 2026-08-22 – Backlog: Volltextsuche über FTS5
+
+**Umfang**
+
+- **`products_fts`** (Migration `0003_product_search.sql`): FTS5-Tabelle über
+  Name, Marke und EAN mit dem Tokenizer `trigram remove_diacritics 1`, gefüllt
+  aus dem vorhandenen Katalog und von drei Triggern auf `products` aktuell
+  gehalten (INSERT, UPDATE, DELETE).
+- **`searchCondition()`** fragt sie über
+  `products.id in (select product_id from products_fts where products_fts match ?)`
+  ab. Jedes Wort wird gequotet, mehrere Wörter verbindet FTS5 mit UND.
+- **`LIKE` bleibt als Rückfallweg** für Wörter mit weniger als drei Zeichen –
+  kürzer als ein Trigramm, davon weiß der Index nichts. Das Ergebnis ist in
+  beiden Wegen exakt.
+- **Tests:** Wort im Kompositum („flocken“ → Haferflocken), Umlaute, Barcode
+  von hinten, zwei Wörter als Einschränkung, kurzer Begriff über `LIKE`,
+  Sonderzeichen als Text, und dass Umbenennen und Papierkorb im Index ankommen.
+
+**Entscheidungen**
+
+- *Trigramme statt Wörtern.* Ein wortbasierter Index findet „Apfelsaft“ nicht,
+  wenn jemand „saft“ tippt – im Deutschen ist genau das der Normalfall. Der
+  Trigramm-Tokenizer beantwortet Teilwortsuchen aus dem Index, was der bisherige
+  `LIKE`-Durchlauf nur mit einem Tabellenscan konnte.
+- *Eine eigene Tabelle mit `product_id`, keine External-Content-Tabelle.* Der
+  Text steht damit zweimal in der Datenbank (bei ein paar hunderttausend kurzen
+  Zeilen kein Thema), dafür sind die Trigger drei triviale Anweisungen und die
+  Abfrage braucht keinen `rowid`-Verbund.
+- *Der Suchbegriff wird immer gequotet.* Unquotiert liest FTS5 `bio-hof` als
+  Spaltennamen und die Anfrage scheitert; Nutzereingabe ist Text, keine Syntax.
+- *Diakritika werden gefaltet.* „musli“ findet „Müsli“ – auf einer
+  Telefontastatur am Regal ist das die freundlichere Regel.
+- README 4.1 hält die alte Begründung für `LIKE` nicht mehr fest, sondern
+  beschreibt den neuen Weg samt Grenze bei zwei Zeichen.
+
+## 2026-08-22 – Backlog: fremde Bewertungen sichtbar machen
+
+**Umfang**
+
+- **`ProductDetail.allRatings`**: `GET /api/v1/products/:id` (und
+  `…/by-ean/:ean`) liefert jede Bewertung des Produkts – die eigene
+  eingeschlossen –, mit Sternen, Kommentar, Datum und Benutzernamen, jüngstes
+  Urteil zuerst (`listProductRatings()` in `services/ratings.ts`).
+- **Produktseite** zeigt darunter den Abschnitt „Bewertungen im Haushalt“; der
+  eigene Eintrag trägt die Kennzeichnung „Du“, ein gelöschtes Konto steht als
+  „Gelöschtes Konto“ da.
+- **Nach dem Speichern der eigenen Bewertung** wird die Detailabfrage neu
+  geholt: die Antwort der Schreibroute trägt Durchschnitt und eigene Bewertung,
+  aber nicht die Liste der anderen.
+
+**Entscheidungen**
+
+- *Nur der Benutzername verlässt das Konto.* Ein Haushalt kennt sich; alles
+  Weitere über ein Konto geht die anderen nichts an.
+- *Die Liste bleibt aus dem Katalog heraus.* Eine Kachel zeigt eine Zahl – die
+  Bewertungen jedes Produkts mitzulesen wäre auf jeder Listenseite zu bezahlen.
+  Sie hängt deshalb an der Einzelabfrage, wie die Fotos.
+- *Die eigene Bewertung steht doppelt in der Antwort* (`ownRating` und in
+  `allRatings`). Die Liste ist damit vollständig lesbar, ohne dass die Seite
+  zwei Quellen zusammensetzen muss, und `ownRating` bleibt die eine Stelle, die
+  der Editor kennt.
+- *Nichts wird schreibbar.* Die Routen adressieren weiterhin nur „meine
+  Bewertung dieses Produkts“ – eine fremde lässt sich gar nicht erst ansprechen.
+
+## 2026-08-22 – Backlog: Export nach JSON und CSV, Import zum Umzug
+
+**Umfang**
+
+- **`server/src/services/transfer.ts`** mit `exportCatalogue()` und
+  `importCatalogue()`, dazu die Befehle `product-rating export --to <dir>` und
+  `product-rating import --from <dir>` (README 8.3).
+- **Export** schreibt `export.json` (die Form, die der Import liest),
+  `products.csv` und `ratings.csv` (RFC 4180 mit Byte Order Mark) und mit
+  `--with-photos` die Detailbilder nach `photos/`. `--include-trash` nimmt den
+  Papierkorb mit, sonst bleibt er außen vor.
+- **Import** führt zusammen, statt zu ersetzen: vorhandene Produkte bleiben,
+  wie sie sind (`--update` schreibt drüber und holt sie aus dem Papierkorb),
+  vorhandene Bewertungen werden nie überschrieben, Fotos werden an Konto und
+  Aufnahmezeitpunkt wiedererkannt. `--dry-run` prüft nur.
+- **Tests:** Rundlauf zwischen zwei Wegwerf-Instanzen (Export → Import →
+  Bewertungen und Fotos sind drüben), doppelter Import, fremdes Dateiformat,
+  unbekanntes Konto mit und ohne `--owner`, dazu drei CLI-Fälle.
+
+**Entscheidungen**
+
+- *Konten sind nicht Teil eines Exports.* Eine Datei mit Passwort-Hashes wäre
+  ein Satz Zugangsdaten. Bewertungen und Fotos nennen ihr Konto über den
+  Benutzernamen; die Zuordnung passiert beim Import.
+- *Ein unbekannter Benutzername bricht ab, bevor etwas geschrieben ist.* Alle
+  Namen werden zuerst aufgelöst – ein halb eingelesener Import ist das eine
+  Ergebnis, das niemand von Hand aufräumen kann. `--owner` übernimmt solche
+  Einträge bewusst.
+- *Bilder laufen durch `storePhoto()`.* Der Umweg kostet eine erneute
+  Kodierung, dafür kommt keine fremde Datei ungeprüft auf die Platte, und das
+  Thumbnail entsteht wie bei jedem Upload.
+- *CSV ist Ausgabeformat, JSON die Austauschform.* Eine CSV-Datei kann
+  Bewertungen und Fotos eines Produkts nicht ohne Verrenkungen tragen; wer
+  Tabellen will, bekommt zwei flache Dateien.
+- *Abgrenzung zu `backup`.* README 8.3 stellt beide gegenüber, damit niemand
+  einen Export für eine Sicherung hält.
+
+## 2026-08-22 – Backlog: Papierkorb statt endgültigem Löschen
+
+**Umfang**
+
+- **`products.deleted_at` / `products.deleted_by`** (Migration
+  `0002_product_trash.sql`, Index auf `deleted_at`). `DELETE
+  /api/v1/products/:id` setzt beide, statt zu löschen; Bewertungen, Fotos und
+  Bilddateien bleiben unangetastet liegen.
+- **Jede lesende Abfrage filtert:** Katalog, Suche, Einzelabruf, EAN-Suche,
+  Kategorievorschläge und „Meine Bewertungen“ (samt `total`) sehen ein Produkt
+  im Papierkorb nicht mehr. Auch Bewerten, Ändern und Foto-Upload finden es
+  nicht – `findProductById()` blendet es aus.
+- **Drei Routen für Administratoren:** `GET /api/v1/trash`,
+  `POST /api/v1/trash/:id/restore`, `DELETE /api/v1/trash/:id`. Nur die letzte
+  löscht wirklich und räumt die Bilddateien ab.
+- **`app.trash_retention_days`** (Standard 30, `0` = nie): Beim Start und
+  danach täglich – auf demselben Timer wie das Aufräumen der Sitzungen – wird
+  geleert, was länger als die Aufbewahrungsfrist im Papierkorb liegt.
+- **Verwaltung** bekommt einen Abschnitt „Papierkorb“ mit Zurückholen und
+  endgültigem Löschen (zwei Klicks). Auf der Produktseite heißt die Schaltfläche
+  jetzt „In den Papierkorb“.
+
+**Entscheidungen**
+
+- *Ein Filter statt einer zweiten Tabelle.* Wiederherstellen ist damit ein
+  einziges `UPDATE`, und die EAN bleibt belegt – ein zweiter Scan legt kein
+  Duplikat neben das gerade gelöschte Produkt.
+- *Eine belegte EAN aus dem Papierkorb holt das Produkt zurück.* Ein `409` wäre
+  eine Sackgasse: Löschen und Papierkorb gehören Administratoren, das Konto am
+  Regal käme also nicht weiter. Die neu eingegebenen Daten gewinnen, Bewertungen
+  und Fotos kommen mit; die Antwort sagt es über `restored`.
+- *Bilder bleiben abrufbar, solange das Produkt im Papierkorb liegt.* Sie sind
+  ohnehin nur mit Sitzung und bekannter ID erreichbar, und ein Produkt soll
+  vollständig zurückkommen.
+- *Endgültiges Löschen setzt den Papierkorb voraus.* `DELETE /api/v1/trash/:id`
+  weigert sich bei einem Produkt, das noch im Katalog steht – sonst wäre der
+  Papierkorb ein Vorschlag und kein Netz.
+
+## 2026-08-22 – Backlog: Fotoreihenfolge je Produkt
+
+**Umfang**
+
+- **`photos.position`** ersetzt `photos.is_primary` (Migration
+  `0001_photo_order.sql`, Index `photos_product_position_idx`). Die Position
+  zählt von null an und bleibt lückenlos; jede Änderung an der Galerie läuft
+  über eine Umnummerierung in derselben Transaktion.
+- **Hauptbild ist abgeleitet:** `Photo.isPrimary` ist `position === 0`. Damit
+  gibt es keine zweite, getrennt gespeicherte Wahrheit mehr, die der
+  Reihenfolge widersprechen könnte – Kachel im Katalog und erste Kachel auf der
+  Detailseite sind zwangsläufig dasselbe Bild.
+- **`PUT /api/v1/photos/:id/position`** verschiebt ein Foto und antwortet mit
+  der neuen Reihenfolge des ganzen Produkts. Eine Position hinter dem Ende
+  bedeutet „ans Ende“, weil der Client Kacheln auf einem möglicherweise
+  veralteten Stand zählt. `PUT …/primary` ist seitdem die Kurzform für
+  Position 0.
+- **Oberfläche:** zwei Pfeile je Kachel (`PhotoManager`), sichtbar für die
+  Fotos, die das Konto ändern darf, plus ein Hinweis, dass das erste Foto das
+  Hauptbild ist.
+
+**Entscheidungen**
+
+- *Verschieben gehört dem Eigentümer, nicht jedem Konto.* Die Reihenfolge ist
+  zwar eine Eigenschaft des Produkts, das einzelne Bild aber nicht – deshalb
+  gilt für `position` dieselbe Regel wie fürs Löschen (Eigentümer oder
+  Administrator), statt eine zweite Zuständigkeit einzuführen.
+- *Eine Route je Foto statt einer Liste aller IDs.* Ein Aufruf `{ position }`
+  ist genau das, was ein Pfeil auslöst; eine vollständige Reihenfolge im Körper
+  müsste gegen den Serverstand geprüft werden und wäre bei zwei Telefonen im
+  Haushalt die fehleranfälligere Form.
+- *Beim Löschen wird umnummeriert, nicht nachgerückt.* Eine Lücke auf Position
+  null hieße: Produkt mit Fotos, aber ohne Hauptbild.
+
 ## 2026-08-17 – M14: Qualitätssicherung und Release
 
 **Umfang**

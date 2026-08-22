@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq, isNotNull, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import { alias, type SQLiteColumn } from 'drizzle-orm/sqlite-core';
 import {
   PRODUCT_CATEGORY_SUGGESTION_LIMIT,
+  TRASH_LIST_LIMIT,
   toRatingSummary,
   type CreateProductInput,
   type Product,
@@ -11,6 +12,7 @@ import {
   type ProductSortField,
   type ProductWithRatings,
   type Rating,
+  type TrashEntry,
   type UpdateProductInput,
 } from '@product-rating/shared';
 import type { DbHandle } from '../db/index.js';
@@ -19,6 +21,7 @@ import {
   photos,
   products,
   ratings,
+  users,
   type PhotoRow,
   type ProductRow,
   type RatingRow,
@@ -43,6 +46,11 @@ import {
  * Reading always happens from one caller's point of view — their own rating,
  * the overall average and the number of ratings come along with every product,
  * so the list view needs no second round trip.
+ *
+ * Deleting is two steps. `DELETE` puts a product into the trash: the row keeps
+ * its ratings, its photos and above all its EAN, and every reading query simply
+ * stops seeing it. Only emptying the trash — by hand or after
+ * `app.trash_retention_days` — takes the rows and the image files with it.
  */
 
 /**
@@ -72,13 +80,21 @@ const ratingCountExpression = sql<number>`(
   select count(*) from ${ratings} where ${ratings.productId} = ${products.id}
 )`;
 
-/** The photo marked as primary, falling back to the oldest one. */
+/** The first photo of the gallery; that is what "primary" means. */
 const primaryPhotoExpression = sql<string | null>`(
   select ${photos.id} from ${photos}
   where ${photos.productId} = ${products.id}
-  order by ${photos.isPrimary} desc, ${photos.createdAt} asc
+  order by ${photos.position} asc, ${photos.createdAt} asc
   limit 1
 )`;
+
+/**
+ * The condition every reading query carries: a product in the trash is not part
+ * of the catalogue. It is a filter rather than a second table, because that is
+ * what makes restoring a single `UPDATE` and keeps the EAN claimed while the
+ * product is gone.
+ */
+export const notTrashed = isNull(products.deletedAt);
 
 /** Average of an unrated product, used where SQL cannot sort or compare NULL. */
 const UNRATED_SORT_VALUE = -1;
@@ -142,24 +158,46 @@ export function selectProducts(db: DbHandle, userId: string) {
     );
 }
 
+/**
+ * A product of the catalogue. Rows in the trash stay out of reach here: nothing
+ * that edits, rates or photographs a product may find one that was deleted.
+ */
 export function findProductById(db: DbHandle, id: string): ProductRow | undefined {
+  return db
+    .select()
+    .from(products)
+    .where(and(eq(products.id, id), notTrashed))
+    .get();
+}
+
+/** The same by identifier, but including the trash — used by the trash routes. */
+export function findAnyProductById(db: DbHandle, id: string): ProductRow | undefined {
   return db.select().from(products).where(eq(products.id, id)).get();
 }
 
+/**
+ * Looks an EAN up across the whole table, trash included: the unique index does
+ * not care whether a product is deleted, so a caller claiming an EAN has to see
+ * the row that holds it.
+ */
 export function findProductByEan(db: DbHandle, ean: string): ProductRow | undefined {
   return db.select().from(products).where(eq(products.ean, ean)).get();
 }
 
 /** One product from the caller's point of view. */
 export function getProduct(db: DbHandle, userId: string, id: string): ProductWithRatings {
-  const row = selectProducts(db, userId).where(eq(products.id, id)).get();
+  const row = selectProducts(db, userId)
+    .where(and(eq(products.id, id), notTrashed))
+    .get();
   if (row === undefined) throw new NotFoundError('product not found');
   return toProductWithRatings(row);
 }
 
 /** Lookup after a scan. The EAN is expected in its normalised form. */
 export function getProductByEan(db: DbHandle, userId: string, ean: string): ProductWithRatings {
-  const row = selectProducts(db, userId).where(eq(products.ean, ean)).get();
+  const row = selectProducts(db, userId)
+    .where(and(eq(products.ean, ean), notTrashed))
+    .get();
   if (row === undefined) throw new NotFoundError('no product with this EAN', { ean });
   return toProductWithRatings(row);
 }
@@ -182,7 +220,7 @@ export function listCategories(db: DbHandle): string[] {
   return db
     .selectDistinct({ category: products.category })
     .from(products)
-    .where(isNotNull(products.category))
+    .where(and(isNotNull(products.category), notTrashed))
     .all()
     .map((row) => row.category)
     .filter((category): category is string => category !== null && category !== '')
@@ -190,19 +228,34 @@ export function listCategories(db: DbHandle): string[] {
     .slice(0, PRODUCT_CATEGORY_SUGGESTION_LIMIT);
 }
 
+export interface CreatedProduct {
+  product: Product;
+  /** True when the EAN was in the trash and the product came back with it. */
+  restored: boolean;
+}
+
 /**
  * Adds a product to the shared catalogue.
  *
  * A taken EAN is a conflict, not a failure: the response carries the existing
  * product so the client can go there directly.
+ *
+ * An EAN that is in the trash is a third case. Refusing it would be a dead end
+ * — the scanner cannot create the product, and the account in front of it may
+ * not even see the trash — so the deleted product comes back and takes the
+ * submitted data as a correction. Ratings and photos return with it, which is
+ * the outcome somebody scanning the article again is after.
  */
 export function createProduct(
   db: DbHandle,
   userId: string,
   input: CreateProductInput,
   now: Date = new Date(),
-): Product {
+): CreatedProduct {
   const existing = findProductByEan(db, input.ean);
+  if (existing !== undefined && existing.deletedAt !== null) {
+    return { product: restoreWithData(db, existing, input, now), restored: true };
+  }
   if (existing !== undefined) throw eanConflict(existing);
 
   const row: ProductRow = {
@@ -215,6 +268,8 @@ export function createProduct(
     createdBy: userId,
     createdAt: now,
     updatedAt: now,
+    deletedAt: null,
+    deletedBy: null,
   };
 
   try {
@@ -223,10 +278,47 @@ export function createProduct(
     // Two clients scanning the same new product at the same time.
     if (String(error).includes('UNIQUE')) {
       const claimed = findProductByEan(db, input.ean);
+      if (claimed !== undefined && claimed.deletedAt !== null) {
+        return { product: restoreWithData(db, claimed, input, now), restored: true };
+      }
       if (claimed !== undefined) throw eanConflict(claimed);
     }
     throw error;
   }
+
+  return { product: toPublicProduct(row), restored: false };
+}
+
+/** Brings a trashed product back and writes the freshly entered data over it. */
+function restoreWithData(
+  db: DbHandle,
+  existing: ProductRow,
+  input: CreateProductInput,
+  now: Date,
+): Product {
+  const row: ProductRow = {
+    ...existing,
+    name: input.name,
+    brand: input.brand,
+    category: input.category,
+    notes: input.notes,
+    updatedAt: now,
+    deletedAt: null,
+    deletedBy: null,
+  };
+
+  db.update(products)
+    .set({
+      name: row.name,
+      brand: row.brand,
+      category: row.category,
+      notes: row.notes,
+      updatedAt: row.updatedAt,
+      deletedAt: null,
+      deletedBy: null,
+    })
+    .where(eq(products.id, existing.id))
+    .run();
 
   return toPublicProduct(row);
 }
@@ -277,17 +369,117 @@ export interface DeletedProduct {
   removedPhotos: PhotoRow[];
 }
 
-/** Removes a product with everything hanging off it. Administrators only. */
-export function deleteProduct(db: DbHandle, id: string): DeletedProduct {
-  const existing = findProductById(db, id);
-  if (existing === undefined) throw new NotFoundError('product not found');
+/* ------------------------------------------------------------------ trash */
 
-  const attachedPhotos = db.select().from(photos).where(eq(photos.productId, id)).all();
-  const attachedRatings = db
+/** Number of ratings and photos hanging off a product. */
+function attachedCounts(db: DbHandle, id: string): { ratings: number; photos: number } {
+  const ratingCount = db
     .select({ value: sql<number>`count(*)` })
     .from(ratings)
     .where(eq(ratings.productId, id))
     .get();
+  const photoCount = db
+    .select({ value: sql<number>`count(*)` })
+    .from(photos)
+    .where(eq(photos.productId, id))
+    .get();
+
+  return { ratings: ratingCount?.value ?? 0, photos: photoCount?.value ?? 0 };
+}
+
+export interface TrashedProduct {
+  product: Product;
+  /** Ratings and photos that went into the trash with it, for the log. */
+  ratings: number;
+  photos: number;
+}
+
+/**
+ * Moves a product into the trash. Administrators only, because it takes other
+ * accounts' ratings and photos out of the catalogue with it — reversibly, which
+ * is the whole point of the exercise.
+ */
+export function trashProduct(
+  db: DbHandle,
+  id: string,
+  userId: string,
+  now: Date = new Date(),
+): TrashedProduct {
+  const existing = findProductById(db, id);
+  if (existing === undefined) throw new NotFoundError('product not found');
+
+  db.update(products).set({ deletedAt: now, deletedBy: userId }).where(eq(products.id, id)).run();
+
+  return {
+    product: toPublicProduct({ ...existing, deletedAt: now, deletedBy: userId }),
+    ...attachedCounts(db, id),
+  };
+}
+
+/** Takes a product out of the trash, exactly as it went in. */
+export function restoreProduct(db: DbHandle, id: string): Product {
+  const existing = findAnyProductById(db, id);
+  if (existing === undefined || existing.deletedAt === null) {
+    throw new NotFoundError('no product with this identifier is in the trash');
+  }
+
+  db.update(products).set({ deletedAt: null, deletedBy: null }).where(eq(products.id, id)).run();
+
+  return toPublicProduct({ ...existing, deletedAt: null, deletedBy: null });
+}
+
+/**
+ * What is in the trash, most recently deleted first.
+ *
+ * Without paging: the trash is emptied on a schedule and holds the mistakes of
+ * a household, not a catalogue. The limit is there so a script that deletes a
+ * thousand products cannot turn this into a slow answer.
+ */
+export function listTrash(db: DbHandle): TrashEntry[] {
+  const rows = db
+    .select({
+      product: products,
+      username: users.username,
+      ratingCount: sql<number>`(
+        select count(*) from ${ratings} where ${ratings.productId} = ${products.id}
+      )`,
+      photoCount: sql<number>`(
+        select count(*) from ${photos} where ${photos.productId} = ${products.id}
+      )`,
+    })
+    .from(products)
+    .leftJoin(users, eq(users.id, products.deletedBy))
+    .where(isNotNull(products.deletedAt))
+    .orderBy(desc(products.deletedAt), asc(products.id))
+    .limit(TRASH_LIST_LIMIT)
+    .all();
+
+  return rows.map((row) => ({
+    product: toPublicProduct(row.product),
+    // Only rows with a `deleted_at` are selected; the fallback pleases the types.
+    deletedAt: (row.product.deletedAt ?? new Date(0)).toISOString(),
+    deletedBy: row.product.deletedBy,
+    deletedByUsername: row.username,
+    ratings: row.ratingCount,
+    photos: row.photoCount,
+  }));
+}
+
+/**
+ * Removes a product from the trash for good, with everything hanging off it.
+ *
+ * Only a product that is already in the trash can be purged: deleting is two
+ * deliberate steps, and a route that could skip the first one would make the
+ * trash a suggestion rather than a safety net.
+ */
+export function purgeProduct(db: DbHandle, id: string): DeletedProduct {
+  const existing = findAnyProductById(db, id);
+  if (existing === undefined || existing.deletedAt === null) {
+    throw new NotFoundError('no product with this identifier is in the trash');
+  }
+
+  const attachedPhotos = db.select().from(photos).where(eq(photos.productId, id)).all();
+  const counts = attachedCounts(db, id);
 
   // `ratings` and `photos` reference the product with `on delete cascade`, and
   // `foreign_keys = ON` is set on every connection, so one statement is enough.
@@ -295,9 +487,33 @@ export function deleteProduct(db: DbHandle, id: string): DeletedProduct {
 
   return {
     product: toPublicProduct(existing),
-    removedRatings: attachedRatings?.value ?? 0,
+    removedRatings: counts.ratings,
     removedPhotos: attachedPhotos,
   };
+}
+
+/**
+ * Purges everything that has been in the trash longer than the retention.
+ *
+ * `app.trash_retention_days = 0` switches this off: a household that would
+ * rather decide for itself when a photo is gone keeps its trash until somebody
+ * empties it.
+ */
+export function purgeExpiredTrash(
+  db: DbHandle,
+  retentionDays: number,
+  now: Date = new Date(),
+): DeletedProduct[] {
+  if (retentionDays <= 0) return [];
+
+  const cutoff = new Date(now.getTime() - retentionDays * 24 * 60 * 60 * 1000);
+  const due = db
+    .select({ id: products.id })
+    .from(products)
+    .where(and(isNotNull(products.deletedAt), lt(products.deletedAt, cutoff)))
+    .all();
+
+  return due.map((row) => purgeProduct(db, row.id));
 }
 
 /* ------------------------------------------------------------------ search */
@@ -313,31 +529,68 @@ function containsInsensitive(column: SQLiteColumn, term: string): SQL {
   return sql`${sql.raw(LOWER_FUNCTION)}(coalesce(${column}, '')) like ${sql.raw(LOWER_FUNCTION)}(${pattern}) escape '\\'`;
 }
 
-/** Shortest digit run that is looked up as an EAN prefix rather than as text. */
-const EAN_SEARCH_MIN_DIGITS = 4;
+/**
+ * Shortest word the full text index can answer for.
+ *
+ * The index is built from trigrams, so it knows nothing about a fragment of one
+ * or two characters. Those go back through `LIKE`, which is exact — a search
+ * for "ei" has to find "Ei" whether an index can help or not.
+ */
+const FTS_MIN_TERM_LENGTH = 3;
 
 /**
- * Free text search over name and brand, plus an EAN prefix when the term looks
- * like part of a barcode. Digits are matched against the stored, normalised
- * EAN, so typing the tail of a code finds nothing — that is deliberate, a
- * prefix hits the index while a substring would scan the table.
+ * Turns a search term into an FTS5 query.
+ *
+ * Every word is quoted, which is what makes a hyphen, an umlaut or a stray
+ * quote a piece of text instead of query syntax — unquoted, `bio-hof` is read
+ * as a column name and the query fails. Several words are combined with the
+ * implicit AND of FTS5: someone typing "kölln hafer" is narrowing down, not
+ * asking for either.
+ *
+ * Returns `null` when at least one word is too short for the index; the caller
+ * falls back to `LIKE` then rather than quietly searching for something else.
  */
-function searchCondition(term: string): SQL | undefined {
-  const conditions: SQL[] = [
+export function ftsQuery(term: string): string | null {
+  const words = term.split(/\s+/).filter((word) => word !== '');
+  if (words.length === 0) return null;
+  if (words.some((word) => word.length < FTS_MIN_TERM_LENGTH)) return null;
+
+  return words.map((word) => `"${word.replace(/"/g, '""')}"`).join(' ');
+}
+
+/** Free text search over name, brand and EAN through `LIKE`, as a fallback. */
+function likeSearchCondition(term: string): SQL | undefined {
+  return or(
     containsInsensitive(products.name, term),
     containsInsensitive(products.brand, term),
-  ];
+    containsInsensitive(products.ean, term),
+  );
+}
 
-  const digits = term.replace(/\D/g, '');
-  if (digits.length >= EAN_SEARCH_MIN_DIGITS) {
-    conditions.push(sql`${products.ean} like ${`${digits}%`}`);
-  }
+/**
+ * Free text search over name, brand and EAN.
+ *
+ * The words go against `products_fts`, a trigram index kept up to date by
+ * triggers on `products`. Trigrams are what makes this useful for German: a
+ * search for "saft" finds "Apfelsaft", which a word based index never would,
+ * and the tokenizer folds case and diacritics, so "koelln" aside, "kölln" and
+ * "KÖLLN" are the same word. Digits work the same way — the tail of a barcode
+ * finds its product, where the previous `LIKE` search could only match a
+ * prefix.
+ *
+ * Short words are the exception, see `ftsQuery()`.
+ */
+function searchCondition(term: string): SQL | undefined {
+  const query = ftsQuery(term);
+  if (query === null) return likeSearchCondition(term);
 
-  return or(...conditions);
+  return sql`${products.id} in (
+    select product_id from products_fts where products_fts match ${query}
+  )`;
 }
 
 function filterConditions(query: ProductListQuery): SQL[] {
-  const conditions: SQL[] = [];
+  const conditions: SQL[] = [notTrashed];
 
   const term = query.q?.trim();
   if (term !== undefined && term.length > 0) {

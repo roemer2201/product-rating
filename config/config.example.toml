@@ -94,3 +94,10 @@ title = "product-rating"
 # Bewusst deaktiviert: die Anwendung erzeugt keinen ausgehenden Netzwerkverkehr.
 # Ein Aktivieren wird beim Start abgelehnt, solange es keine Implementierung gibt.
 external_lookup = false
+# Tage, die ein geloeschtes Produkt im Papierkorb liegt, bevor es endgueltig
+# entfernt wird (samt Bewertungen, Fotos und Bilddateien). 0 = nie automatisch;
+# dann leert nur die Verwaltung den Papierkorb.
+trash_retention_days = 30
+# Waehrung der erfassten Preise, ISO-4217-Code. Wird beim Anlegen in den
+# Eintrag kopiert; eine spaetere Aenderung laesst alte Eintraege unberuehrt.
+currency = "EUR"
