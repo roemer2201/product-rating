@@ -4,7 +4,7 @@ import type { User, UserRole } from '@product-rating/shared';
 import type { DbHandle } from '../db/index.js';
 import { users, type UserRow } from '../db/index.js';
 import { ConflictError, NotFoundError, ValidationError } from './errors.js';
-import { argon2Parameters, hashPassword } from './passwords.js';
+import { argon2Parameters, hashPassword, LOCKED_PASSWORD_HASH } from './passwords.js';
 import type { AppConfig } from '../config/index.js';
 
 /**
@@ -30,6 +30,7 @@ export function toPublicUser(row: UserRow): User {
     username: row.username,
     email: row.email,
     role: row.role,
+    passwordResetRequired: row.passwordResetRequired,
     createdAt: row.createdAt.toISOString(),
     disabledAt: row.disabledAt?.toISOString() ?? null,
   };
@@ -82,6 +83,11 @@ export interface InsertUserOptions {
   passwordHash: string;
   email?: string | null;
   role?: UserRole;
+  /** Marks the account as waiting for a password; see `insertLockedUser()`. */
+  passwordResetRequired?: boolean;
+  /** Keeps the original creation date when an account arrives by import. */
+  createdAt?: Date;
+  disabledAt?: Date | null;
 }
 
 /**
@@ -98,8 +104,9 @@ export function insertUser(db: DbHandle, options: InsertUserOptions): User {
     email: options.email ?? null,
     passwordHash: options.passwordHash,
     role: options.role ?? 'user',
-    createdAt: new Date(),
-    disabledAt: null,
+    passwordResetRequired: options.passwordResetRequired ?? false,
+    createdAt: options.createdAt ?? new Date(),
+    disabledAt: options.disabledAt ?? null,
   };
 
   try {
@@ -112,6 +119,35 @@ export function insertUser(db: DbHandle, options: InsertUserOptions): User {
   }
 
   return toPublicUser(row);
+}
+
+export interface InsertLockedUserOptions {
+  username: string;
+  email?: string | null;
+  role?: UserRole;
+  createdAt?: Date;
+  disabledAt?: Date | null;
+}
+
+/**
+ * Creates an account that has no password yet.
+ *
+ * This is what an import leaves behind: the name, the role and the e-mail
+ * address are known, the password deliberately is not — an export that carried
+ * hashes around would be a set of credentials. The account exists so that
+ * ratings, photos and prices have an owner again; getting into it takes a reset
+ * link from an administrator.
+ */
+export function insertLockedUser(db: DbHandle, options: InsertLockedUserOptions): User {
+  return insertUser(db, {
+    username: options.username,
+    passwordHash: LOCKED_PASSWORD_HASH,
+    email: options.email ?? null,
+    role: options.role ?? 'user',
+    passwordResetRequired: true,
+    ...(options.createdAt === undefined ? {} : { createdAt: options.createdAt }),
+    ...(options.disabledAt === undefined ? {} : { disabledAt: options.disabledAt }),
+  });
 }
 
 /** Creates an account with a fresh argon2id hash. */
@@ -145,7 +181,13 @@ export async function setPassword(
   assertPasswordPolicy(password, config);
 
   const hashed = await hashPassword(password, argon2Parameters(config));
-  const result = db.update(users).set({ passwordHash: hashed }).where(eq(users.id, userId)).run();
+  // Setting a password is what ends the locked state — every way of doing it
+  // goes through here, so no caller can forget to clear the flag.
+  const result = db
+    .update(users)
+    .set({ passwordHash: hashed, passwordResetRequired: false })
+    .where(eq(users.id, userId))
+    .run();
 
   if (result.changes === 0) throw new NotFoundError('user not found');
 }
@@ -156,6 +198,23 @@ export async function setPassword(
  */
 export function updatePasswordHash(db: DbHandle, userId: string, hashed: string): void {
   db.update(users).set({ passwordHash: hashed }).where(eq(users.id, userId)).run();
+}
+
+/**
+ * Takes the password away from an account, so only a reset link gets back in.
+ *
+ * The counterpart of `setPassword()`: an administrator uses it when a device
+ * was lost or a password may have leaked, and the import uses the same state
+ * for accounts it creates.
+ */
+export function lockPassword(db: DbHandle, userId: string): void {
+  const result = db
+    .update(users)
+    .set({ passwordHash: LOCKED_PASSWORD_HASH, passwordResetRequired: true })
+    .where(eq(users.id, userId))
+    .run();
+
+  if (result.changes === 0) throw new NotFoundError('user not found');
 }
 
 export interface UpdateUserOptions {

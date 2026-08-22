@@ -21,6 +21,7 @@ import { registerPriceRoutes } from './routes/prices.js';
 import { registerProductRoutes } from './routes/products.js';
 import { registerRatingRoutes } from './routes/ratings.js';
 import { registerUserRoutes } from './routes/users.js';
+import { cleanupPasswordResets } from './services/passwordResets.js';
 import { removePhotoFiles } from './services/photos.js';
 import { purgeExpiredTrash } from './services/products.js';
 import { RateLimiter } from './services/rateLimit.js';
@@ -174,6 +175,10 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     const removed = app.cleanupSessions();
     if (removed > 0) app.log.info({ removed }, 'expired sessions removed');
 
+    // Spent and expired password links go the same way, on the same schedule.
+    const links = cleanupPasswordResets(db);
+    if (links > 0) app.log.info({ removed: links }, 'password reset links removed');
+
     // The trash is swept on the same schedule; retention is counted in days,
     // so once a day is as precise as the setting can be anyway.
     await purgeTrash();
@@ -182,6 +187,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       const count = app.cleanupSessions();
       app.loginLimiter.sweep();
       if (count > 0) app.log.info({ removed: count }, 'expired sessions removed');
+
+      const staleLinks = cleanupPasswordResets(db);
+      if (staleLinks > 0) {
+        app.log.info({ removed: staleLinks }, 'password reset links removed');
+      }
       void purgeTrash().catch((error: unknown) => {
         app.log.error({ err: error }, 'emptying the trash failed');
       });

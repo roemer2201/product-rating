@@ -19,8 +19,28 @@ export interface User {
   username: string;
   email: string | null;
   role: UserRole;
+  /**
+   * True while the account has no password anybody knows — after an import, or
+   * after an administrator locked it. Logging in is impossible until somebody
+   * follows a reset link.
+   */
+  passwordResetRequired: boolean;
   createdAt: string;
   disabledAt: string | null;
+}
+
+/**
+ * A freshly issued password link, as the administration area shows it once.
+ *
+ * The token is only ever in this answer: the database keeps its hash, so a
+ * link that is lost cannot be looked up again, only replaced.
+ */
+export interface PasswordResetLink {
+  username: string;
+  token: string;
+  /** The complete address, built from `server.base_url`. */
+  url: string;
+  expiresAt: string;
 }
 
 /** One of the caller's own sessions, as listed in the settings page. */

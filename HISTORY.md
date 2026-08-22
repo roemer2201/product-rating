@@ -5,6 +5,55 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-22 – Passwort-Links für Konten ohne Passwort
+
+**Umfang**
+
+- **`users.password_reset_required`** und die Tabelle **`password_resets`**
+  (Migration `0005_password_resets.sql`). Der Hash eines gesperrten Kontos ist
+  der Sperrvermerk `!` – die Schreibweise aus `/etc/shadow` –, gegen den kein
+  Passwort verifizieren kann.
+- **`POST /api/v1/users/:id/reset-link`** (admin) gibt einen Link einmalig aus,
+  **`POST /api/v1/users/:id/lock`** entzieht das Passwort und beendet alle
+  Sitzungen. **`GET /api/v1/auth/reset/:token`** sagt, zu welchem Konto ein Link
+  gehört, **`POST /api/v1/auth/reset`** setzt das Passwort und meldet an.
+- **Kommandozeile:** `product-rating user reset-link <name>` (Link auf stdout,
+  Erklärung auf stderr) und `product-rating user lock <name>`. `user list`
+  zeigt „needs password“ als Zustand.
+- **Oberfläche:** neue Seite `/reset` außerhalb der Anmeldung; in der Verwaltung
+  je Konto „Passwort-Link erzeugen“ (Link auf dem Bildschirm **und** in der
+  Zwischenablage) und „Passwort entziehen“ mit zweitem Klick, dazu die
+  Kennzeichnung „Passwort fehlt“.
+- **Konfiguration** `auth.password_reset_ttl_hours` (Standard 48).
+- Verbrauchte und abgelaufene Links räumt derselbe tägliche Job weg wie die
+  abgelaufenen Sitzungen.
+
+**Entscheidungen**
+
+- *Nur der SHA-256 des Tokens wird gespeichert* – anders als bei
+  Einladungscodes, die im Klartext liegen. Eine Einladung erlaubt nur ein neues
+  Konto, ein Passwort-Link übernimmt ein bestehendes; eine gestohlene Datenbank
+  darf keinen benutzbaren enthalten. Folge: Der Link ist genau einmal lesbar
+  und wird sonst ersetzt, nicht nachgeschlagen.
+- *Genau ein gültiger Link je Konto.* Zwei Links sind zwei Dinge, die
+  abgefangen werden können – und der zweite wird ohnehin ausgestellt, weil der
+  erste verschwunden ist.
+- *Die Anmeldung macht eine dokumentierte Ausnahme* (README 5.2): Ein Konto
+  ohne Passwort bekommt eine eigene Meldung statt „falscher Benutzername oder
+  falsches Passwort". Sonst tippt nach einem Umzug jemand sein korrektes altes
+  Passwort in eine Sackgasse. Der Preis – ein Fremder erfährt für einen
+  erratenen Namen, dass das Konto gesperrt ist – steht gegen dieselbe
+  Ratenbegrenzung wie bei jedem Fehlversuch und eine Instanz ohne offene
+  Registrierung.
+- *Ein gesperrtes Konto kostet dieselbe argon2id-Prüfung wie ein unbekanntes.*
+  Ohne das hätte die Antwortzeit verraten, welche Konten gesperrt sind.
+- *Wer den Link einlöst, ist danach angemeldet.* Er hat gerade bewiesen, dass er
+  den Link hat, und ein frisch gesetztes Passwort noch einmal eintippen zu
+  müssen wäre reine Zeremonie.
+- *Kein Mailversand.* Die Anwendung baut keine ausgehenden Verbindungen auf;
+  „verschicken" heißt, dass ein Administrator den Link weitergibt wie eine
+  Einladung.
+
 ## 2026-08-22 – Backlog: Preisverlauf und Einkaufsort
 
 **Umfang**

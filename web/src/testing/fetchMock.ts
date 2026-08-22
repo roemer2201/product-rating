@@ -60,6 +60,7 @@ export const testUser = {
   username: 'anna',
   email: null,
   role: 'user',
+  passwordResetRequired: false,
   createdAt: '2026-08-01T10:00:00.000Z',
   disabledAt: null,
 } as const;

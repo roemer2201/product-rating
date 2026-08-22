@@ -167,6 +167,45 @@ describe('AdminPage', () => {
     });
   });
 
+  it('shows a password link once and marks the account that needs one', async () => {
+    const user = userEvent.setup();
+    mockFetch([
+      { path: '/auth/me', body: { user: ADMIN } },
+      {
+        path: '/users',
+        body: {
+          users: [ADMIN, { ...testUser, username: 'anna', passwordResetRequired: true }],
+        },
+      },
+      {
+        path: `/users/${testUser.id}/reset-link`,
+        method: 'POST',
+        body: {
+          link: {
+            username: 'anna',
+            token: 'a'.repeat(43),
+            url: `http://localhost/reset?token=${'a'.repeat(43)}`,
+            expiresAt: '2026-08-24T10:00:00.000Z',
+          },
+        },
+      },
+      INVITES,
+      TRASH,
+    ]);
+
+    renderAdmin();
+
+    // The account that arrived without a password says so.
+    expect(await screen.findByText(strings.admin.userNeedsPassword)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: strings.admin.userResetLink }));
+
+    // On screen, not only in the clipboard: without a secure context there is
+    // no clipboard, and the link still has to get out.
+    expect(await screen.findByText(/\/reset\?token=a{43}/)).toBeInTheDocument();
+    expect(screen.getByText(strings.admin.userResetLinkFor('anna'))).toBeInTheDocument();
+  });
+
   it('copies a registration link rather than the bare code', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn(() => Promise.resolve());

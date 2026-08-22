@@ -225,8 +225,11 @@ Produkte bilden einen **gemeinsamen Katalog** (eine EAN existiert genau einmal),
 Bewertungen und Fotos gehören jeweils einem Nutzer.
 
 ```
-users     (id, username, email, password_hash, role, created_at, disabled_at)
+users     (id, username, email, password_hash, role, password_reset_required,
+           created_at, disabled_at)
 sessions  (id, user_id, expires_at, user_agent, created_at, last_seen_at)
+password_resets (id = SHA-256 des Tokens, user_id, created_by, expires_at,
+           used_at, created_at)
 invites   (code, created_by, expires_at, used_by, used_at)
 products  (id, ean UNIQUE, name, brand, category, notes,
            created_by, created_at, updated_at, deleted_at, deleted_by)
@@ -584,6 +587,9 @@ Let's-Encrypt-Zertifikat (DNS-Challenge funktioniert auch ohne offenen Port 80).
 - Rollen: `admin` (Nutzerverwaltung, Einladungen, alle Daten) und `user`
   (eigene Bewertungen und Fotos, gemeinsamer Produktkatalog). Der letzte aktive
   Administrator kann weder herabgestuft noch deaktiviert werden.
+- Ein Konto kann **ohne Passwort** dastehen: nach einem Import (der bewusst
+  keine Hashes mitbringt) oder wenn ein Administrator es entzogen hat. Zurück
+  hilft nur ein **Passwort-Link** – siehe 5.2.
 
 ### 5.1 Routen zu Konten und Sitzungen
 
@@ -604,8 +610,63 @@ Let's-Encrypt-Zertifikat (DNS-Challenge funktioniert auch ohne offenen Port 80).
 | `POST /api/v1/users` | admin | Konto ohne Einladung anlegen |
 | `PATCH /api/v1/users/:id` | admin | Rolle, Zustand oder E-Mail ändern |
 | `POST /api/v1/users/:id/password` | admin | Passwort zurücksetzen |
+| `POST /api/v1/users/:id/reset-link` | admin | Passwort-Link erzeugen, einmalig ausgegeben |
+| `POST /api/v1/users/:id/lock` | admin | Passwort entziehen, alle Sitzungen beenden |
+| `GET /api/v1/auth/reset/:token` | – | Zu welchem Konto ein Link gehört |
+| `POST /api/v1/auth/reset` | – | Passwort über einen Link setzen und anmelden |
 - Nachrüstbar: TOTP-2FA oder Delegation an ein Reverse-Proxy-SSO
   (Authelia/Authentik) über vertrauenswürdige Header.
+
+### 5.2 Passwort-Links
+
+Ein Konto ohne Passwort entsteht auf zwei Wegen: `product-rating import` legt
+Konten an, ohne Hashes mitzubringen (8.3), und `POST /api/v1/users/:id/lock`
+beziehungsweise `product-rating user lock` entzieht das Passwort – nach einem
+verlorenen Telefon der richtige Griff. Beide setzen `users.password_reset_required`
+und tragen als Hash den Sperrvermerk `!` ein, die Schreibweise aus
+`/etc/shadow`: kein Passwort kann dagegen verifizieren.
+
+Zurück ins Konto führt ein **Passwort-Link**:
+
+```bash
+product-rating user reset-link anna
+# https://heim.example.org/reset?token=…
+```
+
+In der Weboberfläche erzeugt ihn die Verwaltung je Konto. **Die Anwendung
+verschickt keine E-Mails** – sie baut überhaupt keine ausgehenden Verbindungen
+auf (CLAUDE.md, Entscheidung 6) –, „verschicken“ heißt also: Der Administrator
+kopiert den Link und gibt ihn weiter, so wie eine Einladung.
+
+| | Einladung | Passwort-Link |
+|---|---|---|
+| Zweck | neues Konto anlegen | bestehendes Konto zurückgeben |
+| Speicherung | Klartext (muss wieder lesbar sein) | nur SHA-256 des Tokens |
+| Lesbar | jederzeit in der Verwaltung | **einmal**, direkt nach dem Erzeugen |
+| Gültigkeit | `auth.invite_ttl_days` (14 Tage) | `auth.password_reset_ttl_hours` (48 Stunden) |
+| Anzahl | beliebig viele parallel | genau einer je Konto, ein neuer ersetzt den alten |
+
+Der Unterschied bei der Speicherung ist Absicht: Ein Einladungscode erlaubt
+nur, ein *neues* Konto anzulegen, ein Passwort-Link übernimmt ein
+*bestehendes*. Eine gestohlene Datenbank darf deshalb keinen benutzbaren Link
+enthalten. Der Preis ist, dass ein verlorener Link nicht nachgeschlagen, sondern
+nur ersetzt werden kann.
+
+Wer den Link öffnet, sieht, zu welchem Konto er gehört, setzt ein Passwort und
+ist damit angemeldet. Der Link ist verbraucht, alle alten Sitzungen des Kontos
+sind beendet. Ein abgelaufener, verbrauchter oder ersetzter Link sagt das,
+bevor jemand ein Passwort eintippt.
+
+**Eine bewusste Ausnahme bei der Anmeldung.** Sonst antwortet `login` immer
+gleich – unbekannter Name, falsches Passwort und deaktiviertes Konto sind
+ununterscheidbar, damit die Route nicht verrät, wer hier ein Konto hat. Ein
+Konto *ohne Passwort* bekommt dagegen eine eigene Meldung („Für dieses Konto
+muss ein neues Passwort gesetzt werden"). Die Alternative wäre, dass jemand
+nach einem Umzug sein korrektes altes Passwort eintippt und dauerhaft „falsches
+Passwort" liest. Der Preis ist, dass ein Fremder für einen erratenen Namen
+erfährt, dass das Konto existiert und gesperrt ist; dagegen steht dieselbe
+Ratenbegrenzung wie bei jedem Fehlversuch, und die Instanz hat ohnehin keine
+offene Registrierung.
 
 ---
 
@@ -683,6 +744,7 @@ Konfigurationsdatei aufgelöst, ohne Datei gegen das Arbeitsverzeichnis.
 | `session_ttl_days` | Zahl 1–3650 | `90` | Laufzeit einer Sitzung |
 | `session_renew_threshold_days` | Zahl 0–3650 | `7` | Ab dieser Restlaufzeit wird verlängert, muss kleiner als `session_ttl_days` sein |
 | `invite_ttl_days` | Zahl 1–365 | `14` | Gültigkeit eines Einladungscodes |
+| `password_reset_ttl_hours` | Zahl 1–720 | `48` | Gültigkeit eines Passwort-Links |
 | `login_rate_limit_per_minute` | Zahl 1–1000 | `5` | Fehlversuche je Minute, je IP und Benutzername |
 | `argon2_memory_mib` | Zahl 8–4096 | `64` | Speicherbedarf des argon2id-Hashings |
 | `argon2_time_cost` | Zahl 1–20 | `3` | Anzahl der argon2id-Durchläufe |
@@ -968,6 +1030,7 @@ Konsole. Im Container liegt derselbe Befehl unter
 | `serve` | API und Weboberfläche ausliefern; wendet vorher fehlende Migrationen an |
 | `migrate` | Migrationen anwenden und beenden (idempotent, mit Snapshot vorweg) |
 | `user add\|list\|disable\|enable\|passwd` | Konten anlegen, auflisten, sperren, entsperren, Passwort setzen |
+| `user reset-link\|lock` | Passwort-Link ausgeben; Passwort entziehen (nur noch per Link erreichbar) |
 | `invite create\|list\|revoke` | Einladungscodes ausgeben, auflisten, zurückziehen |
 | `backup --to <dir>` | Snapshot aus `VACUUM INTO` plus Fotos, `--keep-days N` als Aufbewahrungsgrenze |
 | `restore --from <dir>` | Snapshot zurückspielen, nach ausdrücklicher Bestätigung (`--yes` überspringt sie) |

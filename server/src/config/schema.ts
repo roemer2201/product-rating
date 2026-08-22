@@ -70,6 +70,12 @@ const authSection = z
     /** Rolling renewal kicks in once less than this many days are left. */
     session_renew_threshold_days: z.int().min(0).max(3650).default(7),
     invite_ttl_days: z.int().min(1).max(365).default(14),
+    /**
+     * Lifetime of a password reset link. Shorter than an invite by an order of
+     * magnitude, because it opens an account that already exists — long enough
+     * for somebody to read a message and get to a keyboard, not longer.
+     */
+    password_reset_ttl_hours: z.int().min(1).max(720).default(48),
     login_rate_limit_per_minute: z.int().min(1).max(1000).default(5),
     argon2_memory_mib: z.int().min(8).max(4096).default(64),
     /** Number of argon2id passes; higher costs more time per login. */

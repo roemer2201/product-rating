@@ -15,6 +15,7 @@ import type {
   CreateInviteInput,
   CreatePriceInput,
   CreateProductInput,
+  PasswordResetLink,
   Invite,
   LoginInput,
   Photo,
@@ -25,6 +26,7 @@ import type {
   Rating,
   RatingListPage,
   RatingSummary,
+  RedeemResetInput,
   RegisterInput,
   ResetPasswordInput,
   SessionInfo,
@@ -598,6 +600,41 @@ export function useChangePassword(): UseMutationResult<
   });
 }
 
+/* ------------------------------------------------------- password links */
+
+/**
+ * Which account a password link belongs to.
+ *
+ * Asked once when the screen opens, so the form can address the person by
+ * name — and so a spent link says so before a password is typed rather than
+ * after.
+ */
+export function useResetTarget(token: string): UseQueryResult<string, Error> {
+  return useQuery({
+    queryKey: ['reset', token] as const,
+    queryFn: async () => (await api.auth.resetTarget(token)).username,
+    enabled: token !== '',
+    // A link is used once; nothing about it is worth keeping around.
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
+  });
+}
+
+/** Sets a password against a link; the answer is a signed in session. */
+export function useRedeemReset(): UseMutationResult<User, Error, RedeemResetInput> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: RedeemResetInput) => (await api.auth.redeemReset(input)).user,
+    onSuccess: (user) => {
+      // Same as a login: whatever is cached belonged to somebody else.
+      client.clear();
+      client.setQueryData(queryKeys.session, user);
+    },
+  });
+}
+
 /* ----------------------------------------------------------- administration */
 
 export function useInvites(): UseQueryResult<Invite[], Error> {
@@ -651,6 +688,32 @@ export function useUpdateUser(): UseMutationResult<User, Error, UpdateUserVariab
   return useMutation({
     mutationFn: async ({ id, input }: UpdateUserVariables) =>
       (await api.users.update(id, input)).user,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.users });
+    },
+  });
+}
+
+/** Issues a password link for one account, for an administrator to pass on. */
+export function useCreateResetLink(): UseMutationResult<PasswordResetLink, Error, string> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => (await api.users.resetLink(id)).link,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.users });
+    },
+  });
+}
+
+/** Takes the password away from an account. */
+export function useLockUser(): UseMutationResult<void, Error, string> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.users.lock(id);
+    },
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: queryKeys.users });
     },

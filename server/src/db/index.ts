@@ -19,6 +19,7 @@ export {
 export * as schema from './schema.js';
 export {
   invites,
+  passwordResets,
   photos,
   prices,
   products,
@@ -27,12 +28,14 @@ export {
   users,
   type InviteRow,
   type NewInviteRow,
+  type NewPasswordResetRow,
   type NewPhotoRow,
   type NewPriceRow,
   type NewProductRow,
   type NewRatingRow,
   type NewSessionRow,
   type NewUserRow,
+  type PasswordResetRow,
   type PhotoRow,
   type PriceRow,
   type ProductRow,

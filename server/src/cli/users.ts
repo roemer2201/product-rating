@@ -1,17 +1,19 @@
 import type { UserRole } from '@product-rating/shared';
 import type { AppConfig } from '../config/index.js';
 import type { DbHandle } from '../db/index.js';
+import { createPasswordReset } from '../services/passwordResets.js';
 import { revokeAllSessions } from '../services/sessions.js';
 import {
   createUser,
   findUserByUsername,
   listUsers,
+  lockPassword,
   setPassword,
   updateUser,
 } from '../services/users.js';
 import { EXIT_OK, formatMoment, formatTable, type CliCommand } from './command.js';
 import { readStdinLine, type CliIo } from './io.js';
-import { parseArguments, stringOption, UsageError } from './options.js';
+import { numberOption, parseArguments, stringOption, UsageError } from './options.js';
 import { loadRuntimeConfig, withDatabase } from './runtime.js';
 
 const USAGE = `Usage: product-rating user <subcommand> [OPTIONS]
@@ -27,10 +29,19 @@ Subcommands:
                       never deleted, so ratings and photos keep their owner.
   enable USERNAME     Allow a disabled account to log in again.
   passwd USERNAME     Set a new password and end every session of that account.
+  reset-link USERNAME Issue a password link for an account and print it. The
+                      account owner opens it and chooses their own password;
+                      an earlier link stops working. This application sends no
+                      mail, so pass the link on yourself.
+  lock USERNAME       Take the password away: nothing but a reset link gets
+                      into the account afterwards. For a lost device, or after
+                      an import that brought accounts without passwords.
 
 Options:
       --role ROLE     Role of a new account: user (default) or admin.
       --email ADDRESS E-mail address of a new account.
+      --ttl-hours N   Lifetime of a reset link, overriding
+                      auth.password_reset_ttl_hours.
       --password-stdin
                       Read the password from standard input instead of asking
                       for it. The only way that keeps it out of the shell
@@ -43,6 +54,7 @@ Examples:
   product-rating user add anna --role admin
   echo "correct horse battery staple" | product-rating user add tom --password-stdin
   product-rating user passwd anna
+  product-rating user reset-link anna
   product-rating user disable tom`;
 
 /** Roles the CLI accepts, matching the ones in the database. */
@@ -108,7 +120,7 @@ async function addUser(
 
 export const userCommand: CliCommand = {
   name: 'user',
-  summary: 'Manage accounts: add, list, disable, enable, passwd',
+  summary: 'Manage accounts: add, list, disable, enable, passwd, reset-link, lock',
   usage: USAGE,
 
   async run({ argv, io }) {
@@ -116,6 +128,7 @@ export const userCommand: CliCommand = {
       help: 'boolean',
       role: 'string',
       email: 'string',
+      'ttl-hours': 'string',
       'password-stdin': 'boolean',
     });
 
@@ -152,7 +165,11 @@ export const userCommand: CliCommand = {
             ...rows.map((user) => [
               user.username,
               user.role,
-              user.disabledAt === null ? 'active' : 'disabled',
+              user.disabledAt !== null
+                ? 'disabled'
+                : user.passwordResetRequired
+                  ? 'needs password'
+                  : 'active',
               formatMoment(user.createdAt),
               user.email ?? '-',
             ]),
@@ -190,6 +207,44 @@ export const userCommand: CliCommand = {
           // A new password only helps if the old sessions go with it.
           const revoked = revokeAllSessions(db, target.id);
           io.out(`password of ${target.username} changed, ${String(revoked)} session(s) ended`);
+          return EXIT_OK;
+        }
+
+        case 'reset-link': {
+          if (name === undefined) throw new UsageError('user reset-link needs a username');
+          const target = requireUser(db, name);
+
+          const link = createPasswordReset(db, config, {
+            userId: target.id,
+            // Nobody is logged in on a command line; the row records that.
+            createdBy: null,
+            ...(options['ttl-hours'] === undefined
+              ? {}
+              : { ttlHours: numberOption(options, 'ttl-hours', 48, 1) }),
+          });
+
+          // The link on standard output, everything else on standard error, so
+          // it can be piped into a message without the explanation around it.
+          io.out(link.url);
+          io.err(
+            `password link for ${link.username}, valid until ` +
+              `${formatMoment(link.expiresAt)}. It is shown once - only its hash ` +
+              'is stored. Any earlier link no longer works.',
+          );
+          return EXIT_OK;
+        }
+
+        case 'lock': {
+          if (name === undefined) throw new UsageError('user lock needs a username');
+          const target = requireUser(db, name);
+
+          lockPassword(db, target.id);
+          const revoked = revokeAllSessions(db, target.id);
+
+          io.out(
+            `password of ${target.username} removed, ${String(revoked)} session(s) ended; ` +
+              `issue a link with "product-rating user reset-link ${target.username}"`,
+          );
           return EXIT_OK;
         }
 
