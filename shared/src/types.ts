@@ -84,6 +84,9 @@ export interface Photo {
   mime: string;
   width: number;
   height: number;
+  /** Place in the gallery of its product, counted from zero and kept dense. */
+  position: number;
+  /** True for `position === 0`: the picture the product card shows. */
   isPrimary: boolean;
   createdAt: string;
 }
@@ -108,7 +111,7 @@ export interface ProductWithRatings extends Product {
  * be paid for on each page.
  */
 export interface ProductDetail extends ProductWithRatings {
-  /** Primary photo first, oldest first after that. */
+  /** In the order the product carries them; the first one is the primary. */
   photos: Photo[];
 }
 

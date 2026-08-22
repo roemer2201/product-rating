@@ -12,6 +12,7 @@ import {
   listProductPhotos,
   photoFilePath,
   photoRelativePath,
+  movePhoto,
   processImage,
   setPrimaryPhoto,
   storePhoto,
@@ -201,17 +202,54 @@ describe('storing a photo', () => {
 });
 
 describe('changing and removing photos', () => {
-  it('moves the primary flag instead of adding a second one', async () => {
+  it('moves the promoted photo to the front instead of adding a second primary', async () => {
     const mine = await upload(ANNA.id);
     const theirs = await upload(BERT.id);
 
-    setPrimaryPhoto(database.db, BERT, theirs.photo.id);
+    const promoted = setPrimaryPhoto(database.db, BERT, theirs.photo.id);
+
+    expect(promoted.isPrimary).toBe(true);
+    const rows = listProductPhotos(database.db, productId);
+    // Being primary is being first, so there is only one of each.
+    expect(rows.map((row) => row.id)).toEqual([theirs.photo.id, mine.photo.id]);
+    expect(rows.map((row) => row.position)).toEqual([0, 1]);
+  });
+
+  it('moves a photo to a place in the gallery and keeps the numbering dense', async () => {
+    const first = await upload(ANNA.id);
+    const second = await upload(ANNA.id);
+    const third = await upload(ANNA.id);
+
+    const gallery = movePhoto(database.db, ANNA, first.photo.id, 2);
+
+    expect(gallery.map((entry) => entry.id)).toEqual([
+      second.photo.id,
+      third.photo.id,
+      first.photo.id,
+    ]);
+    expect(gallery.map((entry) => entry.position)).toEqual([0, 1, 2]);
+    expect(gallery.map((entry) => entry.isPrimary)).toEqual([true, false, false]);
+  });
+
+  it('reads a position beyond the end as "last"', async () => {
+    const first = await upload(ANNA.id);
+    const second = await upload(ANNA.id);
+
+    const gallery = movePhoto(database.db, ANNA, first.photo.id, 99);
+
+    expect(gallery.map((entry) => entry.id)).toEqual([second.photo.id, first.photo.id]);
+  });
+
+  it('closes the gap when a photo in the middle is deleted', async () => {
+    const first = await upload(ANNA.id);
+    const second = await upload(ANNA.id);
+    const third = await upload(ANNA.id);
+
+    await deletePhoto(database.db, config, ANNA, second.photo.id);
 
     const rows = listProductPhotos(database.db, productId);
-    expect(rows.filter((row) => row.isPrimary).map((row) => row.id)).toEqual([theirs.photo.id]);
-    // Primary first, so the promoted photo now leads the list.
-    expect(rows[0]?.id).toBe(theirs.photo.id);
-    expect(rows.find((row) => row.id === mine.photo.id)?.isPrimary).toBe(false);
+    expect(rows.map((row) => row.id)).toEqual([first.photo.id, third.photo.id]);
+    expect(rows.map((row) => row.position)).toEqual([0, 1]);
   });
 
   it('deletes the row and both files', async () => {

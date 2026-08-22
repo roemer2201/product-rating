@@ -424,6 +424,30 @@ export function useDeletePhoto(): UseMutationResult<void, Error, PhotoVariables>
   });
 }
 
+export interface MovePhotoVariables extends PhotoVariables {
+  position: number;
+}
+
+/**
+ * Moves a photo inside the gallery. The answer is the whole new order, but the
+ * detail query is refetched rather than patched: the gallery is small, and a
+ * second device may have added a photo in the meantime.
+ */
+export function useMovePhoto(): UseMutationResult<Photo[], Error, MovePhotoVariables> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ photoId, position }: MovePhotoVariables) =>
+      (await api.photos.move(photoId, position)).photos,
+    onSuccess: (_photos, { productId }) => {
+      void client.invalidateQueries({ queryKey: queryKeys.products.byId(productId) });
+      // Position zero is the picture on the card, so the lists move with it.
+      void client.invalidateQueries({ queryKey: queryKeys.products.all });
+      void client.invalidateQueries({ queryKey: queryKeys.ratings.all });
+    },
+  });
+}
+
 export function useSetPrimaryPhoto(): UseMutationResult<Photo, Error, PhotoVariables> {
   const client = useQueryClient();
 

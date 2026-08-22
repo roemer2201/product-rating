@@ -6,6 +6,7 @@ import type {
   CreateUserInput,
   Invite,
   LoginInput,
+  MovePhotoInput,
   Photo,
   PhotoSize,
   Product,
@@ -418,6 +419,13 @@ export const api = {
 
     setPrimary: (id: string) =>
       request<{ photo: Photo }>(`/${path('photos', id, 'primary')}`, { method: 'PUT' }),
+
+    /** Moves a photo inside the gallery; answers with the new order. */
+    move: (id: string, position: number) =>
+      request<{ photos: Photo[] }>(`/${path('photos', id, 'position')}`, {
+        method: 'PUT',
+        json: { position } satisfies MovePhotoInput,
+      }),
 
     /**
      * Source for an `<img>`. The route wants a session, which the browser

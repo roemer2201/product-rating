@@ -32,6 +32,7 @@ export function makePhoto(overrides: Partial<Photo> = {}): Photo {
     mime: 'image/webp',
     width: 1600,
     height: 1200,
+    position: 0,
     isPrimary: true,
     createdAt: '2026-08-10T08:00:00.000Z',
     ...overrides,

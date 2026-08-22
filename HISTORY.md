@@ -5,6 +5,40 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-22 – Backlog: Fotoreihenfolge je Produkt
+
+**Umfang**
+
+- **`photos.position`** ersetzt `photos.is_primary` (Migration
+  `0001_photo_order.sql`, Index `photos_product_position_idx`). Die Position
+  zählt von null an und bleibt lückenlos; jede Änderung an der Galerie läuft
+  über eine Umnummerierung in derselben Transaktion.
+- **Hauptbild ist abgeleitet:** `Photo.isPrimary` ist `position === 0`. Damit
+  gibt es keine zweite, getrennt gespeicherte Wahrheit mehr, die der
+  Reihenfolge widersprechen könnte – Kachel im Katalog und erste Kachel auf der
+  Detailseite sind zwangsläufig dasselbe Bild.
+- **`PUT /api/v1/photos/:id/position`** verschiebt ein Foto und antwortet mit
+  der neuen Reihenfolge des ganzen Produkts. Eine Position hinter dem Ende
+  bedeutet „ans Ende“, weil der Client Kacheln auf einem möglicherweise
+  veralteten Stand zählt. `PUT …/primary` ist seitdem die Kurzform für
+  Position 0.
+- **Oberfläche:** zwei Pfeile je Kachel (`PhotoManager`), sichtbar für die
+  Fotos, die das Konto ändern darf, plus ein Hinweis, dass das erste Foto das
+  Hauptbild ist.
+
+**Entscheidungen**
+
+- *Verschieben gehört dem Eigentümer, nicht jedem Konto.* Die Reihenfolge ist
+  zwar eine Eigenschaft des Produkts, das einzelne Bild aber nicht – deshalb
+  gilt für `position` dieselbe Regel wie fürs Löschen (Eigentümer oder
+  Administrator), statt eine zweite Zuständigkeit einzuführen.
+- *Eine Route je Foto statt einer Liste aller IDs.* Ein Aufruf `{ position }`
+  ist genau das, was ein Pfeil auslöst; eine vollständige Reihenfolge im Körper
+  müsste gegen den Serverstand geprüft werden und wäre bei zwei Telefonen im
+  Haushalt die fehleranfälligere Form.
+- *Beim Löschen wird umnummeriert, nicht nachgerückt.* Eine Lücke auf Position
+  null hieße: Produkt mit Fotos, aber ohne Hauptbild.
+
 ## 2026-08-17 – M14: Qualitätssicherung und Release
 
 **Umfang**

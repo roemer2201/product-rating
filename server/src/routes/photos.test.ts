@@ -273,6 +273,51 @@ describe('the primary photo', () => {
   });
 });
 
+describe('the order of the gallery', () => {
+  it('moves a photo and answers with the whole gallery', async () => {
+    const first = await uploadPhoto(annaCookie);
+    const second = await uploadPhoto(annaCookie);
+    const third = await uploadPhoto(annaCookie);
+
+    const response = await harness.app.inject({
+      method: 'PUT',
+      url: `/api/v1/photos/${third.id}/position`,
+      headers: writeHeaders(annaCookie),
+      payload: { position: 0 },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const gallery = response.json().photos as Photo[];
+    expect(gallery.map((entry) => entry.id)).toEqual([third.id, first.id, second.id]);
+    expect(gallery.map((entry) => entry.position)).toEqual([0, 1, 2]);
+
+    const product = await readProduct();
+    expect(product.photos.map((entry) => entry.id)).toEqual([third.id, first.id, second.id]);
+    expect(product.primaryPhotoId).toBe(third.id);
+  });
+
+  it('refuses a photo of another account and a position that is not a number', async () => {
+    const theirs = await uploadPhoto(bertCookie);
+    const mine = await uploadPhoto(annaCookie);
+
+    const foreign = await harness.app.inject({
+      method: 'PUT',
+      url: `/api/v1/photos/${theirs.id}/position`,
+      headers: writeHeaders(annaCookie),
+      payload: { position: 0 },
+    });
+    expect(foreign.statusCode).toBe(403);
+
+    const invalid = await harness.app.inject({
+      method: 'PUT',
+      url: `/api/v1/photos/${mine.id}/position`,
+      headers: writeHeaders(annaCookie),
+      payload: { position: -1 },
+    });
+    expect(invalid.statusCode).toBe(400);
+  });
+});
+
 describe('deleting a photo', () => {
   it('removes the row and the files from disk', async () => {
     const photo = await uploadPhoto();

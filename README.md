@@ -228,7 +228,7 @@ products  (id, ean UNIQUE, name, brand, category, notes,
 ratings   (id, product_id, user_id, stars 0..5, comment, created_at, updated_at)
            UNIQUE (product_id, user_id)
 photos    (id, product_id, user_id, filename, mime, width, height,
-           is_primary, created_at)
+           position, created_at)
 ```
 
 Fotos werden **nicht** als BLOB in der Datenbank abgelegt: das Dateisystem ist
@@ -410,7 +410,8 @@ bleiben ihm und den Administratoren vorbehalten.
 |---|---|---|
 | `POST /api/v1/products/:id/photos` | angemeldet | Foto hochladen (`multipart/form-data`, Feld `photo`) |
 | `DELETE /api/v1/photos/:id` | Eigentümer, admin | Foto samt Dateien entfernen |
-| `PUT /api/v1/photos/:id/primary` | Eigentümer, admin | Foto zum Hauptbild des Produkts machen |
+| `PUT /api/v1/photos/:id/primary` | Eigentümer, admin | Foto zum Hauptbild des Produkts machen (Kurzform für Position 0) |
+| `PUT /api/v1/photos/:id/position` | Eigentümer, admin | Foto in der Reihenfolge verschieben (`{ "position": 0…999 }`) |
 | `GET /api/v1/media/:id?size=thumb\|full` | angemeldet | Bild ausliefern; Standard `full` |
 
 **Verarbeitung.** Weder der Dateiname noch der vom Client angegebene MIME-Typ
@@ -432,11 +433,18 @@ der Server; was der Client seine Datei genannt hat, erreicht die Platte nie.
 Geschrieben wird über `paths.temp` und einen abschließenden `rename`, damit nie
 eine halbe Datei sichtbar ist.
 
-**Hauptbild.** Das erste Foto eines Produkts wird automatisch zum Hauptbild,
-weitere nur auf ausdrückliche Anforderung. „Hauptbild“ ist eine Eigenschaft des
-Produkts, nicht des Kontos, deshalb setzt `PUT …/primary` das Kennzeichen der
-übrigen Fotos zurück. Wird das Hauptbild gelöscht, rückt das älteste verbliebene
-Foto nach – ein Produkt verliert sein Bild also nicht.
+**Reihenfolge und Hauptbild.** Ein Produkt trägt beliebig viele Fotos in einer
+festen Reihenfolge; `photos.position` zählt von null an und bleibt lückenlos.
+Das Foto auf Position 0 ist das Hauptbild – „Hauptbild“ wird also *abgeleitet*
+und nicht ein zweites Mal gespeichert, sodass Kachel und Detailseite nicht
+auseinanderlaufen können. Neue Fotos hängen sich hinten an, das erste wird damit
+von selbst zum Hauptbild. `PUT …/position` verschiebt ein Foto (eine Position
+hinter dem Ende bedeutet „ans Ende“) und antwortet mit der neuen Reihenfolge
+des ganzen Produkts; `PUT …/primary` ist die Kurzform für Position 0. Wird ein
+Foto gelöscht, rücken die übrigen auf – ein Produkt verliert sein Bild also
+nicht. Verschieben gehört wie Löschen dem Konto, das das Foto aufgenommen hat,
+und den Administratoren: die Reihenfolge ist zwar eine Eigenschaft des Produkts,
+das einzelne Bild aber nicht.
 
 **Auslieferung.** `GET /api/v1/media/:id` verlangt eine Sitzung wie jede andere
 Route; es gibt bewusst kein statisches Verzeichnis im Webroot und keine

@@ -72,11 +72,11 @@ const ratingCountExpression = sql<number>`(
   select count(*) from ${ratings} where ${ratings.productId} = ${products.id}
 )`;
 
-/** The photo marked as primary, falling back to the oldest one. */
+/** The first photo of the gallery; that is what "primary" means. */
 const primaryPhotoExpression = sql<string | null>`(
   select ${photos.id} from ${photos}
   where ${photos.productId} = ${products.id}
-  order by ${photos.isPrimary} desc, ${photos.createdAt} asc
+  order by ${photos.position} asc, ${photos.createdAt} asc
   limit 1
 )`;
 

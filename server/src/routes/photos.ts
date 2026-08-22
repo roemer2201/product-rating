@@ -1,11 +1,12 @@
 import { createReadStream } from 'node:fs';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { mediaQuerySchema, PHOTO_FIELD, type Photo } from '@product-rating/shared';
+import { mediaQuerySchema, movePhotoSchema, PHOTO_FIELD, type Photo } from '@product-rating/shared';
 import { currentUser } from '../plugins/auth.js';
 import type { ErrorBody } from '../plugins/errorHandler.js';
 import {
   deletePhoto,
   findPhotoById,
+  movePhoto,
   setPrimaryPhoto,
   statPhotoFile,
   storePhoto,
@@ -161,6 +162,25 @@ export function registerPhotoRoutes(app: FastifyInstance): void {
       );
 
       return { ok: true };
+    },
+  );
+
+  /**
+   * Moves a photo inside the gallery of its product. Position zero is the
+   * front, so this is the general form of the promotion below.
+   */
+  app.put<{ Params: { id: string } }>(
+    '/api/v1/photos/:id/position',
+    { preHandler: app.requireUser },
+    async (request) => {
+      const { position } = movePhotoSchema.parse(request.body);
+      const user = currentUser(request);
+
+      const gallery = movePhoto(app.db, user, request.params.id, position);
+
+      request.log.info({ photoId: request.params.id, by: user.id, position }, 'photo moved');
+
+      return { photos: gallery satisfies Photo[] };
     },
   );
 

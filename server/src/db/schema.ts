@@ -143,11 +143,18 @@ export const photos = sqliteTable(
     mime: text('mime').notNull(),
     width: integer('width').notNull(),
     height: integer('height').notNull(),
-    isPrimary: integer('is_primary', { mode: 'boolean' }).notNull().default(false),
+    /**
+     * Place of the photo in the gallery of its product, counted from zero and
+     * kept dense. Position zero is the picture on the card, so "primary" is a
+     * consequence of the order instead of a second, separately stored truth
+     * that could disagree with it.
+     */
+    position: integer('position').notNull().default(0),
     createdAt: createdAt(),
   },
   (table) => [
     index('photos_product_id_idx').on(table.productId),
+    index('photos_product_position_idx').on(table.productId, table.position),
     index('photos_user_id_idx').on(table.userId),
   ],
 );

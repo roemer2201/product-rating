@@ -199,6 +199,13 @@ const ROUTES: RouteRule[] = [
     pattern: '/api/v1/photos/:id/primary',
     access: 'user',
   },
+  {
+    method: 'PUT',
+    url: `/api/v1/photos/${UNKNOWN_ID}/position`,
+    pattern: '/api/v1/photos/:id/position',
+    access: 'user',
+    payload: { position: 0 },
+  },
 
   { method: 'GET', url: '/api/v1/ratings/mine', pattern: '/api/v1/ratings/mine', access: 'user' },
   {

@@ -787,6 +787,12 @@ a {
   justify-content: space-between;
 }
 
+/* The two arrows stay together as one control, whatever the tile width. */
+.photo-grid__order {
+  display: flex;
+  gap: var(--space-1);
+}
+
 .photo-upload {
   display: flex;
   flex-direction: column;
