@@ -871,6 +871,11 @@ gilt für `/` und beide überschrieben sich gegenseitig.
   der Datenbank und Beschreibbarkeit des Upload-Verzeichnisses – Status `200`
   mit `{"status":"ok",…}`, sonst `503` mit `"degraded"`. Dazu strukturierte Logs
   nach stdout, Datei oder syslog (8.2).
+- **Umzug und Auswertung:** `product-rating export --to <verzeichnis>` schreibt
+  den Katalog in lesbarer Form (8.3), `product-rating import --from
+  <verzeichnis>` liest ihn in eine andere Instanz. Das ist ausdrücklich **kein**
+  Backup – dafür ist `backup`/`restore` da, das die Datenbankdatei samt Konten
+  mitnimmt.
 - **Konsistenzprüfung:** `product-rating fsck --uploads` vergleicht das
   Upload-Verzeichnis in beide Richtungen mit der Fototabelle: Dateien, zu denen
   keine Zeile mehr existiert, und Zeilen, deren Datei fehlt. Gemeldet wird
@@ -893,6 +898,8 @@ Konsole. Im Container liegt derselbe Befehl unter
 | `invite create\|list\|revoke` | Einladungscodes ausgeben, auflisten, zurückziehen |
 | `backup --to <dir>` | Snapshot aus `VACUUM INTO` plus Fotos, `--keep-days N` als Aufbewahrungsgrenze |
 | `restore --from <dir>` | Snapshot zurückspielen, nach ausdrücklicher Bestätigung (`--yes` überspringt sie) |
+| `export --to <dir>` | Katalog als JSON und/oder CSV schreiben, `--with-photos` nimmt die Bilder mit |
+| `import --from <dir>` | Export einlesen; `--owner`, `--update`, `--dry-run` |
 | `fsck --uploads` | Upload-Verzeichnis gegen die Fototabelle prüfen, `--repair` löscht verwaiste Dateien |
 | `help [befehl]`, `version` | Hilfe und Version |
 
@@ -944,6 +951,53 @@ Anmeldeversuche stehen unter einem einheitlichen Ereignisnamen im Log:
 dazu Benutzername, IP und – nur im Log, nie in der Antwort – der Grund
 (`unknown_user`, `wrong_password`, `account_disabled`). Damit lässt sich „alle
 Fehlversuche dieser Adresse“ abfragen, ohne nach Sätzen zu suchen.
+
+### 8.3 Export und Import
+
+`export` und `import` bewegen **Daten**, nicht eine Installation. Der
+Unterschied zu `backup`/`restore`:
+
+| | `backup` / `restore` | `export` / `import` |
+|---|---|---|
+| Umfang | ganze Instanz: Datenbankdatei, Konten, Sitzungen, Einladungen, Uploads | Produkte, Bewertungen, Fotos |
+| Form | SQLite-Datei und Bilddateien | JSON und CSV, Bilder als WebP |
+| Ziel | dieselbe Anwendung, meist dieselbe Maschine | eine andere Instanz, ein Tabellenprogramm |
+| Konten | kommen mit | müssen drüben existieren, Zuordnung über den Benutzernamen |
+
+```bash
+product-rating export --to /srv/umzug --format both --with-photos
+product-rating import --from /srv/umzug --dry-run      # erst schauen
+product-rating import --from /srv/umzug --owner anna   # dann einlesen
+```
+
+**Was geschrieben wird:**
+
+```
+/srv/umzug/export.json     alles, in der Form, die "import" liest
+/srv/umzug/products.csv    eine Zeile je Produkt, mit Anzahl und Durchschnitt
+/srv/umzug/ratings.csv     eine Zeile je Bewertung
+/srv/umzug/photos/         die Detailbilder (nur mit --with-photos)
+```
+
+**Konten sind bewusst nicht Teil eines Exports.** Eine Datei, die
+Passwort-Hashes mitnimmt, wäre ein Satz Zugangsdaten und keine Datensicherung.
+Produkte, Bewertungen und Fotos nennen ihr Konto deshalb über den
+Benutzernamen; die Konten der Zielinstanz legt `product-rating user add` an.
+Ein Name, den die Zielinstanz nicht kennt, bricht den Import ab, **bevor**
+etwas geschrieben wird – `--owner <konto>` übernimmt solche Einträge
+stattdessen.
+
+**Zusammenführen statt Ersetzen.** Ein Produkt, das drüben schon existiert,
+behält seine Daten (`--update` schreibt sie über und holt es zugleich aus dem
+Papierkorb); eine vorhandene Bewertung wird nie überschrieben – ein Urteil
+gehört dem, der es abgegeben hat. Damit ist derselbe Import zweimal
+ausführbar, ohne dass sich etwas verdoppelt: Fotos erkennt der Import an Konto
+und Aufnahmezeitpunkt wieder. Bilder laufen beim Einlesen durch denselben Weg
+wie ein Upload – neu kodiert, Thumbnail erzeugt, Metadaten entfernt.
+
+**CSV** ist RFC 4180 mit Byte Order Mark, damit ein Tabellenprogramm
+„Getränke“ liest und nicht „GetrÃ¤nke“. Es ist ein reines Ausgabeformat;
+eingelesen wird die JSON-Datei.
 
 ---
 

@@ -5,6 +5,43 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-22 – Backlog: Export nach JSON und CSV, Import zum Umzug
+
+**Umfang**
+
+- **`server/src/services/transfer.ts`** mit `exportCatalogue()` und
+  `importCatalogue()`, dazu die Befehle `product-rating export --to <dir>` und
+  `product-rating import --from <dir>` (README 8.3).
+- **Export** schreibt `export.json` (die Form, die der Import liest),
+  `products.csv` und `ratings.csv` (RFC 4180 mit Byte Order Mark) und mit
+  `--with-photos` die Detailbilder nach `photos/`. `--include-trash` nimmt den
+  Papierkorb mit, sonst bleibt er außen vor.
+- **Import** führt zusammen, statt zu ersetzen: vorhandene Produkte bleiben,
+  wie sie sind (`--update` schreibt drüber und holt sie aus dem Papierkorb),
+  vorhandene Bewertungen werden nie überschrieben, Fotos werden an Konto und
+  Aufnahmezeitpunkt wiedererkannt. `--dry-run` prüft nur.
+- **Tests:** Rundlauf zwischen zwei Wegwerf-Instanzen (Export → Import →
+  Bewertungen und Fotos sind drüben), doppelter Import, fremdes Dateiformat,
+  unbekanntes Konto mit und ohne `--owner`, dazu drei CLI-Fälle.
+
+**Entscheidungen**
+
+- *Konten sind nicht Teil eines Exports.* Eine Datei mit Passwort-Hashes wäre
+  ein Satz Zugangsdaten. Bewertungen und Fotos nennen ihr Konto über den
+  Benutzernamen; die Zuordnung passiert beim Import.
+- *Ein unbekannter Benutzername bricht ab, bevor etwas geschrieben ist.* Alle
+  Namen werden zuerst aufgelöst – ein halb eingelesener Import ist das eine
+  Ergebnis, das niemand von Hand aufräumen kann. `--owner` übernimmt solche
+  Einträge bewusst.
+- *Bilder laufen durch `storePhoto()`.* Der Umweg kostet eine erneute
+  Kodierung, dafür kommt keine fremde Datei ungeprüft auf die Platte, und das
+  Thumbnail entsteht wie bei jedem Upload.
+- *CSV ist Ausgabeformat, JSON die Austauschform.* Eine CSV-Datei kann
+  Bewertungen und Fotos eines Produkts nicht ohne Verrenkungen tragen; wer
+  Tabellen will, bekommt zwei flache Dateien.
+- *Abgrenzung zu `backup`.* README 8.3 stellt beide gegenüber, damit niemand
+  einen Export für eine Sicherung hält.
+
 ## 2026-08-22 – Backlog: Papierkorb statt endgültigem Löschen
 
 **Umfang**
