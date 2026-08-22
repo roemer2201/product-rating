@@ -229,6 +229,8 @@ ratings   (id, product_id, user_id, stars 0..5, comment, created_at, updated_at)
            UNIQUE (product_id, user_id)
 photos    (id, product_id, user_id, filename, mime, width, height,
            position, created_at)
+
+products_fts (name, brand, ean, product_id)   FTS5, Trigramme, per Trigger gepflegt
 ```
 
 Fotos werden **nicht** als BLOB in der Datenbank abgelegt: das Dateisystem ist
@@ -363,13 +365,25 @@ Die Antwort ist `{ products, nextCursor, total }`. Der Cursor merkt sich die
 Sortierung, mit der er entstanden ist; wird sie gewechselt, antwortet die Route
 mit `400`, statt Produkte zu überspringen oder doppelt zu liefern.
 
-**Suche.** Die Suche arbeitet mit `LIKE` über Name und Marke, nicht mit einer
-FTS5-Tabelle: bei bis zu sechsstelligen Produktzahlen und wenigen Nutzern ist
-der Tabellendurchlauf schnell genug, und FTS5 könnte weder Teilwörter noch die
-Schreibweise mit Umlauten ohne zusätzliche Konfiguration. Groß- und
-Kleinschreibung werden über die Anwendungsfunktion `pr_lower()` verglichen,
-weil SQLites eingebautes `lower()` nur ASCII kennt und „Müller“ sonst nicht auf
-„müller“ passen würde.
+**Suche.** `q` läuft über `products_fts`, eine FTS5-Tabelle mit dem
+**Trigramm-Tokenizer** (`tokenize='trigram remove_diacritics 1'`) über Name,
+Marke und EAN. Drei Trigger auf `products` halten sie aktuell; angelegt und
+gefüllt wird sie in der Migration `0003_product_search.sql`.
+
+Trigramme statt Wörtern, weil Deutsch es verlangt: „saft“ findet „Apfelsaft“,
+was ein wortbasierter Index nie täte. Groß-/Kleinschreibung und diakritische
+Zeichen faltet der Tokenizer selbst, „müsli“, „MÜSLI“ und „musli“ sind also
+dasselbe. Ziffern verhalten sich genauso – anders als früher findet auch das
+Ende eines Barcodes sein Produkt und nicht nur der Anfang.
+
+Jedes Wort des Suchbegriffs wird in Anführungszeichen gesetzt, damit ein
+Bindestrich, ein Umlaut oder ein Anführungszeichen Text bleibt und keine
+Abfragesyntax wird; mehrere Wörter verbindet FTS5 mit UND – wer „kölln müsli“
+tippt, engt ein. Ein Wort mit weniger als drei Zeichen kann ein Trigramm-Index
+nicht beantworten; solche Suchen laufen weiter über `LIKE` mit der
+Anwendungsfunktion `pr_lower()`, die – anders als SQLites eingebautes `lower()`
+– die vollen Unicode-Regeln kennt. Das Ergebnis bleibt damit in jedem Fall
+exakt, nur der Weg dorthin unterscheidet sich.
 
 ### 4.2 Routen zu Bewertungen
 

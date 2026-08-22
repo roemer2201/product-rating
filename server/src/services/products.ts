@@ -529,27 +529,64 @@ function containsInsensitive(column: SQLiteColumn, term: string): SQL {
   return sql`${sql.raw(LOWER_FUNCTION)}(coalesce(${column}, '')) like ${sql.raw(LOWER_FUNCTION)}(${pattern}) escape '\\'`;
 }
 
-/** Shortest digit run that is looked up as an EAN prefix rather than as text. */
-const EAN_SEARCH_MIN_DIGITS = 4;
+/**
+ * Shortest word the full text index can answer for.
+ *
+ * The index is built from trigrams, so it knows nothing about a fragment of one
+ * or two characters. Those go back through `LIKE`, which is exact — a search
+ * for "ei" has to find "Ei" whether an index can help or not.
+ */
+const FTS_MIN_TERM_LENGTH = 3;
 
 /**
- * Free text search over name and brand, plus an EAN prefix when the term looks
- * like part of a barcode. Digits are matched against the stored, normalised
- * EAN, so typing the tail of a code finds nothing — that is deliberate, a
- * prefix hits the index while a substring would scan the table.
+ * Turns a search term into an FTS5 query.
+ *
+ * Every word is quoted, which is what makes a hyphen, an umlaut or a stray
+ * quote a piece of text instead of query syntax — unquoted, `bio-hof` is read
+ * as a column name and the query fails. Several words are combined with the
+ * implicit AND of FTS5: someone typing "kölln hafer" is narrowing down, not
+ * asking for either.
+ *
+ * Returns `null` when at least one word is too short for the index; the caller
+ * falls back to `LIKE` then rather than quietly searching for something else.
  */
-function searchCondition(term: string): SQL | undefined {
-  const conditions: SQL[] = [
+export function ftsQuery(term: string): string | null {
+  const words = term.split(/\s+/).filter((word) => word !== '');
+  if (words.length === 0) return null;
+  if (words.some((word) => word.length < FTS_MIN_TERM_LENGTH)) return null;
+
+  return words.map((word) => `"${word.replace(/"/g, '""')}"`).join(' ');
+}
+
+/** Free text search over name, brand and EAN through `LIKE`, as a fallback. */
+function likeSearchCondition(term: string): SQL | undefined {
+  return or(
     containsInsensitive(products.name, term),
     containsInsensitive(products.brand, term),
-  ];
+    containsInsensitive(products.ean, term),
+  );
+}
 
-  const digits = term.replace(/\D/g, '');
-  if (digits.length >= EAN_SEARCH_MIN_DIGITS) {
-    conditions.push(sql`${products.ean} like ${`${digits}%`}`);
-  }
+/**
+ * Free text search over name, brand and EAN.
+ *
+ * The words go against `products_fts`, a trigram index kept up to date by
+ * triggers on `products`. Trigrams are what makes this useful for German: a
+ * search for "saft" finds "Apfelsaft", which a word based index never would,
+ * and the tokenizer folds case and diacritics, so "koelln" aside, "kölln" and
+ * "KÖLLN" are the same word. Digits work the same way — the tail of a barcode
+ * finds its product, where the previous `LIKE` search could only match a
+ * prefix.
+ *
+ * Short words are the exception, see `ftsQuery()`.
+ */
+function searchCondition(term: string): SQL | undefined {
+  const query = ftsQuery(term);
+  if (query === null) return likeSearchCondition(term);
 
-  return or(...conditions);
+  return sql`${products.id} in (
+    select product_id from products_fts where products_fts match ${query}
+  )`;
 }
 
 function filterConditions(query: ProductListQuery): SQL[] {

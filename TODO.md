@@ -259,7 +259,7 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [ ] Offline-Erfassung mit Sync-Queue (IndexedDB) und Konfliktbehandlung
 - [ ] Statistiken: Bewertungsverteilung, meistbewertete Marken
 - [x] Fremde Bewertungen sichtbar machen: wer im Haushalt hat wie viele Sterne vergeben – bisher liefert die API nur Durchschnitt, Anzahl und die eigene Bewertung
-- [ ] FTS5-Suche nachrüsten, falls die `LIKE`-Suche mit wachsendem Katalog spürbar langsam wird
+- [x] FTS5-Suche nachrüsten, falls die `LIKE`-Suche mit wachsendem Katalog spürbar langsam wird
 - [ ] TOTP-Zweitfaktor
 - [ ] Optionale Delegation der Authentifizierung an Reverse-Proxy-SSO
 - [ ] Preisverlauf und Einkaufsort je Produkt

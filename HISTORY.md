@@ -5,6 +5,41 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-22 – Backlog: Volltextsuche über FTS5
+
+**Umfang**
+
+- **`products_fts`** (Migration `0003_product_search.sql`): FTS5-Tabelle über
+  Name, Marke und EAN mit dem Tokenizer `trigram remove_diacritics 1`, gefüllt
+  aus dem vorhandenen Katalog und von drei Triggern auf `products` aktuell
+  gehalten (INSERT, UPDATE, DELETE).
+- **`searchCondition()`** fragt sie über
+  `products.id in (select product_id from products_fts where products_fts match ?)`
+  ab. Jedes Wort wird gequotet, mehrere Wörter verbindet FTS5 mit UND.
+- **`LIKE` bleibt als Rückfallweg** für Wörter mit weniger als drei Zeichen –
+  kürzer als ein Trigramm, davon weiß der Index nichts. Das Ergebnis ist in
+  beiden Wegen exakt.
+- **Tests:** Wort im Kompositum („flocken“ → Haferflocken), Umlaute, Barcode
+  von hinten, zwei Wörter als Einschränkung, kurzer Begriff über `LIKE`,
+  Sonderzeichen als Text, und dass Umbenennen und Papierkorb im Index ankommen.
+
+**Entscheidungen**
+
+- *Trigramme statt Wörtern.* Ein wortbasierter Index findet „Apfelsaft“ nicht,
+  wenn jemand „saft“ tippt – im Deutschen ist genau das der Normalfall. Der
+  Trigramm-Tokenizer beantwortet Teilwortsuchen aus dem Index, was der bisherige
+  `LIKE`-Durchlauf nur mit einem Tabellenscan konnte.
+- *Eine eigene Tabelle mit `product_id`, keine External-Content-Tabelle.* Der
+  Text steht damit zweimal in der Datenbank (bei ein paar hunderttausend kurzen
+  Zeilen kein Thema), dafür sind die Trigger drei triviale Anweisungen und die
+  Abfrage braucht keinen `rowid`-Verbund.
+- *Der Suchbegriff wird immer gequotet.* Unquotiert liest FTS5 `bio-hof` als
+  Spaltennamen und die Anfrage scheitert; Nutzereingabe ist Text, keine Syntax.
+- *Diakritika werden gefaltet.* „musli“ findet „Müsli“ – auf einer
+  Telefontastatur am Regal ist das die freundlichere Regel.
+- README 4.1 hält die alte Begründung für `LIKE` nicht mehr fest, sondern
+  beschreibt den neuen Weg samt Grenze bei zwei Zeichen.
+
 ## 2026-08-22 – Backlog: fremde Bewertungen sichtbar machen
 
 **Umfang**
