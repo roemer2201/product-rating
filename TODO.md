@@ -247,6 +247,8 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [ ] **[S]** Die 100-Megapixel-Grenze der Bildverarbeitung ist ungetestet: ein Testbild dieser Größe zu erzeugen kostet mehr Speicher, als ein Testlauf haben sollte. Geprüft ist nur, dass die Option gesetzt wird
 - [ ] **[S]** Die beiden Workflows sind noch nie gelaufen – sie werden mit diesem Commit überhaupt erst angelegt. Beim ersten Lauf gegenprüfen: `ubuntu-24.04-arm` als Runner, das Anmelden an der GHCR, `push-by-digest` und das Zusammenführen der Manifeste
 - [ ] **[S]** Der Installationsdurchlauf lief ohne systemd (Container ohne PID 1): Verzeichnisse, Rechte, Secret, Migrationen, CLI, Start des Servers und `purge` sind geprüft, `systemctl start` und der Neustart beim Upgrade nicht. Der CI-Workflow holt genau das auf einem echten Runner nach
+- [ ] **[S]** `armhf` ist seit dem 22.08.2026 baubar, aber ungetestet: Es gibt keinen Runner dafür, und `better-sqlite3` hat dort keinen Prebuild, wird also bei jedem Bau übersetzt (mehrere Minuten). Beim ersten produktiven Lauf gegenprüfen, ob das Paket startet und Abfragen beantwortet; danach entscheiden, ob armhf in README 7.2 als unterstützte Architektur genannt wird
+- [ ] **[S]** `.npmrc` setzt `engine-strict=true`, `jsdom` (nur Test-Abhängigkeit) verlangt Node `^22.22.2`. Ubuntu liefert derzeit `22.22.1`, dort scheitert `npm install` ohne `--engine-strict=false`. Prüfen, ob die Anforderung mit einem `jsdom`-Update verschwindet oder ob die Regel für Entwicklungsabhängigkeiten zu streng ist
 
 ---
 
