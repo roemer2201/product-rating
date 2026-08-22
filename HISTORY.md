@@ -17,6 +17,10 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
   bleibt der Prebuild und `build/` fällt weg; gibt es ihn nicht, bleibt das beim
   Install übersetzte `build/Release/better_sqlite3.node` und die `prebuilds/`
   fallen weg. Fehlen beide, bricht der Bau ab.
+- **Abhängigkeits-Install im Staging-Verzeichnis** läuft mit
+  `--engine-strict=false`. Dafür prüft `check_prerequisites` jetzt selbst, ob
+  die Node-Version des Bau-Hosts die in der Wurzel-`package.json` deklarierte
+  Untergrenze erreicht.
 
 **Entscheidungen**
 
@@ -33,6 +37,17 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
   armhf-Prebuilds (`@img/sharp-linux-arm`,
   `@node-rs/argon2-linux-arm-gnueabihf`), und die vorhandene Auswahl über
   `-${node_arch}` trifft sie mit `arm` richtig, ohne `arm64` zu erwischen.
+- *`engine-strict` gehört nicht in den Paketbau.* Die `.npmrc` des Projekts
+  setzt es, und `install_runtime_dependencies` kopiert sie mit, damit der
+  Install dieselben Einstellungen sieht wie überall sonst. npm prüft das Feld
+  `engines` aber für jedes Paket der Lock-Datei, während es den
+  Abhängigkeitsbaum aufbaut – also bevor `--omit=dev` die
+  Entwicklungsabhängigkeiten wieder entfernt. Auf Ubuntu 26.04 (Node 22.22.1,
+  npm 9) hielt so `jsdom`, eine reine Test-Abhängigkeit mit Anforderung
+  `^22.22.2`, den Bau eines Servers auf, der sie nie lädt. Statt die Regel im
+  ganzen Repository zu lockern, ist sie für diesen einen Aufruf ausgeschaltet
+  und die eigentliche Frage – ist der Bau-Host neu genug – wird ausdrücklich
+  gestellt.
 - **Offen:** Auf armhf gibt es kein CI. Geprüft ist, dass der amd64-Bau
   unverändert dasselbe Paket erzeugt; der armhf-Bau selbst läuft bisher nur auf
   der Maschine des Projektinhabers.
