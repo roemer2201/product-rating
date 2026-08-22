@@ -4,10 +4,13 @@ import { passwordSchema, type Invite, type User } from '@product-rating/shared';
 import { EmptyState, ErrorNotice, SkeletonList } from '@/components/Feedback';
 import { Field } from '@/components/Field';
 import { errorMessage } from '@/lib/api';
-import { formatDate } from '@/lib/format';
+import { formatDate, formatDateTime } from '@/lib/format';
+import type { PasswordResetLink } from '@product-rating/shared';
 import {
   useCreateInvite,
+  useCreateResetLink,
   useInvites,
+  useLockUser,
   usePurgeProduct,
   useResetPassword,
   useRestoreProduct,
@@ -29,6 +32,11 @@ import { strings } from '@/lib/strings';
  * The trash sits here for the same reason deleting is an administrator's job:
  * what is in it belongs to everybody, and bringing a product back brings other
  * people's ratings and photos with it.
+ *
+ * A password link is shown exactly once, right after it is issued: the server
+ * stores only its hash, so this is the single moment it can be copied. That is
+ * also why it is on screen and not only in the clipboard — without a secure
+ * context there is no clipboard, and the link still has to get out.
  */
 
 /** The share link, so an invite can be sent as one tap instead of a code to type. */
@@ -52,6 +60,8 @@ export function AdminPage() {
   const revokeInvite = useRevokeInvite();
   const updateUser = useUpdateUser();
   const trash = useTrash();
+  const createResetLink = useCreateResetLink();
+  const lockUser = useLockUser();
   const restoreProduct = useRestoreProduct();
   const purgeProduct = usePurgeProduct();
 
@@ -65,16 +75,21 @@ export function AdminPage() {
   const [newPassword, setNewPassword] = useState('');
   /** The product whose final deletion is waiting for a second tap. */
   const [purging, setPurging] = useState<string | null>(null);
+  /** The freshly issued password link; the only moment it can be read. */
+  const [link, setLink] = useState<PasswordResetLink | null>(null);
+  /** The account whose password removal is waiting for a second tap. */
+  const [locking, setLocking] = useState<string | null>(null);
 
   // Nothing here is readable without the role anyway — the server refuses every
   // one of these routes — but a screen full of 403s is a poor way to say so.
   if (session.isPending) return <SkeletonList rows={3} />;
   if (user == null || user.role !== 'admin') return <Navigate to="/settings" replace />;
 
-  const onCopy = async (code: string): Promise<void> => {
+  /** Copies a text and remembers which entry it belonged to. */
+  const copy = async (key: string, text: string): Promise<void> => {
     try {
-      await navigator.clipboard.writeText(inviteLink(code));
-      setCopied(code);
+      await navigator.clipboard.writeText(text);
+      setCopied(key);
       setCopyFailed(false);
     } catch {
       // No clipboard permission, or an insecure context: the link is on screen
@@ -82,6 +97,8 @@ export function AdminPage() {
       setCopyFailed(true);
     }
   };
+
+  const onCopy = (code: string): Promise<void> => copy(code, inviteLink(code));
 
   const toggleRole = (entry: User): void => {
     updateUser.mutate({
@@ -208,8 +225,32 @@ export function AdminPage() {
 
       <section className="section">
         <h2 className="section__title">{strings.admin.usersTitle}</h2>
+        <p className="section__intro">{strings.admin.userResetLinkHint}</p>
 
         {updateUser.error !== null && <ErrorNotice message={errorMessage(updateUser.error)} />}
+        {createResetLink.error !== null && (
+          <ErrorNotice message={errorMessage(createResetLink.error)} />
+        )}
+        {lockUser.error !== null && <ErrorNotice message={errorMessage(lockUser.error)} />}
+
+        {link !== null && (
+          <div className="notice" role="status">
+            <p>
+              <strong>{strings.admin.userResetLinkFor(link.username)}</strong>{' '}
+              {strings.admin.userResetLinkExpires(formatDateTime(link.expiresAt))}
+            </p>
+            {/* On screen as well as in the clipboard: without a secure context
+                there is no clipboard, and the link still has to get out. */}
+            <p className="admin-row__note admin-row__code">{link.url}</p>
+            <button
+              type="button"
+              className="button button--quiet"
+              onClick={() => void copy(link.token, link.url)}
+            >
+              {copied === link.token ? strings.common.copied : strings.admin.userResetLinkCopy}
+            </button>
+          </div>
+        )}
 
         {users.isPending ? (
           <SkeletonList rows={2} />
@@ -241,6 +282,11 @@ export function AdminPage() {
                       {entry.disabledAt !== null && (
                         <span className="badge badge--expired">{strings.admin.userDisabled}</span>
                       )}
+                      {entry.passwordResetRequired && (
+                        <span className="badge badge--expired">
+                          {strings.admin.userNeedsPassword}
+                        </span>
+                      )}
                     </span>
                     <span className="admin-row__meta">
                       {entry.role === 'admin'
@@ -269,12 +315,50 @@ export function AdminPage() {
                         type="button"
                         className="button button--quiet"
                         onClick={() => {
+                          setLink(null);
+                          createResetLink.mutate(entry.id, {
+                            onSuccess: (issued) => {
+                              setLink(issued);
+                            },
+                          });
+                        }}
+                        disabled={createResetLink.isPending}
+                      >
+                        {createResetLink.isPending
+                          ? strings.admin.userResetLinkPending
+                          : strings.admin.userResetLink}
+                      </button>
+                      <button
+                        type="button"
+                        className="button button--quiet"
+                        onClick={() => {
                           setResetting(resetting === entry.id ? null : entry.id);
                           setNewPassword('');
                         }}
                         aria-expanded={resetting === entry.id}
                       >
                         {strings.admin.userResetPassword}
+                      </button>
+                      {/* Two taps: it ends every session of that account. */}
+                      <button
+                        type="button"
+                        className="button button--quiet button--danger"
+                        onClick={() => {
+                          if (locking === entry.id) {
+                            lockUser.mutate(entry.id, {
+                              onSettled: () => {
+                                setLocking(null);
+                              },
+                            });
+                          } else {
+                            setLocking(entry.id);
+                          }
+                        }}
+                        disabled={lockUser.isPending || entry.passwordResetRequired}
+                      >
+                        {locking === entry.id
+                          ? strings.admin.userLockConfirm
+                          : strings.admin.userLock}
                       </button>
                       <button
                         type="button"

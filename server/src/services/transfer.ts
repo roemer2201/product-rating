@@ -7,6 +7,7 @@ import { normaliseEan } from '@product-rating/shared';
 import type { AppConfig } from '../config/index.js';
 import type { AppDatabase, DbHandle } from '../db/index.js';
 import { photos, prices, products, ratings, users, type ProductRow } from '../db/index.js';
+import { insertLockedUser } from './users.js';
 import { APP_VERSION } from '../version.js';
 import { ValidationError } from './errors.js';
 import { photoFilePath, storePhoto } from './photos.js';
@@ -23,9 +24,11 @@ import { photoFilePath, storePhoto } from './photos.js';
  * identifier, so it survives a move to a fresh installation, a different host,
  * or a spreadsheet: products, ratings, recorded prices and pictures.
  *
- * Accounts are not part of it. An export that carried password hashes around
- * would turn a file somebody mails to themselves into a set of credentials; the
- * import therefore expects the accounts to exist and matches them by name.
+ * Accounts travel as names, roles and e-mail addresses — never as password
+ * hashes. A file somebody mails to themselves must not be a set of credentials.
+ * The import therefore creates the accounts it does not find, without a
+ * password: they are marked `password_reset_required`, and an administrator
+ * hands each of them a password link (README 5.2).
  */
 
 /** Name of the machine readable export inside the target directory. */
@@ -33,6 +36,7 @@ export const EXPORT_JSON_FILE = 'export.json';
 export const EXPORT_PRODUCTS_CSV = 'products.csv';
 export const EXPORT_RATINGS_CSV = 'ratings.csv';
 export const EXPORT_PRICES_CSV = 'prices.csv';
+export const EXPORT_USERS_CSV = 'users.csv';
 
 /** Directory holding the exported detail images. */
 export const EXPORT_PHOTOS_DIR = 'photos';
@@ -52,6 +56,14 @@ export const EXPORT_VERSION = 1;
 const PRIVATE_MODE = 0o700;
 
 /* ------------------------------------------------------------------ shape */
+
+const exportedUserSchema = z.object({
+  username: z.string().min(1),
+  email: z.string().nullish(),
+  role: z.enum(['admin', 'user']).default('user'),
+  createdAt: z.string().optional(),
+  disabledAt: z.string().nullish(),
+});
 
 const exportedRatingSchema = z.object({
   user: z.string().min(1),
@@ -99,9 +111,12 @@ const exportedProductSchema = z.object({
 const exportFileSchema = z.object({
   format: z.literal(EXPORT_FORMAT),
   version: z.number().int().min(1),
+  /** Absent in files written before accounts were part of an export. */
+  users: z.array(exportedUserSchema).default([]),
   products: z.array(exportedProductSchema),
 });
 
+export type ExportedUser = z.infer<typeof exportedUserSchema>;
 export type ExportedProduct = z.infer<typeof exportedProductSchema>;
 export type ExportFile = z.infer<typeof exportFileSchema>;
 
@@ -115,6 +130,13 @@ export interface ExportOptions {
   /** Directory the files are written into; created if it is missing. */
   target: string;
   format?: ExportFormat;
+  /**
+   * Take the accounts along — names, roles, e-mail addresses, never hashes.
+   * On by default, because a move needs them: without accounts the other side
+   * has nobody to attribute a rating to. Off for an export that is only going
+   * to be read as a table, where the household's names have no business being.
+   */
+  withUsers?: boolean;
   /** Copy the detail images into `photos/` as well. */
   withPhotos?: boolean;
   /** Take products in the trash along; they are left out by default. */
@@ -126,6 +148,8 @@ export interface ExportOptions {
 export interface ExportResult {
   directory: string;
   files: string[];
+  /** Accounts written, without their password hashes. */
+  users: number;
   products: number;
   ratings: number;
   /** Price rows written into the JSON file. */
@@ -136,6 +160,28 @@ export interface ExportResult {
   photoFiles: number;
   /** Photo rows whose file was missing on disk; `fsck` finds these too. */
   missingPhotoFiles: number;
+}
+
+/**
+ * The accounts, without anything that could serve as a credential.
+ *
+ * What travels is what the other side needs in order to attribute a rating and
+ * to know who may administer the instance: the name, the role, the e-mail
+ * address and the two dates. The password hash deliberately stays behind.
+ */
+function collectUsers(db: DbHandle): ExportedUser[] {
+  return db
+    .select()
+    .from(users)
+    .orderBy(asc(users.username))
+    .all()
+    .map((row) => ({
+      username: row.username,
+      email: row.email,
+      role: row.role,
+      createdAt: row.createdAt.toISOString(),
+      disabledAt: row.disabledAt?.toISOString() ?? null,
+    }));
 }
 
 /** Everything the export needs, in one read per table. */
@@ -223,6 +269,7 @@ export async function exportCatalogue(options: ExportOptions): Promise<ExportRes
   await mkdir(target, { recursive: true, mode: PRIVATE_MODE });
 
   const exported = collectProducts(db, includeTrash);
+  const accounts = options.withUsers === false ? [] : collectUsers(db);
   const photoRows = db.select().from(photos).all();
   const files: string[] = [];
 
@@ -236,12 +283,19 @@ export async function exportCatalogue(options: ExportOptions): Promise<ExportRes
       version: EXPORT_VERSION,
       exportedAt: (options.now ?? new Date()).toISOString(),
       application: APP_VERSION,
+      // Left out entirely rather than written as an empty array: "no accounts
+      // in this file" and "this instance has no accounts" are different
+      // statements, and the import reads a missing key as the first one.
+      ...(options.withUsers === false ? {} : { users: accounts }),
       products: exported,
     };
     const path = join(target, EXPORT_JSON_FILE);
     await writeFile(path, `${JSON.stringify(document, null, 2)}\n`, { mode: 0o600 });
     files.push(path);
-    onProgress?.(`${EXPORT_JSON_FILE}: ${String(exported.length)} product(s)`);
+    onProgress?.(
+      `${EXPORT_JSON_FILE}: ${String(accounts.length)} account(s), ` +
+        `${String(exported.length)} product(s)`,
+    );
   }
 
   if (format === 'csv' || format === 'both') {
@@ -252,6 +306,12 @@ export async function exportCatalogue(options: ExportOptions): Promise<ExportRes
     const ratingsPath = join(target, EXPORT_RATINGS_CSV);
     await writeFile(ratingsPath, ratingsCsv(exported), { mode: 0o600 });
     files.push(ratingsPath);
+
+    if (options.withUsers !== false) {
+      const usersPath = join(target, EXPORT_USERS_CSV);
+      await writeFile(usersPath, usersCsv(accounts), { mode: 0o600 });
+      files.push(usersPath);
+    }
 
     const pricesPath = join(target, EXPORT_PRICES_CSV);
     await writeFile(pricesPath, pricesCsv(exported), { mode: 0o600 });
@@ -297,6 +357,7 @@ export async function exportCatalogue(options: ExportOptions): Promise<ExportRes
   return {
     directory: target,
     files,
+    users: accounts.length,
     products: exported.length,
     ratings: totalRatings,
     prices: totalPrices,
@@ -394,6 +455,24 @@ function ratingsCsv(exported: ExportedProduct[]): string {
   return csvDocument(rows);
 }
 
+function usersCsv(accounts: ExportedUser[]): string {
+  const rows: (string | number | null)[][] = [
+    ['username', 'role', 'email', 'created_at', 'disabled_at'],
+  ];
+
+  for (const account of accounts) {
+    rows.push([
+      account.username,
+      account.role,
+      account.email ?? null,
+      account.createdAt ?? null,
+      account.disabledAt ?? null,
+    ]);
+  }
+
+  return csvDocument(rows);
+}
+
 function pricesCsv(exported: ExportedProduct[]): string {
   const rows: (string | number | null)[][] = [
     ['ean', 'product', 'user', 'cents', 'currency', 'shop', 'note', 'purchased_at'],
@@ -425,10 +504,16 @@ export interface ImportOptions {
   /** The `export.json` to read, or the directory holding it. */
   source: string;
   /**
-   * Account that takes over everything whose user name does not exist here.
-   * Without it, an unknown name is a reason to stop before anything is written.
+   * Account that takes over everything whose user name does not exist here and
+   * is not in the file either. Without it, such a name is a reason to stop
+   * before anything is written.
    */
   owner?: string;
+  /**
+   * Do not create the accounts the file carries. Everything then has to map
+   * onto accounts that already exist here, or onto `owner`.
+   */
+  skipUsers?: boolean;
   /** Write the data of products that already exist over what is stored. */
   update?: boolean;
   /** Read and check everything, change nothing. */
@@ -438,6 +523,15 @@ export interface ImportOptions {
 }
 
 export interface ImportResult {
+  /** Accounts created from the file — each one without a password. */
+  usersCreated: number;
+  /** Accounts the file names and this instance already had. */
+  usersSkipped: number;
+  /**
+   * Names of the accounts that were created and are waiting for a password
+   * link, so the caller can tell an administrator what is left to do.
+   */
+  usersNeedingPassword: string[];
   productsCreated: number;
   productsUpdated: number;
   /** Products that exist here and were left alone (no `--update`). */
@@ -513,6 +607,10 @@ function momentOf(value: string | undefined, fallback: Date): Date {
  * overwritten — somebody's verdict is not something an import gets to change.
  * That also makes the whole thing repeatable: the same file twice leaves the
  * same catalogue behind.
+ *
+ * Accounts are created first, so that everything else has an owner to hang off.
+ * They arrive without a password and cannot be logged into until an
+ * administrator hands out a link.
  */
 export async function importCatalogue(options: ImportOptions): Promise<ImportResult> {
   const { db, config, source } = options;
@@ -537,6 +635,9 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
   }
 
   const result: ImportResult = {
+    usersCreated: 0,
+    usersSkipped: 0,
+    usersNeedingPassword: [],
     productsCreated: 0,
     productsUpdated: 0,
     productsSkipped: 0,
@@ -549,6 +650,47 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
     unknownUsers: [],
     problems: [],
   };
+
+  /**
+   * Accounts come first, before a single product is written.
+   *
+   * They are created without a password: an export carries no hashes, so there
+   * is nothing to restore and nothing that could be guessed. Each one is marked
+   * `password_reset_required` and needs a link from an administrator
+   * (README 5.2) before anybody can log into it. Roles and e-mail addresses of
+   * accounts that already exist here are left alone — this instance knows its
+   * own household better than a file does.
+   */
+  if (options.skipUsers !== true) {
+    for (const account of file.users) {
+      const name = account.username.trim().toLowerCase();
+      if (accounts.has(name)) {
+        result.usersSkipped += 1;
+        continue;
+      }
+
+      result.usersCreated += 1;
+      result.usersNeedingPassword.push(name);
+
+      if (!dryRun) {
+        const created = insertLockedUser(db, {
+          username: name,
+          email: account.email ?? null,
+          role: account.role,
+          createdAt: momentOf(account.createdAt, now),
+          disabledAt:
+            account.disabledAt === null || account.disabledAt === undefined
+              ? null
+              : momentOf(account.disabledAt, now),
+        });
+        accounts.set(name, created.id);
+      } else {
+        // A dry run has no row to point at, but the names below have to
+        // resolve to something so the run reports what a real one would do.
+        accounts.set(name, `dry-run:${name}`);
+      }
+    }
+  }
 
   const unknown = new Set<string>();
   const resolve = (name: string | null | undefined): string | undefined => {

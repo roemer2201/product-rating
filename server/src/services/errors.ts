@@ -35,8 +35,8 @@ export class ValidationError extends ServiceError {
 
 /** 401 – no or no longer valid credentials. */
 export class UnauthorizedError extends ServiceError {
-  constructor(message = 'authentication required') {
-    super(401, 'unauthorized', message);
+  constructor(message = 'authentication required', details?: Record<string, unknown>) {
+    super(401, 'unauthorized', message, details);
     this.name = 'UnauthorizedError';
   }
 }

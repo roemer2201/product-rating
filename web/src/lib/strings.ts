@@ -83,6 +83,22 @@ export const strings = {
     toLogin: 'Anmelden',
   },
 
+  reset: {
+    title: 'Neues Passwort setzen',
+    intro: 'Über diesen Link kannst du ein neues Passwort für dein Konto wählen.',
+    forUser: (username: string) => `Konto: ${username}`,
+    checking: 'Link wird geprüft …',
+    password: 'Neues Passwort',
+    passwordHint: 'Nach dem Speichern wirst du gleich angemeldet.',
+    submit: 'Passwort setzen',
+    submitting: 'Wird gesetzt …',
+    invalid:
+      'Dieser Link gilt nicht mehr. Er ist abgelaufen, wurde schon benutzt oder wurde durch einen neueren ersetzt – bitte einen neuen anfordern.',
+    missing:
+      'In der Adresse fehlt der Link-Code. Bitte den Link aus der Nachricht vollständig öffnen.',
+    toLogin: 'Zur Anmeldung',
+  },
+
   /** Field names, used in labels and in messages that have to name a field. */
   fields: {
     username: 'Benutzername',
@@ -132,6 +148,10 @@ export const strings = {
       `Das Passwort muss mindestens ${minimum} Zeichen lang sein.`,
     usernameTaken: 'Dieser Benutzername ist schon vergeben.',
     inviteInvalid: 'Der Einladungscode ist ungültig, abgelaufen oder schon benutzt.',
+    passwordResetRequired:
+      'Für dieses Konto muss ein neues Passwort gesetzt werden. Bitte einen Passwort-Link von der Verwaltung anfordern.',
+    resetLinkInvalid:
+      'Dieser Link gilt nicht mehr. Er ist abgelaufen, wurde schon benutzt oder wurde ersetzt.',
     eanTaken: 'Zu dieser EAN gibt es schon ein Produkt.',
     unsupportedImage: 'Dieses Bildformat wird nicht angenommen.',
     photoUnreadable: 'Diese Datei lässt sich nicht als Bild lesen.',
@@ -150,6 +170,43 @@ export const strings = {
     title: 'Keine Verbindung',
     text: 'Dieses Gerät ist offline. Der Katalog liegt auf dem Server, deshalb geht es erst weiter, wenn die Verbindung zurück ist.',
     hint: 'Die App selbst ist geladen und startet auch ohne Netz.',
+  },
+
+  /** The offline queue: capturing at the shelf, and getting it up later. */
+  offlineCapture: {
+    offer:
+      'Das ließ sich nicht speichern – das Gerät hat gerade keine Verbindung. Soll die Eingabe gemerkt und später übertragen werden?',
+    keep: 'Offline merken',
+    keeping: 'Wird gemerkt …',
+    kept: 'Gemerkt. Wird übertragen, sobald wieder eine Verbindung besteht.',
+
+    title: 'Offline erfasst',
+    intro:
+      'Was ohne Verbindung eingegeben wurde, wartet hier auf die Übertragung. Zugeordnet wird es über die EAN – ob daraus ein neues Produkt wird oder ein Zusatz zu einem vorhandenen, entscheidet sich erst bei der Übertragung.',
+    empty: 'Nichts offen – alles ist übertragen.',
+    waiting: (count: number) =>
+      count === 1 ? '1 Erfassung wartet' : `${count} Erfassungen warten`,
+    sync: 'Jetzt übertragen',
+    syncing: 'Wird übertragen …',
+    syncResult: (synced: number) =>
+      synced === 1 ? '1 Erfassung übertragen.' : `${synced} Erfassungen übertragen.`,
+    capturedAt: (date: string) => `Erfasst am ${date}`,
+    contains: 'Enthält',
+    partProduct: 'Produktdaten',
+    partRating: (stars: number) => `Bewertung (${stars} von 5)`,
+    partPrice: (amount: string) => `Preis (${amount})`,
+    partPhotos: (count: number) => (count === 1 ? '1 Foto' : `${count} Fotos`),
+    statePending: 'Wartet',
+    stateConflict: 'Rückfrage',
+    stateFailed: 'Abgelehnt',
+    conflictTitle: 'Diese Bewertung wurde inzwischen woanders geändert',
+    conflictText: (mine: number, theirs: number, date: string) =>
+      `Offline erfasst: ${mine} von 5. Auf dem Server steht seit ${date}: ${theirs} von 5.`,
+    keepMine: 'Meine Offline-Eingabe',
+    keepServer: 'Fassung vom Server',
+    retry: 'Erneut versuchen',
+    discard: 'Verwerfen',
+    discardConfirm: 'Wirklich verwerfen?',
   },
 
   update: {
@@ -417,6 +474,19 @@ export const strings = {
     inviteStatusUsed: 'Eingelöst',
     inviteStatusExpired: 'Abgelaufen',
 
+    userNeedsPassword: 'Passwort fehlt',
+    userResetLink: 'Passwort-Link erzeugen',
+    userResetLinkPending: 'Wird erzeugt …',
+    userResetLinkHint:
+      'Der Link wird nur einmal angezeigt – gespeichert wird nur seine Prüfsumme. Diese App verschickt keine E-Mails, gib ihn also selbst weiter.',
+    userResetLinkFor: (username: string) => `Passwort-Link für ${username}`,
+    userResetLinkExpires: (date: string) => `Gültig bis ${date}`,
+    userResetLinkCopy: 'Link kopieren',
+    userLock: 'Passwort entziehen',
+    userLockHint:
+      'Das Konto lässt sich danach nur noch über einen Passwort-Link betreten. Alle Sitzungen werden beendet.',
+    userLockConfirm: 'Wirklich entziehen?',
+
     trashTitle: 'Papierkorb',
     trashIntro:
       'Gelöschte Produkte liegen hier, bis sie zurückgeholt oder endgültig entfernt werden.',
@@ -455,6 +525,7 @@ export function apiErrorText(
       return strings.errors.passwordTooShort(details.minimum);
     }
     if (field === 'invite') return strings.errors.inviteInvalid;
+    if (field === 'token') return strings.errors.resetLinkInvalid;
     if (field === 'ean') return strings.validation.ean;
     if (field === 'photo') {
       // Three ways an upload is refused, and each one has a different remedy:
@@ -469,7 +540,12 @@ export function apiErrorText(
     return strings.errors.invalidRequest;
   }
 
-  if (status === 401) return strings.errors.unauthorized;
+  if (status === 401) {
+    // The one specific 401 the login route produces: an account that has no
+    // password any more says so, because "wrong password" would be a dead end.
+    if (details?.reason === 'password_reset_required') return strings.errors.passwordResetRequired;
+    return strings.errors.unauthorized;
+  }
   if (status === 403) return strings.errors.forbidden;
   if (status === 404) return strings.errors.notFound;
 

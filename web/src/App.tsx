@@ -9,6 +9,7 @@ import { ProductNewPage } from '@/routes/ProductNewPage';
 import { ProductPage } from '@/routes/ProductPage';
 import { RatingsPage } from '@/routes/RatingsPage';
 import { RegisterPage } from '@/routes/RegisterPage';
+import { ResetPasswordPage } from '@/routes/ResetPasswordPage';
 import { ScanPage } from '@/routes/ScanPage';
 import { SettingsPage } from '@/routes/SettingsPage';
 
@@ -17,8 +18,8 @@ import { SettingsPage } from '@/routes/SettingsPage';
  *
  * Two layers: `RequireAuth` decides whether a screen may be shown at all,
  * `AppLayout` gives the ones behind it their header and bottom navigation. The
- * login and registration screens carry their own layout, so they sit outside
- * both.
+ * login, registration and password screens carry their own layout, so they sit
+ * outside both.
  *
  * Paths are English like the rest of the code, and they mirror the navigation
  * one to one — `/` is the catalogue because that is the screen someone opening
@@ -29,6 +30,9 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      {/* Outside the login for the same reason as the two above: whoever opens
+          it cannot log in — that is what the link is for. */}
+      <Route path="/reset" element={<ResetPasswordPage />} />
 
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>

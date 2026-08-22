@@ -79,6 +79,25 @@ export const resetPasswordSchema = z.object({
   newPassword: passwordSchema,
 });
 
+/** Bounds a reset token; 32 random bytes as base64url are 43 characters. */
+export const resetTokenSchema = z.string().trim().min(20).max(200);
+
+/**
+ * Body of `POST /api/v1/auth/reset`: the token out of the link plus the
+ * password to set. No current password — whoever holds the link is the proof,
+ * which is exactly why the link is short lived and single use.
+ */
+export const redeemResetSchema = z.object({
+  token: resetTokenSchema,
+  newPassword: passwordSchema,
+});
+
+/** Body of `POST /api/v1/users/:id/reset-link`; everything is optional. */
+export const createResetLinkSchema = z.object({
+  /** Overrides `auth.password_reset_ttl_hours` for this single link. */
+  ttlHours: z.int().min(1).max(720).optional(),
+});
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
@@ -86,3 +105,5 @@ export type CreateInviteInput = z.infer<typeof createInviteSchema>;
 export type CreateUserInput = z.infer<typeof createUserSchema>;
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type RedeemResetInput = z.infer<typeof redeemResetSchema>;
+export type CreateResetLinkInput = z.infer<typeof createResetLinkSchema>;

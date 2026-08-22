@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router';
 import { ProductPage } from '@/routes/ProductPage';
 import { strings } from '@/lib/strings';
+import { listCaptures } from '@/lib/offlineQueue';
 import { mockFetch, testUser } from '@/testing/fetchMock';
 import {
   makePhoto,
@@ -11,6 +12,7 @@ import {
   makeProductDetail,
   makeProductRating,
   makeRating,
+  TEST_EAN,
 } from '@/testing/fixtures';
 import { renderWithProviders } from '@/testing/render';
 import { mockUpload } from '@/testing/xhrMock';
@@ -343,6 +345,33 @@ describe('ProductPage', () => {
     expect(await screen.findAllByText(/Discounter/)).toHaveLength(2);
     // The label of the summary and the badge on the cheapest row.
     expect(screen.getAllByText(strings.price.lowest)).toHaveLength(2);
+  });
+
+  it('offers to keep a rating that never left the device, and queues it', async () => {
+    const user = userEvent.setup();
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      { path: '/prices/shops', body: { shops: [] } },
+      { path: '/products/prod-1/rating', method: 'PUT', networkError: true },
+      { path: '/products/prod-1', body: { product: makeProductDetail() } },
+    ]);
+
+    renderProduct();
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+
+    await user.click(screen.getByRole('radio', { name: strings.rating.starLabel(4) }));
+    await user.click(screen.getByRole('button', { name: strings.rating.save }));
+
+    // The offer only appears for a failure that never reached the server.
+    await user.click(await screen.findByRole('button', { name: strings.offlineCapture.keep }));
+
+    expect(await screen.findByText(strings.offlineCapture.kept)).toBeInTheDocument();
+
+    const queued = await listCaptures();
+    expect(queued).toHaveLength(1);
+    expect(queued[0]).toMatchObject({ ean: TEST_EAN, state: 'pending' });
+    expect(queued[0]?.rating).toMatchObject({ stars: 4 });
   });
 
   it('shows the photos of a product with the primary one marked', async () => {

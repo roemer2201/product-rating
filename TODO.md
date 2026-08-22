@@ -149,7 +149,7 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [x] **[S]** Service Worker: App-Shell vorcachen, API-Antworten nicht blind cachen
 - [x] **[S]** Sichtbare Aktualisierungsaufforderung bei neuer Version
 - [x] **[S]** Offline-Hinweisseite statt Browser-Fehlerseite
-- [ ] **[M]** Auf einem echten iPhone prüfen: Installation, Scanner, Kamera-Upload, Sitzung überlebt Neustart, Safe-Area-Layout
+- [ ] **[M]** Auf einem echten iPhone prüfen: Installation, Scanner, Kamera-Upload, Sitzung überlebt Neustart, Safe-Area-Layout, dazu die Offline-Warteschlange samt Foto (dass ein `Blob` die IndexedDB übersteht, ist eine Zusage des Browsers – der Test-Ersatz gibt ihn als einfaches Objekt zurück und kann es deshalb nicht belegen)
 - [x] **[S]** In den Proxy-Beispielen (M12) sicherstellen, dass `sw.js` und `index.html` nicht mit langer Lebensdauer gecacht werden, `/assets/` dagegen schon – sonst bleiben Geräte auf einem alten Bundle stehen. Seit M10 setzt die Anwendung diese Header selbst; die Beispiele dürfen sie also nur durchreichen und nicht überschreiben
 - [ ] **[S]** Aktualisierungshinweis auch außerhalb von `AppLayout` zeigen (Anmeldemaske, Registrierung) – dort hängt er derzeit nicht im Baum
 - [ ] **[S]** Beim Übernehmen einer neuen Version vor ungespeicherten Eingaben warnen, statt nur nicht von selbst neu zu laden
@@ -256,7 +256,7 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [ ] Tags und freie Kategorien mit Autovervollständigung
 - [x] Papierkorb mit Wiederherstellung statt endgültigem Löschen
 - [x] Export nach CSV und JSON, Import zum Umzug
-- [ ] Offline-Erfassung mit Sync-Queue (IndexedDB) und Konfliktbehandlung
+- [x] Offline-Erfassung mit Sync-Queue (IndexedDB) und Konfliktbehandlung
 - [ ] Statistiken: Bewertungsverteilung, meistbewertete Marken
 - [x] Fremde Bewertungen sichtbar machen: wer im Haushalt hat wie viele Sterne vergeben – bisher liefert die API nur Durchschnitt, Anzahl und die eigene Bewertung
 - [x] FTS5-Suche nachrüsten, falls die `LIKE`-Suche mit wachsendem Katalog spürbar langsam wird

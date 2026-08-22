@@ -2,7 +2,9 @@ import type { FastifyInstance } from 'fastify';
 import {
   changePasswordSchema,
   loginSchema,
+  redeemResetSchema,
   registerSchema,
+  resetTokenSchema,
   type SessionInfo,
   type User,
 } from '@product-rating/shared';
@@ -17,10 +19,12 @@ import {
 import {
   argon2Parameters,
   hashPassword,
+  isLockedHash,
   needsRehash,
   verifyAgainstNobody,
   verifyPassword,
 } from '../services/passwords.js';
+import { consumePasswordReset, resolvePasswordReset } from '../services/passwordResets.js';
 import { listSessions, revokeAllSessions, revokeSession } from '../services/sessions.js';
 import {
   assertPasswordPolicy,
@@ -37,9 +41,17 @@ import { consumeInvite, findInvite } from '../services/invites.js';
  * Login answers with the same message whether the username is unknown, the
  * password wrong or the account disabled: anything else would turn the route
  * into a way of finding out who has an account here.
+ *
+ * One case breaks that rule on purpose: an account without a password — after
+ * an import, or after an administrator locked it — is told so, because the
+ * alternative is somebody typing their correct old password into "wrong
+ * username or password" forever. See README 5 for the trade-off.
  */
 
 const LOGIN_FAILED = 'username or password is wrong';
+
+/** Said to an account that is waiting for a reset link instead of a password. */
+const LOGIN_LOCKED = 'this account needs a new password; ask an administrator for a link';
 
 /**
  * Event name every login attempt is logged under, successful or not.
@@ -71,12 +83,31 @@ export function registerAuthRoutes(app: FastifyInstance): void {
     }
 
     // An unknown name costs the same argon2id verification as a known one, so
-    // the answer time does not say who has an account here.
+    // the answer time does not say who has an account here. A locked account
+    // has no hash to verify against, so it is made to cost the same.
     const user = findUserByUsername(app.db, username);
+    const locked = user !== undefined && isLockedHash(user.passwordHash);
     const matches =
-      user === undefined
+      user === undefined || locked
         ? await verifyAgainstNobody(password, argon2Parameters(app.config))
         : await verifyPassword(user.passwordHash, password);
+
+    if (locked && user.disabledAt === null) {
+      // Counted like a failure: the message is more helpful than the usual one,
+      // so the rate limit is what keeps it from becoming a way to enumerate.
+      for (const key of keys) app.loginLimiter.consume(key);
+      request.log.warn(
+        {
+          event: LOGIN_EVENT,
+          outcome: 'failure',
+          reason: 'password_reset_required',
+          username,
+          ip: request.ip,
+        },
+        'login attempt on a locked account',
+      );
+      throw new UnauthorizedError(LOGIN_LOCKED, { reason: 'password_reset_required' });
+    }
 
     if (user === undefined || !matches || user.disabledAt !== null) {
       for (const key of keys) app.loginLimiter.consume(key);
@@ -155,6 +186,62 @@ export function registerAuthRoutes(app: FastifyInstance): void {
     request.log.info({ userId: user.id, username: user.username }, 'account registered');
 
     return reply.code(201).send({ user });
+  });
+
+  /**
+   * Says which account a reset link belongs to, so the form can address the
+   * person by name. Everything wrong with a token — unknown, expired, spent,
+   * or on a disabled account — is the same answer.
+   */
+  app.get<{ Params: { token: string } }>('/api/v1/auth/reset/:token', async (request) => {
+    const decision = app.loginLimiter.check(`reset:${request.ip}`);
+    if (!decision.allowed) throw new RateLimitError(decision.retryAfterSeconds);
+
+    const token = resetTokenSchema.parse(request.params.token);
+    const { username } = resolvePasswordReset(app.db, token);
+
+    return { username };
+  });
+
+  /**
+   * Sets a new password against a link.
+   *
+   * No current password is asked for: holding the link is the proof, which is
+   * why it is short lived, single use and stored only as a hash. Everything
+   * that was signed in with the old password is signed out — after a lost
+   * device, that is the whole point of the exercise.
+   */
+  app.post('/api/v1/auth/reset', async (request, reply) => {
+    const key = `reset:${request.ip}`;
+    const decision = app.loginLimiter.check(key);
+    if (!decision.allowed) throw new RateLimitError(decision.retryAfterSeconds);
+
+    const input = redeemResetSchema.parse(request.body);
+
+    let resolved;
+    try {
+      resolved = resolvePasswordReset(app.db, input.token);
+    } catch (error) {
+      app.loginLimiter.consume(key);
+      throw error;
+    }
+
+    assertPasswordPolicy(input.newPassword, app.config);
+    await setPassword(app.db, app.config, resolved.row.userId, input.newPassword);
+    consumePasswordReset(app.db, resolved.row.id);
+
+    const revoked = revokeAllSessions(app.db, resolved.row.userId);
+    app.loginLimiter.reset(key);
+
+    request.log.info(
+      { event: LOGIN_EVENT, outcome: 'reset', userId: resolved.row.userId, revoked },
+      'password set through a reset link',
+    );
+
+    // Straight into the app: whoever just proved they hold the link and set a
+    // password should not have to type it again on the next screen.
+    app.startSession(request, reply, resolved.row.userId);
+    return { user: currentPublicUser(request) satisfies User };
   });
 
   app.get('/api/v1/auth/sessions', { preHandler: app.requireUser }, async (request) => {

@@ -15,6 +15,7 @@ import type {
   CreateInviteInput,
   CreatePriceInput,
   CreateProductInput,
+  PasswordResetLink,
   Invite,
   LoginInput,
   Photo,
@@ -25,6 +26,7 @@ import type {
   Rating,
   RatingListPage,
   RatingSummary,
+  RedeemResetInput,
   RegisterInput,
   ResetPasswordInput,
   SessionInfo,
@@ -41,6 +43,20 @@ import {
   type ProductListParams,
   type UploadOptions,
 } from '@/lib/api';
+import {
+  enqueueCapture,
+  listCaptures,
+  removeCapture,
+  type Capture,
+  type NewCapture,
+} from '@/lib/offlineQueue';
+import {
+  discardCapturedRating,
+  keepCapturedRating,
+  retryCapture,
+  syncCaptures,
+  type SyncResult,
+} from '@/lib/sync';
 
 /**
  * Server state: query keys, cache times and the hooks around the session.
@@ -92,6 +108,7 @@ export const queryKeys = {
     all: ['ratings'] as const,
     mine: (params: MyRatingsParams) => ['ratings', 'mine', params] as const,
   },
+  captures: ['captures'] as const,
   shops: ['shops'] as const,
   trash: ['trash'] as const,
   invites: ['invites'] as const,
@@ -598,6 +615,121 @@ export function useChangePassword(): UseMutationResult<
   });
 }
 
+/* ------------------------------------------------- captured while offline */
+
+/**
+ * What is waiting in the offline queue.
+ *
+ * Not a server query at all — the data sits in IndexedDB — but it belongs in
+ * the same cache as everything else: the settings screen, the badge in the
+ * navigation and the sync itself all have to see the same list, and every
+ * mutation that queues something invalidates it.
+ */
+export function useCaptures(): UseQueryResult<Capture[], Error> {
+  return useQuery({
+    queryKey: queryKeys.captures,
+    queryFn: () => listCaptures(),
+    // The queue only changes through this app, and every change invalidates.
+    staleTime: Number.POSITIVE_INFINITY,
+    retry: false,
+  });
+}
+
+/** Records a capture for the next time there is a connection. */
+export function useEnqueueCapture(): UseMutationResult<Capture, Error, NewCapture> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: NewCapture) => enqueueCapture(input),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.captures });
+    },
+  });
+}
+
+/**
+ * Works through the queue.
+ *
+ * Everything the captures touched is invalidated afterwards rather than
+ * patched: a sync can have created a product, added a price and uploaded three
+ * photos, and working out which screens that moves would cost more than the
+ * requests it saves.
+ */
+export function useSyncCaptures(): UseMutationResult<SyncResult, Error, void> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => syncCaptures(),
+    onSuccess: (result) => {
+      void client.invalidateQueries({ queryKey: queryKeys.captures });
+      if (result.synced > 0) {
+        void client.invalidateQueries({ queryKey: queryKeys.products.all });
+        void client.invalidateQueries({ queryKey: queryKeys.ratings.all });
+        void client.invalidateQueries({ queryKey: queryKeys.shops });
+      }
+    },
+  });
+}
+
+/** How a capture waiting for a decision is resolved. */
+export type CaptureDecision = 'mine' | 'server' | 'retry' | 'discard';
+
+export interface ResolveCaptureVariables {
+  capture: Capture;
+  decision: CaptureDecision;
+}
+
+export function useResolveCapture(): UseMutationResult<void, Error, ResolveCaptureVariables> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ capture, decision }: ResolveCaptureVariables) => {
+      if (decision === 'mine') return keepCapturedRating(capture);
+      if (decision === 'server') return discardCapturedRating(capture);
+      if (decision === 'retry') return retryCapture(capture);
+      return removeCapture(capture.id);
+    },
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.captures });
+    },
+  });
+}
+
+/* ------------------------------------------------------- password links */
+
+/**
+ * Which account a password link belongs to.
+ *
+ * Asked once when the screen opens, so the form can address the person by
+ * name — and so a spent link says so before a password is typed rather than
+ * after.
+ */
+export function useResetTarget(token: string): UseQueryResult<string, Error> {
+  return useQuery({
+    queryKey: ['reset', token] as const,
+    queryFn: async () => (await api.auth.resetTarget(token)).username,
+    enabled: token !== '',
+    // A link is used once; nothing about it is worth keeping around.
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
+  });
+}
+
+/** Sets a password against a link; the answer is a signed in session. */
+export function useRedeemReset(): UseMutationResult<User, Error, RedeemResetInput> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: RedeemResetInput) => (await api.auth.redeemReset(input)).user,
+    onSuccess: (user) => {
+      // Same as a login: whatever is cached belonged to somebody else.
+      client.clear();
+      client.setQueryData(queryKeys.session, user);
+    },
+  });
+}
+
 /* ----------------------------------------------------------- administration */
 
 export function useInvites(): UseQueryResult<Invite[], Error> {
@@ -651,6 +783,32 @@ export function useUpdateUser(): UseMutationResult<User, Error, UpdateUserVariab
   return useMutation({
     mutationFn: async ({ id, input }: UpdateUserVariables) =>
       (await api.users.update(id, input)).user,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.users });
+    },
+  });
+}
+
+/** Issues a password link for one account, for an administrator to pass on. */
+export function useCreateResetLink(): UseMutationResult<PasswordResetLink, Error, string> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => (await api.users.resetLink(id)).link,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.users });
+    },
+  });
+}
+
+/** Takes the password away from an account. */
+export function useLockUser(): UseMutationResult<void, Error, string> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.users.lock(id);
+    },
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: queryKeys.users });
     },

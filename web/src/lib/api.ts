@@ -6,8 +6,10 @@ import type {
   CreateUserInput,
   Invite,
   CreatePriceInput,
+  CreateResetLinkInput,
   LoginInput,
   MovePhotoInput,
+  PasswordResetLink,
   Photo,
   Price,
   PhotoSize,
@@ -19,6 +21,7 @@ import type {
   RatingListPage,
   RatingSortField,
   RatingSummary,
+  RedeemResetInput,
   RegisterInput,
   ResetPasswordInput,
   SessionInfo,
@@ -349,6 +352,14 @@ export const api = {
 
     /** Revokes every session except the one making the request. */
     revokeOtherSessions: () => request<{ revoked: number }>('/auth/sessions', { method: 'DELETE' }),
+
+    /** Which account a password link belongs to; `400` once it is spent. */
+    resetTarget: (token: string) =>
+      request<{ username: string }>(`/${path('auth', 'reset', token)}`),
+
+    /** Sets a password against a link and signs the account in. */
+    redeemReset: (input: RedeemResetInput) =>
+      request<{ user: User }>('/auth/reset', { method: 'POST', json: input }),
   },
 
   products: {
@@ -491,6 +502,24 @@ export const api = {
       request<{ ok: true; revokedSessions: number }>(`/${path('users', id, 'password')}`, {
         method: 'POST',
         json: input,
+      }),
+
+    /**
+     * Issues a password link. The answer is the only place the token exists —
+     * the server keeps its hash — so a link that is not copied is replaced,
+     * never looked up.
+     */
+    resetLink: (id: string, input: CreateResetLinkInput = {}) =>
+      request<{ link: PasswordResetLink }>(`/${path('users', id, 'reset-link')}`, {
+        method: 'POST',
+        json: input,
+      }),
+
+    /** Takes the password away; only a link gets into the account afterwards. */
+    lock: (id: string) =>
+      request<{ ok: true; revokedSessions: number }>(`/${path('users', id, 'lock')}`, {
+        method: 'POST',
+        json: {},
       }),
   },
 };

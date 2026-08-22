@@ -77,6 +77,22 @@ const ROUTES: RouteRule[] = [
     payload: {},
     endsSession: true,
   },
+  // Both halves of the reset flow are open: whoever needs them cannot log in
+  // by definition. What guards them is the token in the link, and the rate
+  // limit in front of it.
+  {
+    method: 'GET',
+    url: `/api/v1/auth/reset/${'x'.repeat(43)}`,
+    pattern: '/api/v1/auth/reset/:token',
+    access: 'public',
+  },
+  {
+    method: 'POST',
+    url: '/api/v1/auth/reset',
+    pattern: '/api/v1/auth/reset',
+    access: 'public',
+    payload: {},
+  },
   { method: 'GET', url: '/api/v1/auth/me', pattern: '/api/v1/auth/me', access: 'user' },
   { method: 'GET', url: '/api/v1/auth/sessions', pattern: '/api/v1/auth/sessions', access: 'user' },
   {
@@ -122,6 +138,20 @@ const ROUTES: RouteRule[] = [
     method: 'POST',
     url: `/api/v1/users/${UNKNOWN_ID}/password`,
     pattern: '/api/v1/users/:id/password',
+    access: 'admin',
+    payload: {},
+  },
+  {
+    method: 'POST',
+    url: `/api/v1/users/${UNKNOWN_ID}/reset-link`,
+    pattern: '/api/v1/users/:id/reset-link',
+    access: 'admin',
+    payload: {},
+  },
+  {
+    method: 'POST',
+    url: `/api/v1/users/${UNKNOWN_ID}/lock`,
+    pattern: '/api/v1/users/:id/lock',
     access: 'admin',
     payload: {},
   },

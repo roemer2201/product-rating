@@ -5,6 +5,132 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-22 – Backlog: Offline-Erfassung mit Warteschlange
+
+**Umfang**
+
+- **`web/src/lib/offlineQueue.ts`**: Warteschlange in IndexedDB. Die Einheit ist
+  eine *Erfassung* – EAN plus wahlweise Produktdaten, Bewertung, Preis und
+  Fotos –, kein API-Aufruf.
+- **`web/src/lib/sync.ts`**: löst jede Erfassung über die EAN auf
+  (Produkt → Preis → Fotos → Bewertung), merkt sich in `progress`, was schon
+  oben ist, und erkennt genau einen Konfliktfall: eine eigene Bewertung, die
+  nach dem Erfassungszeitpunkt anderswo geändert wurde.
+- **Oberfläche**: „Offline merken“ unter jedem fehlgeschlagenen Speichern
+  (`OfflineCapture`), ein Streifen über der Navigation samt automatischer
+  Übertragung (`SyncGate`) und die Liste in den Einstellungen mit Zustand,
+  Inhalt, Konfliktfrage und Verwerfen (`CaptureQueue`).
+- Der Scanner schickt bei einer Suche ohne Verbindung ins Anlegeformular –
+  offline lässt sich nicht feststellen, ob es die EAN schon gibt.
+- **Tests**: 13 Fälle für Warteschlange und Übertragung (`fake-indexeddb`),
+  dazu drei über die Oberfläche.
+
+**Entscheidungen**
+
+- *Absicht statt Request.* Ein Gerät ohne Verbindung kann nicht wissen, ob eine
+  EAN im Katalog steht – der Katalog wird bewusst nicht gecacht. Wird die
+  Absicht festgehalten, entscheidet sich erst bei der Übertragung, ob daraus
+  ein neues Produkt oder ein Zusatz zu einem vorhandenen wird. Das erspart
+  vorläufige IDs und ihre spätere Ersetzung.
+- *Der Katalog gewinnt gegen die Offline-Notiz.* Existiert die EAN inzwischen,
+  bleiben Name, Marke und Kategorie, wie sie sind; Bewertung, Preis und Fotos
+  kommen trotzdem dazu.
+- *Konflikte werden gefragt, nicht entschieden.* Zwei Bewertungen desselben
+  Kontos – eine am Regal, eine zu Hause – lassen sich nicht über den Zeitstempel
+  sortieren. „Der letzte gewinnt“ wäre hier eine Behauptung, keine Regel.
+- *Kein Wiederhol-Timer.* Übertragen wird beim Start, beim Wiederkehren der
+  Verbindung und auf Knopfdruck. Alles andere kostet Akku für eine Antwort, die
+  die App schon kennt.
+- *„Offline merken“ ist ein Angebot, kein Automatismus.* Etwas für später zu
+  merken ist eine andere Handlung als es zu speichern – ein stiller Umbau würde
+  genau das verstecken.
+- *Nichts verschwindet von selbst.* Eine abgelehnte Erfassung bleibt mit
+  Begründung stehen, bis jemand sie erneut versucht oder verwirft.
+- **Offen:** Dass ein `Blob` die IndexedDB übersteht, ist eine Zusage des
+  Browsers; der Test-Ersatz `fake-indexeddb` gibt ihn als einfaches Objekt
+  zurück. Der Gerätetest in M9 holt das nach.
+
+## 2026-08-22 – Konten im Export, ohne Passwörter
+
+**Umfang**
+
+- **`export.json` trägt `users`** (Benutzername, Rolle, E-Mail, Anlage- und
+  Deaktivierungsdatum) und `--format csv` schreibt zusätzlich `users.csv`.
+  Passwort-Hashes sind bewusst nicht dabei; ein CLI-Test besteht darauf, dass
+  in der Datei kein `$argon2id$` vorkommt.
+- **Der Import legt fehlende Konten an**, und zwar gesperrt: kein Hash,
+  `password_reset_required`, also nur über einen Passwort-Link erreichbar. Am
+  Ende nennt der Befehl die betroffenen Konten samt fertigem Aufruf
+  (`product-rating user reset-link <name>`).
+- Konten, die es drüben schon gibt, bleiben unverändert. `--skip-users` legt
+  gar keine an, dann greift wie bisher `--owner`.
+- Konten werden **vor** allem anderen geschrieben, damit jede Bewertung, jedes
+  Foto und jeder Preis seinen Eigentümer wiederfindet, statt bei einem
+  Sammelkonto zu landen.
+- **`--no-users` schaltet den Kontenexport ab.** Dann entsteht keine
+  `users.csv`, und in `export.json` fehlt der Schlüssel `users` – nicht als
+  leere Liste, weil das eine andere Aussage wäre. Einen Export gibt es nur auf
+  der Kommandozeile; in der Weboberfläche existiert er nicht, also auch keine
+  Ankreuzmöglichkeit.
+
+**Entscheidungen**
+
+- *Keine Hashes im Export.* Eine Datei, die jemand sich selbst mailt, darf kein
+  Satz Zugangsdaten sein. Der Preis ist der Passwort-Link je Konto – und genau
+  dafür gibt es ihn.
+- *Fremde Konten der Zielinstanz werden nicht überschrieben.* Rolle und E-Mail
+  einer laufenden Installation wiegen schwerer als eine Datei; ein Import soll
+  niemandem unbemerkt Administratorrechte geben oder nehmen.
+
+## 2026-08-22 – Passwort-Links für Konten ohne Passwort
+
+**Umfang**
+
+- **`users.password_reset_required`** und die Tabelle **`password_resets`**
+  (Migration `0005_password_resets.sql`). Der Hash eines gesperrten Kontos ist
+  der Sperrvermerk `!` – die Schreibweise aus `/etc/shadow` –, gegen den kein
+  Passwort verifizieren kann.
+- **`POST /api/v1/users/:id/reset-link`** (admin) gibt einen Link einmalig aus,
+  **`POST /api/v1/users/:id/lock`** entzieht das Passwort und beendet alle
+  Sitzungen. **`GET /api/v1/auth/reset/:token`** sagt, zu welchem Konto ein Link
+  gehört, **`POST /api/v1/auth/reset`** setzt das Passwort und meldet an.
+- **Kommandozeile:** `product-rating user reset-link <name>` (Link auf stdout,
+  Erklärung auf stderr) und `product-rating user lock <name>`. `user list`
+  zeigt „needs password“ als Zustand.
+- **Oberfläche:** neue Seite `/reset` außerhalb der Anmeldung; in der Verwaltung
+  je Konto „Passwort-Link erzeugen“ (Link auf dem Bildschirm **und** in der
+  Zwischenablage) und „Passwort entziehen“ mit zweitem Klick, dazu die
+  Kennzeichnung „Passwort fehlt“.
+- **Konfiguration** `auth.password_reset_ttl_hours` (Standard 48).
+- Verbrauchte und abgelaufene Links räumt derselbe tägliche Job weg wie die
+  abgelaufenen Sitzungen.
+
+**Entscheidungen**
+
+- *Nur der SHA-256 des Tokens wird gespeichert* – anders als bei
+  Einladungscodes, die im Klartext liegen. Eine Einladung erlaubt nur ein neues
+  Konto, ein Passwort-Link übernimmt ein bestehendes; eine gestohlene Datenbank
+  darf keinen benutzbaren enthalten. Folge: Der Link ist genau einmal lesbar
+  und wird sonst ersetzt, nicht nachgeschlagen.
+- *Genau ein gültiger Link je Konto.* Zwei Links sind zwei Dinge, die
+  abgefangen werden können – und der zweite wird ohnehin ausgestellt, weil der
+  erste verschwunden ist.
+- *Die Anmeldung macht eine dokumentierte Ausnahme* (README 5.2): Ein Konto
+  ohne Passwort bekommt eine eigene Meldung statt „falscher Benutzername oder
+  falsches Passwort". Sonst tippt nach einem Umzug jemand sein korrektes altes
+  Passwort in eine Sackgasse. Der Preis – ein Fremder erfährt für einen
+  erratenen Namen, dass das Konto gesperrt ist – steht gegen dieselbe
+  Ratenbegrenzung wie bei jedem Fehlversuch und eine Instanz ohne offene
+  Registrierung.
+- *Ein gesperrtes Konto kostet dieselbe argon2id-Prüfung wie ein unbekanntes.*
+  Ohne das hätte die Antwortzeit verraten, welche Konten gesperrt sind.
+- *Wer den Link einlöst, ist danach angemeldet.* Er hat gerade bewiesen, dass er
+  den Link hat, und ein frisch gesetztes Passwort noch einmal eintippen zu
+  müssen wäre reine Zeremonie.
+- *Kein Mailversand.* Die Anwendung baut keine ausgehenden Verbindungen auf;
+  „verschicken" heißt, dass ein Administrator den Link weitergibt wie eine
+  Einladung.
+
 ## 2026-08-22 – Backlog: Preisverlauf und Einkaufsort
 
 **Umfang**

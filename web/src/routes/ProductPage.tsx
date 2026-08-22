@@ -174,6 +174,8 @@ export function ProductPage() {
         // "saved" confirmation down with it.
         key={detail.id}
         productId={detail.id}
+        ean={detail.ean}
+        productName={detail.name}
         rating={detail.ownRating}
       />
 
@@ -214,11 +216,23 @@ export function ProductPage() {
       </section>
 
       {user !== null && user !== undefined && (
-        <PriceHistory productId={detail.id} prices={detail.prices} user={user} />
+        <PriceHistory
+          productId={detail.id}
+          ean={detail.ean}
+          productName={detail.name}
+          prices={detail.prices}
+          user={user}
+        />
       )}
 
       {user !== null && user !== undefined && (
-        <PhotoManager productId={detail.id} photos={detail.photos} user={user} />
+        <PhotoManager
+          productId={detail.id}
+          ean={detail.ean}
+          productName={detail.name}
+          photos={detail.photos}
+          user={user}
+        />
       )}
 
       <section className="section">

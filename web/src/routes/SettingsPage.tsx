@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { changePasswordSchema } from '@product-rating/shared';
 import { EmptyState, ErrorNotice, SkeletonList } from '@/components/Feedback';
+import { CaptureQueue } from '@/components/CaptureQueue';
 import { Field } from '@/components/Field';
 import { errorMessage, isApiError } from '@/lib/api';
 import { describeUserAgent, formatDate, formatRelative } from '@/lib/format';
@@ -215,6 +216,8 @@ export function SettingsPage() {
           </Link>
         </section>
       )}
+
+      <CaptureQueue />
 
       <section className="section">
         <h2 className="section__title">{strings.settings.logoutTitle}</h2>

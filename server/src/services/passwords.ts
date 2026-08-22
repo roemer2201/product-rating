@@ -45,6 +45,21 @@ export async function hashPassword(
 }
 
 /**
+ * The stored hash of an account nobody can log into.
+ *
+ * Borrowed from `/etc/shadow`, where a `!` in the password field has meant
+ * "locked" for decades: it is not a hash, so no password can ever verify
+ * against it, and it says at a glance that the account is waiting for a reset
+ * rather than carrying a weak password somebody might guess.
+ */
+export const LOCKED_PASSWORD_HASH = '!';
+
+/** True for an account that has no password anybody could know. */
+export function isLockedHash(hashed: string): boolean {
+  return hashed === LOCKED_PASSWORD_HASH;
+}
+
+/**
  * Checks a password against a stored hash. A malformed hash is treated as a
  * failed login rather than an exception, so a damaged row cannot take the
  * login route down.

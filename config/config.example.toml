@@ -67,6 +67,9 @@ session_ttl_days = 90
 session_renew_threshold_days = 7
 # Gültigkeit eines Einladungscodes in Tagen.
 invite_ttl_days = 14
+# Gueltigkeit eines Passwort-Links in Stunden. Kuerzer als eine Einladung, weil
+# er ein bestehendes Konto oeffnet.
+password_reset_ttl_hours = 48
 # Fehlversuche pro Minute je IP-Adresse und Benutzername.
 login_rate_limit_per_minute = 5
 # Parameter des argon2id-Hashings: Speicher in MiB, Anzahl der Durchläufe und

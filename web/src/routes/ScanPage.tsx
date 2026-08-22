@@ -5,6 +5,7 @@ import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { ErrorNotice } from '@/components/Feedback';
 import { Field } from '@/components/Field';
 import { errorMessage } from '@/lib/api';
+import { isApiError } from '@/lib/api';
 import { useEanLookup } from '@/lib/queries';
 import { strings } from '@/lib/strings';
 
@@ -44,6 +45,14 @@ export function ScanPage() {
             void navigate(`/products/new?ean=${encodeURIComponent(ean)}`);
           } else {
             void navigate(`/products/${product.id}`);
+          }
+        },
+        onError: (error) => {
+          // No connection: whether the catalogue knows this EAN cannot be
+          // answered here, so the form takes what the person has to say and
+          // the queue sorts it out later.
+          if (isApiError(error) && error.isNetworkError) {
+            void navigate(`/products/new?ean=${encodeURIComponent(ean)}`);
           }
         },
       });
