@@ -50,6 +50,22 @@ async function run(
   return { code, out: out.join('\n'), err: err.join('\n') };
 }
 
+/** The same, against another configuration file — a second instance. */
+async function runWith(configArgs: string[], argv: string[]): Promise<Recorded> {
+  const out: string[] = [];
+  const err: string[] = [];
+
+  const io: CliIo = {
+    out: (message = '') => out.push(message),
+    err: (message = '') => err.push(message),
+    ask: () => Promise.reject(new Error('no questions expected')),
+    askSecret: () => Promise.reject(new Error('no password prompt expected')),
+  };
+
+  const code = await runCli([...argv, ...configArgs], io);
+  return { code, out: out.join('\n'), err: err.join('\n') };
+}
+
 beforeAll(() => {
   directory = mkdtempSync(join(tmpdir(), 'product-rating-cli-'));
   configFile = join(directory, 'config.toml');
@@ -298,11 +314,48 @@ describe('export and import', () => {
     expect(readFileSync(join(target, 'export.json'), 'utf8')).toContain('product-rating-export');
     expect(readFileSync(join(target, 'products.csv'), 'utf8')).toContain('ean,name,brand');
 
+    expect(readFileSync(join(target, 'users.csv'), 'utf8')).toContain('username,role,email');
+    // Whatever else is in the export, a password hash is not.
+    expect(readFileSync(join(target, 'export.json'), 'utf8')).not.toContain('$argon2id$');
+
     // The same instance reads it back: everything is already here, so nothing
     // is created and nothing is doubled.
     const imported = await run(['import', '--from', target]);
     expect(imported.code).toBe(0);
+    expect(imported.out).toContain('accounts: 0 new');
     expect(imported.out).toContain('products: 0 new');
+  });
+
+  it('brings accounts along without a password and says who needs a link', async () => {
+    const source = join(directory, 'export-accounts');
+    await run(['export', '--to', source]);
+
+    // A second instance with its own database, but the same configuration.
+    const other = join(directory, 'other.toml');
+    writeFileSync(
+      other,
+      readFileSync(configFile, 'utf8').replace(
+        join(directory, 'db', 'app.db'),
+        join(directory, 'db2', 'app.db'),
+      ),
+    );
+
+    const io = { config: ['--config', other] };
+    expect((await runWith(io.config, ['migrate'])).code).toBe(0);
+
+    const imported = await runWith(io.config, ['import', '--from', source]);
+    expect(imported.code).toBe(0);
+    expect(imported.out).toMatch(/accounts: [1-9]\d* new/);
+    expect(imported.err).toContain('product-rating user reset-link');
+
+    // The accounts arrived, and none of them can be logged into yet.
+    const listed = await runWith(io.config, ['user', 'list']);
+    expect(listed.out).toContain('needs password');
+
+    // A link is what gets one of them back in.
+    const link = await runWith(io.config, ['user', 'reset-link', 'anna']);
+    expect(link.code).toBe(0);
+    expect(link.out).toContain('/reset?token=');
   });
 
   it('rejects a format it does not know', async () => {

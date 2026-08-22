@@ -1,12 +1,14 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { sql } from 'drizzle-orm';
 import sharp from 'sharp';
 import { parseConfig, type AppConfig } from '../config/index.js';
 import { createTestDatabase, seedDatabase, type TestDatabase } from '../db/testing.js';
 import { listProductPhotos, storePhoto } from './photos.js';
 import { createPrice, listProductPrices } from './prices.js';
 import { listProducts, trashProduct } from './products.js';
+import { listUsers } from './users.js';
 import { ValidationError } from './errors.js';
 import {
   exportCatalogue,
@@ -294,6 +296,64 @@ describe('importing', () => {
     expect(page.products.find((entry) => entry.ean === '4260000000011')?.ownRating?.stars).toBe(1);
   });
 
+  it('creates the accounts of the file, without a password', async () => {
+    // A target instance that has none of the accounts of the file.
+    const fresh = newInstance(false);
+    fresh.database.db.run(sql`delete from users`);
+
+    await exportCatalogue({
+      db: source.database.db,
+      config: source.config,
+      target: directory,
+    });
+
+    const result = await importCatalogue({
+      db: fresh.database.db,
+      config: fresh.config,
+      source: directory,
+    });
+
+    expect(result.usersCreated).toBe(2);
+    expect(result.usersNeedingPassword.sort()).toEqual(['anna', 'bert']);
+    expect(result.productsCreated).toBe(2);
+
+    const accounts = listUsers(fresh.database.db);
+    expect(accounts.map((user) => user.username).sort()).toEqual(['anna', 'bert']);
+    // No hash arrived, so nothing can be logged into until a link is handed out.
+    expect(accounts.every((user) => user.passwordResetRequired)).toBe(true);
+
+    // The ratings hang off the accounts that were just created, not off one
+    // account that swallowed everything.
+    const owners = new Set(
+      listProducts(fresh.database.db, accounts[0]?.id ?? '', {
+        sort: 'updated',
+        limit: 25,
+      }).products.map((product) => product.createdBy),
+    );
+    expect(owners.size).toBe(2);
+
+    fresh.database.close();
+  });
+
+  it('leaves an account that is already here as it is', async () => {
+    await exportCatalogue({
+      db: source.database.db,
+      config: source.config,
+      target: directory,
+    });
+
+    const result = await importCatalogue({
+      db: target.database.db,
+      config: target.config,
+      source: directory,
+    });
+
+    expect(result.usersCreated).toBe(0);
+    expect(result.usersSkipped).toBe(2);
+    // The accounts of this instance keep their password and their role.
+    expect(listUsers(target.database.db).every((user) => !user.passwordResetRequired)).toBe(true);
+  });
+
   it('stops on an unknown account, and takes it over with an owner', async () => {
     await exportCatalogue({
       db: source.database.db,
@@ -301,12 +361,18 @@ describe('importing', () => {
       target: directory,
     });
 
-    // A target instance that never heard of "bert".
+    // A file that mentions somebody the target instance does not know, with
+    // --skip-users so no account is created for them either.
     const path = join(directory, EXPORT_JSON_FILE);
     writeFileSync(path, readFileSync(path, 'utf8').replaceAll('"bert"', '"carla"'));
 
     await expect(
-      importCatalogue({ db: target.database.db, config: target.config, source: directory }),
+      importCatalogue({
+        db: target.database.db,
+        config: target.config,
+        source: directory,
+        skipUsers: true,
+      }),
     ).rejects.toBeInstanceOf(ValidationError);
     expect(listProducts(target.database.db, ANNA, { sort: 'updated', limit: 25 }).total).toBe(0);
 
@@ -314,6 +380,7 @@ describe('importing', () => {
       db: target.database.db,
       config: target.config,
       source: directory,
+      skipUsers: true,
       owner: 'anna',
     });
 

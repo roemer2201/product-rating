@@ -1035,7 +1035,7 @@ Konsole. Im Container liegt derselbe Befehl unter
 | `backup --to <dir>` | Snapshot aus `VACUUM INTO` plus Fotos, `--keep-days N` als Aufbewahrungsgrenze |
 | `restore --from <dir>` | Snapshot zurückspielen, nach ausdrücklicher Bestätigung (`--yes` überspringt sie) |
 | `export --to <dir>` | Katalog als JSON und/oder CSV schreiben, `--with-photos` nimmt die Bilder mit |
-| `import --from <dir>` | Export einlesen; `--owner`, `--update`, `--dry-run` |
+| `import --from <dir>` | Export einlesen; `--owner`, `--update`, `--skip-users`, `--dry-run` |
 | `fsck --uploads` | Upload-Verzeichnis gegen die Fototabelle prüfen, `--repair` löscht verwaiste Dateien |
 | `help [befehl]`, `version` | Hilfe und Version |
 
@@ -1095,34 +1095,52 @@ Unterschied zu `backup`/`restore`:
 
 | | `backup` / `restore` | `export` / `import` |
 |---|---|---|
-| Umfang | ganze Instanz: Datenbankdatei, Konten, Sitzungen, Einladungen, Uploads | Produkte, Bewertungen, Preise, Fotos |
+| Umfang | ganze Instanz: Datenbankdatei, Konten mit Passwörtern, Sitzungen, Einladungen, Uploads | Konten **ohne** Passwörter, Produkte, Bewertungen, Preise, Fotos |
 | Form | SQLite-Datei und Bilddateien | JSON und CSV, Bilder als WebP |
 | Ziel | dieselbe Anwendung, meist dieselbe Maschine | eine andere Instanz, ein Tabellenprogramm |
-| Konten | kommen mit | müssen drüben existieren, Zuordnung über den Benutzernamen |
+| Konten | kommen mit, samt Hash | werden drüben angelegt, aber ohne Passwort |
 
 ```bash
 product-rating export --to /srv/umzug --format both --with-photos
-product-rating import --from /srv/umzug --dry-run      # erst schauen
-product-rating import --from /srv/umzug --owner anna   # dann einlesen
+product-rating import --from /srv/umzug --dry-run   # erst schauen
+product-rating import --from /srv/umzug            # dann einlesen
+product-rating user reset-link anna                # Link je Konto weitergeben
 ```
 
 **Was geschrieben wird:**
 
 ```
 /srv/umzug/export.json     alles, in der Form, die "import" liest
+/srv/umzug/users.csv       eine Zeile je Konto, ohne alles Geheime
 /srv/umzug/products.csv    eine Zeile je Produkt, mit Anzahl und Durchschnitt
 /srv/umzug/ratings.csv     eine Zeile je Bewertung
 /srv/umzug/prices.csv      eine Zeile je erfasstem Preis
 /srv/umzug/photos/         die Detailbilder (nur mit --with-photos)
 ```
 
-**Konten sind bewusst nicht Teil eines Exports.** Eine Datei, die
-Passwort-Hashes mitnimmt, wäre ein Satz Zugangsdaten und keine Datensicherung.
-Produkte, Bewertungen, Preise und Fotos nennen ihr Konto deshalb über den
-Benutzernamen; die Konten der Zielinstanz legt `product-rating user add` an.
-Ein Name, den die Zielinstanz nicht kennt, bricht den Import ab, **bevor**
-etwas geschrieben wird – `--owner <konto>` übernimmt solche Einträge
-stattdessen.
+**Konten reisen mit, ihre Passwörter nicht.** Der Export enthält
+Benutzername, Rolle, E-Mail-Adresse und die beiden Daten – **keine
+Passwort-Hashes**; eine Datei, die welche mitnähme, wäre ein Satz Zugangsdaten
+und keine Datensicherung.
+
+Der Import legt die Konten deshalb **ohne Passwort** an: sie sind mit
+`password_reset_required` markiert, tragen den Sperrvermerk als Hash und lassen
+sich erst betreten, wenn eine Administratorin oder ein Administrator je einen
+Passwort-Link ausgibt (5.2). Der Import sagt am Ende, wen das betrifft:
+
+```
+accounts: 2 new, 0 already here
+…
+2 account(s) arrived without a password. Hand each of them a link:
+  product-rating user reset-link anna
+  product-rating user reset-link bert
+```
+
+Konten, die drüben schon existieren, bleiben unangetastet – Rolle, E-Mail und
+Passwort dieser Instanz wiegen schwerer als eine Datei. `--skip-users` legt gar
+keine Konten an; dann muss jeder Name drüben existieren oder von
+`--owner <konto>` übernommen werden. Ein Name, der weder hier noch in der Datei
+steht, bricht den Import ab, **bevor** etwas geschrieben wird.
 
 **Zusammenführen statt Ersetzen.** Ein Produkt, das drüben schon existiert,
 behält seine Daten (`--update` schreibt sie über und holt es zugleich aus dem

@@ -5,6 +5,33 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-22 – Konten im Export, ohne Passwörter
+
+**Umfang**
+
+- **`export.json` trägt `users`** (Benutzername, Rolle, E-Mail, Anlage- und
+  Deaktivierungsdatum) und `--format csv` schreibt zusätzlich `users.csv`.
+  Passwort-Hashes sind bewusst nicht dabei; ein CLI-Test besteht darauf, dass
+  in der Datei kein `$argon2id$` vorkommt.
+- **Der Import legt fehlende Konten an**, und zwar gesperrt: kein Hash,
+  `password_reset_required`, also nur über einen Passwort-Link erreichbar. Am
+  Ende nennt der Befehl die betroffenen Konten samt fertigem Aufruf
+  (`product-rating user reset-link <name>`).
+- Konten, die es drüben schon gibt, bleiben unverändert. `--skip-users` legt
+  gar keine an, dann greift wie bisher `--owner`.
+- Konten werden **vor** allem anderen geschrieben, damit jede Bewertung, jedes
+  Foto und jeder Preis seinen Eigentümer wiederfindet, statt bei einem
+  Sammelkonto zu landen.
+
+**Entscheidungen**
+
+- *Keine Hashes im Export.* Eine Datei, die jemand sich selbst mailt, darf kein
+  Satz Zugangsdaten sein. Der Preis ist der Passwort-Link je Konto – und genau
+  dafür gibt es ihn.
+- *Fremde Konten der Zielinstanz werden nicht überschrieben.* Rolle und E-Mail
+  einer laufenden Installation wiegen schwerer als eine Datei; ein Import soll
+  niemandem unbemerkt Administratorrechte geben oder nehmen.
+
 ## 2026-08-22 – Passwort-Links für Konten ohne Passwort
 
 **Umfang**

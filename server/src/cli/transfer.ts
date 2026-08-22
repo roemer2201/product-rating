@@ -13,9 +13,9 @@ import { loadRuntimeConfig, withDatabase } from './runtime.js';
  *
  * Both are about moving data between installations, not about saving one —
  * `backup` and `restore` do that, database file and all. What travels here are
- * products, verdicts, recorded prices and pictures, addressed by EAN and by
- * user name, so the other end may be a fresh installation, another host, or a
- * spreadsheet.
+ * accounts without their passwords, products, verdicts, recorded prices and
+ * pictures, addressed by EAN and by user name, so the other end may be a fresh
+ * installation, another host, or a spreadsheet.
  */
 
 const EXPORT_USAGE = `Usage: product-rating export --to DIR [OPTIONS]
@@ -23,15 +23,16 @@ const EXPORT_USAGE = `Usage: product-rating export --to DIR [OPTIONS]
 Writes the catalogue into a directory:
 
   DIR/${EXPORT_JSON_FILE}     everything, in the form "product-rating import" reads
+  DIR/users.csv       one row per account, without anything secret
   DIR/products.csv    one row per product, with rating count and average
   DIR/ratings.csv     one row per rating
   DIR/prices.csv      one row per recorded price
   DIR/photos/         the detail images, with --with-photos
 
-Accounts are deliberately not part of an export: it would turn a file into a
-set of credentials. Products, ratings, prices and photos name their account by
-user name, and the import matches those names against the accounts of the
-target instance.
+Accounts travel as names, roles and e-mail addresses - never as password
+hashes, which would turn the file into a set of credentials. The import creates
+the accounts it does not find, without a password; each of them then needs a
+link from an administrator ("product-rating user reset-link NAME").
 
 Options:
       --to DIR        Directory to write into; created if it is missing.
@@ -61,14 +62,19 @@ unless --update is given, and an existing rating is never overwritten - a
 verdict belongs to whoever gave it. The same file can therefore be read twice
 without doubling anything.
 
-Accounts have to exist here. A user name the file mentions and this instance
-does not know stops the import before anything is written, unless --owner
-names the account that takes those entries over.
+Accounts the file carries are created first, without a password: an export has
+no hashes to restore. Each new account is marked as needing one and is reached
+with "product-rating user reset-link NAME". A name that is neither here nor in
+the file stops the import before anything is written, unless --owner names the
+account that takes those entries over.
 
 Options:
       --from DIR      Directory of the export, or the ${EXPORT_JSON_FILE} itself.
                       Required.
-      --owner USER    Account for entries whose user name is unknown here.
+      --owner USER    Account for entries whose user name is neither here nor
+                      in the file.
+      --skip-users    Do not create accounts; map everything onto the accounts
+                      that already exist here.
       --update        Write the data of products that already exist over what
                       is stored; also takes them out of the trash.
       --dry-run       Read and check everything, change nothing.
@@ -127,7 +133,8 @@ export const exportCommand: CliCommand = {
       // The directory on standard output, so a script can pick it up.
       io.out(result.directory);
       io.err(
-        `${String(result.products)} product(s), ${String(result.ratings)} rating(s), ` +
+        `${String(result.users)} account(s), ${String(result.products)} product(s), ` +
+          `${String(result.ratings)} rating(s), ` +
           `${String(result.prices)} price(s), ${String(result.photos)} photo(s)` +
           (result.photoFiles > 0 ? `, ${String(result.photoFiles)} image file(s)` : ''),
       );
@@ -156,6 +163,7 @@ export const importCommand: CliCommand = {
       from: 'string',
       owner: 'string',
       update: 'boolean',
+      'skip-users': 'boolean',
       'dry-run': 'boolean',
     });
 
@@ -175,11 +183,16 @@ export const importCommand: CliCommand = {
         source,
         ...(typeof options.owner === 'string' ? { owner: options.owner } : {}),
         update: options.update === true,
+        skipUsers: options['skip-users'] === true,
         dryRun,
       });
 
       if (dryRun) io.err('dry run: nothing was written');
 
+      io.out(
+        `accounts: ${String(result.usersCreated)} new, ` +
+          `${String(result.usersSkipped)} already here`,
+      );
       io.out(
         `products: ${String(result.productsCreated)} new, ` +
           `${String(result.productsUpdated)} updated, ` +
@@ -198,6 +211,15 @@ export const importCommand: CliCommand = {
           `${String(result.photosSkipped)} already here`,
       );
 
+      if (result.usersNeedingPassword.length > 0) {
+        io.err(
+          `${String(result.usersNeedingPassword.length)} account(s) arrived without a ` +
+            'password. Hand each of them a link:',
+        );
+        for (const name of result.usersNeedingPassword) {
+          io.err(`  product-rating user reset-link ${name}`);
+        }
+      }
       if (result.unknownUsers.length > 0) {
         io.err(`taken over by --owner: ${result.unknownUsers.join(', ')}`);
       }
