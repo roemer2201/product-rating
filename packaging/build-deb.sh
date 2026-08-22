@@ -275,6 +275,17 @@ check_prerequisites() {
         *) die "no mapping from the Debian architecture ${ARCH} to a node architecture" ;;
     esac
 
+    # The dependency install runs with engine-strict switched off - see
+    # install_runtime_dependencies for why - so the node version of the build
+    # host is asserted here instead of being left to npm. The floor is the one
+    # the repository declares; a range like ">=22" starts with it.
+    local required_major host_major
+    required_major="$(node -p "String((require('${REPO_ROOT}/package.json').engines || {}).node || '').replace(/^\\D*/, '').split('.')[0]")"
+    host_major="$(node -p 'process.versions.node.split(".")[0]')"
+    if [ -n "${required_major}" ] && [ "${host_major}" -lt "${required_major}" ]; then
+        die "node ${host_major} is too old: package.json asks for node ${required_major} or newer"
+    fi
+
     if [ -z "${VERSION}" ]; then
         VERSION="$(node -p "require('${REPO_ROOT}/package.json').version")"
     fi
@@ -330,7 +341,15 @@ install_runtime_dependencies() {
     cp "${REPO_ROOT}/server/package.json" "${deps_dir}/server/"
     cp "${REPO_ROOT}/web/package.json" "${deps_dir}/web/"
 
-    run npm --prefix "${deps_dir}" ci --omit=dev \
+    # engine-strict is switched off here, and only here. The repository turns it
+    # on in .npmrc, which is copied along so this install reads the same
+    # settings as any other - but npm checks the engines field of every package
+    # in the lock file while it builds the dependency tree, before --omit=dev
+    # drops the development ones again. A test-only dependency asking for a
+    # newer node than the build host runs would otherwise stop the packaging of
+    # a server that never loads it. What the server itself needs is checked in
+    # check_prerequisites.
+    run npm --prefix "${deps_dir}" ci --omit=dev --engine-strict=false \
         --workspace @product-rating/server --include-workspace-root
 
     # npm leaves the workspaces behind as symlinks into the source tree, which
