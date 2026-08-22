@@ -172,6 +172,43 @@ export const strings = {
     hint: 'Die App selbst ist geladen und startet auch ohne Netz.',
   },
 
+  /** The offline queue: capturing at the shelf, and getting it up later. */
+  offlineCapture: {
+    offer:
+      'Das ließ sich nicht speichern – das Gerät hat gerade keine Verbindung. Soll die Eingabe gemerkt und später übertragen werden?',
+    keep: 'Offline merken',
+    keeping: 'Wird gemerkt …',
+    kept: 'Gemerkt. Wird übertragen, sobald wieder eine Verbindung besteht.',
+
+    title: 'Offline erfasst',
+    intro:
+      'Was ohne Verbindung eingegeben wurde, wartet hier auf die Übertragung. Zugeordnet wird es über die EAN – ob daraus ein neues Produkt wird oder ein Zusatz zu einem vorhandenen, entscheidet sich erst bei der Übertragung.',
+    empty: 'Nichts offen – alles ist übertragen.',
+    waiting: (count: number) =>
+      count === 1 ? '1 Erfassung wartet' : `${count} Erfassungen warten`,
+    sync: 'Jetzt übertragen',
+    syncing: 'Wird übertragen …',
+    syncResult: (synced: number) =>
+      synced === 1 ? '1 Erfassung übertragen.' : `${synced} Erfassungen übertragen.`,
+    capturedAt: (date: string) => `Erfasst am ${date}`,
+    contains: 'Enthält',
+    partProduct: 'Produktdaten',
+    partRating: (stars: number) => `Bewertung (${stars} von 5)`,
+    partPrice: (amount: string) => `Preis (${amount})`,
+    partPhotos: (count: number) => (count === 1 ? '1 Foto' : `${count} Fotos`),
+    statePending: 'Wartet',
+    stateConflict: 'Rückfrage',
+    stateFailed: 'Abgelehnt',
+    conflictTitle: 'Diese Bewertung wurde inzwischen woanders geändert',
+    conflictText: (mine: number, theirs: number, date: string) =>
+      `Offline erfasst: ${mine} von 5. Auf dem Server steht seit ${date}: ${theirs} von 5.`,
+    keepMine: 'Meine Offline-Eingabe',
+    keepServer: 'Fassung vom Server',
+    retry: 'Erneut versuchen',
+    discard: 'Verwerfen',
+    discardConfirm: 'Wirklich verwerfen?',
+  },
+
   update: {
     title: 'Neue Version verfügbar',
     text: 'Sie wird beim nächsten Neuladen übernommen.',

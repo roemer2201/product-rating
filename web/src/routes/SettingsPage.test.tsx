@@ -4,7 +4,9 @@ import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router';
 import { SettingsPage } from '@/routes/SettingsPage';
 import { strings } from '@/lib/strings';
+import { enqueueCapture, listCaptures } from '@/lib/offlineQueue';
 import { mockFetch, testUser } from '@/testing/fetchMock';
+import { makeProductDetail, makeRating, TEST_EAN } from '@/testing/fixtures';
 import { renderWithProviders } from '@/testing/render';
 
 /** The account screen: password, devices, and the way out. */
@@ -50,6 +52,80 @@ function renderSettings() {
 }
 
 describe('SettingsPage', () => {
+  it('lists what was captured offline and transfers it on request', async () => {
+    const user = userEvent.setup();
+    await enqueueCapture({
+      ean: TEST_EAN,
+      label: 'Apfelsaft',
+      rating: { stars: 4, comment: null, capturedAt: Date.parse('2026-08-20T10:00:00.000Z') },
+    });
+
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      SESSIONS,
+      { path: `/products/by-ean/${TEST_EAN}`, body: { product: makeProductDetail() } },
+      { path: '/products/prod-1', body: { product: makeProductDetail() } },
+      {
+        path: '/products/prod-1/rating',
+        method: 'PUT',
+        body: { rating: makeRating(), ratings: { average: 4, count: 1 } },
+      },
+    ]);
+
+    renderSettings();
+
+    expect(await screen.findByText('Apfelsaft')).toBeInTheDocument();
+    // The parentheses in the label are text, not a pattern.
+    expect(screen.getByText(/Enthält/)).toHaveTextContent(strings.offlineCapture.partRating(4));
+
+    await user.click(screen.getByRole('button', { name: strings.offlineCapture.sync }));
+
+    await waitFor(async () => {
+      expect(await listCaptures()).toEqual([]);
+    });
+    expect(await screen.findByText(strings.offlineCapture.empty)).toBeInTheDocument();
+  });
+
+  it('asks which verdict counts when both changed', async () => {
+    const user = userEvent.setup();
+    await enqueueCapture({
+      ean: TEST_EAN,
+      label: 'Apfelsaft',
+      rating: { stars: 2, comment: null, capturedAt: Date.parse('2026-08-20T10:00:00.000Z') },
+    });
+
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      SESSIONS,
+      { path: `/products/by-ean/${TEST_EAN}`, body: { product: makeProductDetail() } },
+      {
+        path: '/products/prod-1',
+        body: {
+          product: makeProductDetail({
+            // Rated elsewhere after the capture was written down.
+            ownRating: makeRating({ stars: 5, updatedAt: '2026-08-21T09:00:00.000Z' }),
+          }),
+        },
+      },
+    ]);
+
+    renderSettings();
+    await screen.findByText('Apfelsaft');
+
+    await user.click(screen.getByRole('button', { name: strings.offlineCapture.sync }));
+
+    expect(await screen.findByText(strings.offlineCapture.conflictTitle)).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: strings.offlineCapture.keepMine }),
+    ).toBeInTheDocument();
+
+    // Deciding for the server verdict drops the capture; nothing else is in it.
+    await user.click(screen.getByRole('button', { name: strings.offlineCapture.keepServer }));
+    await waitFor(async () => {
+      expect(await listCaptures()).toEqual([]);
+    });
+  });
+
   it('names the devices instead of printing the user agent', async () => {
     mockFetch([{ path: '/auth/me', body: { user: testUser } }, SESSIONS]);
 

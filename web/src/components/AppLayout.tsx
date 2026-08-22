@@ -1,6 +1,7 @@
 import { Outlet, useNavigate } from 'react-router';
 import { BottomNav } from '@/components/BottomNav';
 import { OfflineBanner } from '@/components/OfflineNotice';
+import { SyncGate } from '@/components/SyncGate';
 import { UpdatePrompt } from '@/components/UpdatePrompt';
 import { useLogout, useSession } from '@/lib/queries';
 import { strings } from '@/lib/strings';
@@ -13,10 +14,10 @@ import { strings } from '@/lib/strings';
  * the one action that has to work from anywhere, and until the settings page
  * exists (M8) it would otherwise have no home at all.
  *
- * The two notices sit here rather than around the whole router: both are about
- * the app someone is using, and both need the room above the navigation that
- * only this layout knows about. On the login screen an offline phone announces
- * itself through the failing request anyway.
+ * The three notices sit here rather than around the whole router: they are all
+ * about the app someone is using, and all need the room above the navigation
+ * that only this layout knows about. On the login screen an offline phone
+ * announces itself through the failing request anyway.
  */
 
 export function AppLayout() {
@@ -62,6 +63,7 @@ export function AppLayout() {
 
       <div className="toast-stack">
         <OfflineBanner />
+        <SyncGate />
         <UpdatePrompt />
       </div>
 

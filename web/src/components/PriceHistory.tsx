@@ -1,12 +1,13 @@
 import { useId, useState } from 'react';
 import { createPriceSchema, PRICE_LIST_LIMIT, type Price, type User } from '@product-rating/shared';
 import { ErrorNotice } from '@/components/Feedback';
+import { OfflineCapture } from '@/components/OfflineCapture';
 import { Field } from '@/components/Field';
 import { TrashIcon } from '@/components/icons';
 import { errorMessage } from '@/lib/api';
 import { formatDate } from '@/lib/format';
 import { formatAmount, parseAmount, todayAsInputValue } from '@/lib/money';
-import { useAddPrice, useDeletePrice, useShops } from '@/lib/queries';
+import { useAddPrice, useDeletePrice, useEnqueueCapture, useShops } from '@/lib/queries';
 import { strings } from '@/lib/strings';
 
 /**
@@ -23,11 +24,14 @@ import { strings } from '@/lib/strings';
 
 interface PriceHistoryProps {
   productId: string;
+  /** Identifies the product for a price that is written down offline. */
+  ean: string;
+  productName: string;
   prices: Price[];
   user: User;
 }
 
-export function PriceHistory({ productId, prices, user }: PriceHistoryProps) {
+export function PriceHistory({ productId, ean, productName, prices, user }: PriceHistoryProps) {
   const shopListId = useId();
 
   const [amount, setAmount] = useState('');
@@ -39,6 +43,7 @@ export function PriceHistory({ productId, prices, user }: PriceHistoryProps) {
   const shops = useShops();
   const add = useAddPrice();
   const remove = useDeletePrice();
+  const capture = useEnqueueCapture();
 
   // The list arrives with the newest purchase first, so the first entry is the
   // latest one and the cheapest is a single pass over at most fifty rows.
@@ -158,6 +163,26 @@ export function PriceHistory({ productId, prices, user }: PriceHistoryProps) {
 
       {remove.error !== null && <ErrorNotice message={errorMessage(remove.error)} />}
       {add.error !== null && <ErrorNotice message={errorMessage(add.error)} />}
+
+      <OfflineCapture
+        error={add.error}
+        onKeep={() => {
+          const cents = parseAmount(amount);
+          if (cents === null) return;
+          capture.mutate({
+            ean,
+            label: productName,
+            price: {
+              cents,
+              shop: shop.trim() === '' ? null : shop.trim(),
+              note: note.trim() === '' ? null : note.trim(),
+              purchasedAt: date === '' ? todayAsInputValue() : date,
+            },
+          });
+        }}
+        kept={capture.isSuccess}
+        pending={capture.isPending}
+      />
 
       <div className="form">
         <Field

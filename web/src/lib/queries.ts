@@ -43,6 +43,20 @@ import {
   type ProductListParams,
   type UploadOptions,
 } from '@/lib/api';
+import {
+  enqueueCapture,
+  listCaptures,
+  removeCapture,
+  type Capture,
+  type NewCapture,
+} from '@/lib/offlineQueue';
+import {
+  discardCapturedRating,
+  keepCapturedRating,
+  retryCapture,
+  syncCaptures,
+  type SyncResult,
+} from '@/lib/sync';
 
 /**
  * Server state: query keys, cache times and the hooks around the session.
@@ -94,6 +108,7 @@ export const queryKeys = {
     all: ['ratings'] as const,
     mine: (params: MyRatingsParams) => ['ratings', 'mine', params] as const,
   },
+  captures: ['captures'] as const,
   shops: ['shops'] as const,
   trash: ['trash'] as const,
   invites: ['invites'] as const,
@@ -596,6 +611,86 @@ export function useChangePassword(): UseMutationResult<
     onSuccess: () => {
       // Changing the password ends every other session; the list has changed.
       void client.invalidateQueries({ queryKey: queryKeys.ownSessions });
+    },
+  });
+}
+
+/* ------------------------------------------------- captured while offline */
+
+/**
+ * What is waiting in the offline queue.
+ *
+ * Not a server query at all — the data sits in IndexedDB — but it belongs in
+ * the same cache as everything else: the settings screen, the badge in the
+ * navigation and the sync itself all have to see the same list, and every
+ * mutation that queues something invalidates it.
+ */
+export function useCaptures(): UseQueryResult<Capture[], Error> {
+  return useQuery({
+    queryKey: queryKeys.captures,
+    queryFn: () => listCaptures(),
+    // The queue only changes through this app, and every change invalidates.
+    staleTime: Number.POSITIVE_INFINITY,
+    retry: false,
+  });
+}
+
+/** Records a capture for the next time there is a connection. */
+export function useEnqueueCapture(): UseMutationResult<Capture, Error, NewCapture> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: NewCapture) => enqueueCapture(input),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.captures });
+    },
+  });
+}
+
+/**
+ * Works through the queue.
+ *
+ * Everything the captures touched is invalidated afterwards rather than
+ * patched: a sync can have created a product, added a price and uploaded three
+ * photos, and working out which screens that moves would cost more than the
+ * requests it saves.
+ */
+export function useSyncCaptures(): UseMutationResult<SyncResult, Error, void> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => syncCaptures(),
+    onSuccess: (result) => {
+      void client.invalidateQueries({ queryKey: queryKeys.captures });
+      if (result.synced > 0) {
+        void client.invalidateQueries({ queryKey: queryKeys.products.all });
+        void client.invalidateQueries({ queryKey: queryKeys.ratings.all });
+        void client.invalidateQueries({ queryKey: queryKeys.shops });
+      }
+    },
+  });
+}
+
+/** How a capture waiting for a decision is resolved. */
+export type CaptureDecision = 'mine' | 'server' | 'retry' | 'discard';
+
+export interface ResolveCaptureVariables {
+  capture: Capture;
+  decision: CaptureDecision;
+}
+
+export function useResolveCapture(): UseMutationResult<void, Error, ResolveCaptureVariables> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ capture, decision }: ResolveCaptureVariables) => {
+      if (decision === 'mine') return keepCapturedRating(capture);
+      if (decision === 'server') return discardCapturedRating(capture);
+      if (decision === 'retry') return retryCapture(capture);
+      return removeCapture(capture.id);
+    },
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.captures });
     },
   });
 }

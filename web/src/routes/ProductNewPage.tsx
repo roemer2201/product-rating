@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router';
 import { createProductSchema, normaliseEan } from '@product-rating/shared';
+import { OfflineCapture } from '@/components/OfflineCapture';
 import { ProductForm, type ProductFormValues } from '@/components/ProductForm';
 import { errorMessage, isApiError } from '@/lib/api';
 import { emptyToNull, fieldErrors, type FieldErrors } from '@/lib/forms';
-import { useCreateProduct } from '@/lib/queries';
+import { useCreateProduct, useEnqueueCapture } from '@/lib/queries';
 import { strings } from '@/lib/strings';
 
 /**
@@ -18,13 +19,21 @@ import { strings } from '@/lib/strings';
  * have entered the same product. That is what the `409` is: the answer names
  * the product that got there first, and the screen offers the way to it instead
  * of an error to argue with.
+ *
+ * A save that never leaves the device is the other case, and the one this
+ * screen is most often reached in: somebody is standing in a shop. What was
+ * typed is then kept as a capture and resolved later against the EAN — as a new
+ * product, or as an addition to the one that turns out to exist.
  */
 export function ProductNewPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const create = useCreateProduct();
+  const capture = useEnqueueCapture();
 
   const [errors, setErrors] = useState<FieldErrors>({});
+  /** What the form holds, so the offline offer can take it as it stands. */
+  const [values, setValues] = useState<ProductFormValues | null>(null);
 
   const ean = normaliseEan(params.get('ean') ?? '');
   if (ean === null) return <Navigate to="/scan" replace />;
@@ -44,6 +53,7 @@ export function ProductNewPage() {
     }
 
     setErrors({});
+    setValues(values);
     create.mutate(parsed.data, {
       onSuccess: (product) => {
         // Straight on to the product: the next thing anyone wants is the photo
@@ -78,6 +88,34 @@ export function ProductNewPage() {
           </Link>
         </div>
       )}
+
+      <OfflineCapture
+        error={create.error}
+        onKeep={() => {
+          if (values === null) return;
+          capture.mutate(
+            {
+              ean,
+              label: values.name,
+              product: {
+                name: values.name,
+                brand: emptyToNull(values.brand),
+                category: emptyToNull(values.category),
+                notes: emptyToNull(values.notes),
+              },
+            },
+            {
+              onSuccess: () => {
+                // There is no product to go to yet; the catalogue is where the
+                // notice about the queue lives.
+                void navigate('/', { replace: true });
+              },
+            },
+          );
+        }}
+        kept={capture.isSuccess}
+        pending={capture.isPending}
+      />
 
       <ProductForm
         onSubmit={onSubmit}

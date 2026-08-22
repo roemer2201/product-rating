@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { RATING_COMMENT_MAX_LENGTH, type Rating } from '@product-rating/shared';
 import { ErrorNotice } from '@/components/Feedback';
+import { OfflineCapture } from '@/components/OfflineCapture';
 import { StarRating } from '@/components/StarRating';
 import { TextAreaField } from '@/components/Field';
 import { errorMessage } from '@/lib/api';
 import { emptyToNull } from '@/lib/forms';
-import { useDeleteRating, useUpsertRating } from '@/lib/queries';
+import { useDeleteRating, useEnqueueCapture, useUpsertRating } from '@/lib/queries';
 import { strings } from '@/lib/strings';
 
 /**
@@ -19,15 +20,19 @@ import { strings } from '@/lib/strings';
 
 interface RatingEditorProps {
   productId: string;
+  /** Identifies the product for a capture that is written down offline. */
+  ean: string;
+  productName: string;
   rating: Rating | null;
 }
 
-export function RatingEditor({ productId, rating }: RatingEditorProps) {
+export function RatingEditor({ productId, ean, productName, rating }: RatingEditorProps) {
   const [stars, setStars] = useState<number | null>(rating?.stars ?? null);
   const [comment, setComment] = useState(rating?.comment ?? '');
 
   const upsert = useUpsertRating();
   const remove = useDeleteRating();
+  const capture = useEnqueueCapture();
 
   const onSave = (): void => {
     if (stars === null) return;
@@ -45,11 +50,28 @@ export function RatingEditor({ productId, rating }: RatingEditorProps) {
 
   const failure = upsert.error ?? remove.error;
 
+  /** The verdict as it stands on screen, for the queue. */
+  const keepOffline = (): void => {
+    if (stars === null) return;
+    capture.mutate({
+      ean,
+      label: productName,
+      rating: { stars, comment: emptyToNull(comment), capturedAt: Date.now() },
+    });
+  };
+
   return (
     <section className="section">
       <h2 className="section__title">{strings.rating.own}</h2>
 
       {failure !== null && <ErrorNotice message={errorMessage(failure)} />}
+
+      <OfflineCapture
+        error={upsert.error}
+        onKeep={keepOffline}
+        kept={capture.isSuccess}
+        pending={capture.isPending}
+      />
 
       <StarRating
         value={stars}

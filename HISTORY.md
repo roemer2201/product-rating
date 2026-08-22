@@ -5,6 +5,51 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-22 – Backlog: Offline-Erfassung mit Warteschlange
+
+**Umfang**
+
+- **`web/src/lib/offlineQueue.ts`**: Warteschlange in IndexedDB. Die Einheit ist
+  eine *Erfassung* – EAN plus wahlweise Produktdaten, Bewertung, Preis und
+  Fotos –, kein API-Aufruf.
+- **`web/src/lib/sync.ts`**: löst jede Erfassung über die EAN auf
+  (Produkt → Preis → Fotos → Bewertung), merkt sich in `progress`, was schon
+  oben ist, und erkennt genau einen Konfliktfall: eine eigene Bewertung, die
+  nach dem Erfassungszeitpunkt anderswo geändert wurde.
+- **Oberfläche**: „Offline merken“ unter jedem fehlgeschlagenen Speichern
+  (`OfflineCapture`), ein Streifen über der Navigation samt automatischer
+  Übertragung (`SyncGate`) und die Liste in den Einstellungen mit Zustand,
+  Inhalt, Konfliktfrage und Verwerfen (`CaptureQueue`).
+- Der Scanner schickt bei einer Suche ohne Verbindung ins Anlegeformular –
+  offline lässt sich nicht feststellen, ob es die EAN schon gibt.
+- **Tests**: 13 Fälle für Warteschlange und Übertragung (`fake-indexeddb`),
+  dazu drei über die Oberfläche.
+
+**Entscheidungen**
+
+- *Absicht statt Request.* Ein Gerät ohne Verbindung kann nicht wissen, ob eine
+  EAN im Katalog steht – der Katalog wird bewusst nicht gecacht. Wird die
+  Absicht festgehalten, entscheidet sich erst bei der Übertragung, ob daraus
+  ein neues Produkt oder ein Zusatz zu einem vorhandenen wird. Das erspart
+  vorläufige IDs und ihre spätere Ersetzung.
+- *Der Katalog gewinnt gegen die Offline-Notiz.* Existiert die EAN inzwischen,
+  bleiben Name, Marke und Kategorie, wie sie sind; Bewertung, Preis und Fotos
+  kommen trotzdem dazu.
+- *Konflikte werden gefragt, nicht entschieden.* Zwei Bewertungen desselben
+  Kontos – eine am Regal, eine zu Hause – lassen sich nicht über den Zeitstempel
+  sortieren. „Der letzte gewinnt“ wäre hier eine Behauptung, keine Regel.
+- *Kein Wiederhol-Timer.* Übertragen wird beim Start, beim Wiederkehren der
+  Verbindung und auf Knopfdruck. Alles andere kostet Akku für eine Antwort, die
+  die App schon kennt.
+- *„Offline merken“ ist ein Angebot, kein Automatismus.* Etwas für später zu
+  merken ist eine andere Handlung als es zu speichern – ein stiller Umbau würde
+  genau das verstecken.
+- *Nichts verschwindet von selbst.* Eine abgelehnte Erfassung bleibt mit
+  Begründung stehen, bis jemand sie erneut versucht oder verwirft.
+- **Offen:** Dass ein `Blob` die IndexedDB übersteht, ist eine Zusage des
+  Browsers; der Test-Ersatz `fake-indexeddb` gibt ihn als einfaches Objekt
+  zurück. Der Gerätetest in M9 holt das nach.
+
 ## 2026-08-22 – Konten im Export, ohne Passwörter
 
 **Umfang**

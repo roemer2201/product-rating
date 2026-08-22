@@ -27,13 +27,15 @@ sich unter iOS zum Home-Bildschirm hinzufügen.
 - Produktliste mit Volltextsuche (Name, Marke, EAN) und Filter/Sortierung nach
   Bewertung
 - Papierkorb: Gelöschtes lässt sich zurückholen
+- Offline erfassen: Ohne Verbindung Eingetipptes wartet auf dem Gerät und geht
+  später von selbst hoch, inklusive Rückfrage bei widersprüchlichen Bewertungen
 - Export nach JSON und CSV, Import zum Umzug (Kommandozeile)
 - Installierbar als PWA auf dem iOS-Home-Bildschirm
 
 **Später** (siehe [TODO.md](TODO.md), Abschnitt Backlog)
 
 - Tags mit Autovervollständigung, Statistiken
-- Offline-Erfassung mit Sync-Queue
+- Zweiter Faktor, SSO über den Reverse Proxy
 
 ---
 
@@ -189,8 +191,8 @@ CSS, Icons, Manifest, zusammen knapp 500 kB. Bewusst **nicht** dabei:
   `Cache-Control: private`. Was sich zu behalten lohnt, hält TanStack Query im
   Speicher.
 - **Das WebAssembly des Decoders** (gut ein Megabyte) – es wird erst beim Start
-  der Kamera geholt, und offline nützt ein gelesener Barcode ohnehin nichts,
-  weil die EAN im Katalog nachgeschlagen werden muss.
+  der Kamera geholt. Ein offline gelesener Barcode landet in der Warteschlange
+  (2.3), nachschlagen lässt er sich aber erst wieder mit Verbindung.
 
 Jede Adresse der App wird offline aus der zwischengespeicherten `index.html`
 beantwortet (`navigateFallback`), `/api/` ausdrücklich nicht – eine Anfrage, die
@@ -199,6 +201,59 @@ Damit startet die App ohne Netz, statt die Fehlerseite des Browsers zu zeigen;
 sie erklärt dann selbst, was fehlt: ein Streifen über der Navigation, solange
 nur nichts gespeichert werden kann, und ein ganzer Schirm, wenn gar nichts
 geladen werden konnte.
+
+### 2.3 Offline erfassen und nachträglich übertragen
+
+Der Katalog ist offline **nicht** lesbar – siehe oben, `/api/v1/…` wird bewusst
+nicht gecacht. Erfassen geht trotzdem, und genau darum geht es: Man steht im
+Laden, im Keller, im Funkloch.
+
+**Die Einheit ist eine Erfassung, kein API-Aufruf.** Gespeichert wird „ich stand
+vor diesem Artikel, und das habe ich dazu zu sagen“: die EAN, dazu wahlweise
+Produktdaten, eine Bewertung, ein Preis und Fotos. Ein Gerät ohne Verbindung
+kann nämlich gar nicht wissen, ob es die EAN schon im Katalog gibt – die Absicht
+festzuhalten statt des Requests ist das, was diese Frage später beantwortbar
+macht. Die Warteschlange liegt in **IndexedDB** (`web/src/lib/offlineQueue.ts`),
+nicht in `localStorage`: Fotos sind `Blob`s und blieben dort nur als Base64 in
+ein paar Megabyte Textquote übrig.
+
+**Aufgelöst wird über die EAN** (`web/src/lib/sync.ts`), in dieser Reihenfolge:
+
+1. **Produkt:** EAN nachschlagen. Gibt es sie nicht und trägt die Erfassung
+   Produktdaten, wird das Produkt angelegt. Gibt es sie schon, **gewinnt der
+   Katalog** – eine Offline-Notiz vom Regal überschreibt nicht, worauf sich der
+   Haushalt seither geeinigt hat. Alles Weitere der Erfassung kommt trotzdem
+   dazu, und genau deshalb lohnt es sich, sie aufzuheben.
+2. **Preis** und **Fotos** – anhängend, deshalb wird mitgezählt, was schon oben
+   ist: Ein Abbruch beim dritten Foto darf die ersten beiden nicht erneut
+   hochladen.
+3. **Bewertung** zuletzt, weil sie als Einzige strittig sein kann.
+
+**Konfliktbehandlung.** Strittig ist genau ein Fall: Dasselbe Konto hat dasselbe
+Produkt zwischenzeitlich woanders bewertet, **nach** dem Zeitpunkt der Erfassung.
+Dann gilt nicht „der letzte gewinnt“ – keine der beiden Fassungen ist offensicht­
+lich richtig, die vom Regal kann der frischere Eindruck sein, die von zu Hause
+die überlegte Korrektur. Die Erfassung wechselt in den Zustand `conflict` und
+stellt die Frage: „Meine Offline-Eingabe“ oder „Fassung vom Server“. Alles
+andere ist entweder anhängend (Preis, Foto) oder über die EAN idempotent.
+
+**Verworfen wird nichts von selbst.** Eine Erfassung, die der Server ablehnt
+(etwa: das Produkt ist inzwischen gelöscht und die Erfassung trägt keine
+Produktdaten), bleibt als `failed` mit der Begründung stehen; löschen kann sie
+nur ein Mensch, mit zwei Klicks.
+
+**Übertragen** wird beim Start der App und sobald der Browser wieder eine
+Verbindung meldet, dazu von Hand über „Jetzt übertragen“ in den Einstellungen.
+Bewusst **kein Timer**: Eine Warteschlange, die alle dreißig Sekunden im Keller
+nachfragt, verbraucht Akku für eine Antwort, die sie schon kennt. Scheitert die
+Übertragung am Netz, bricht der Lauf ab, statt die restliche Schlange gegen
+dieselbe tote Leitung laufen zu lassen.
+
+**In der Oberfläche** taucht das an drei Stellen auf: das Angebot „Offline
+merken“ direkt unter dem fehlgeschlagenen Speichern (nur bei einem Fehler, der
+das Gerät nie verlassen hat – eine abgelehnte Eingabe wird auch in einer Stunde
+abgelehnt), ein Streifen über der Navigation, solange etwas wartet, und die
+Liste in den Einstellungen mit Zustand, Inhalt und den nötigen Entscheidungen.
 
 **Aktualisierung.** `registerType: 'prompt'`: eine neue Version übernimmt nicht
 von selbst, sondern wartet und meldet sich sichtbar („Neue Version verfügbar“,

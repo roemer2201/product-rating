@@ -1,10 +1,17 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type { Photo, User } from '@product-rating/shared';
 import { ErrorNotice } from '@/components/Feedback';
+import { OfflineCapture } from '@/components/OfflineCapture';
 import { ArrowDownIcon, ArrowUpIcon, CheckIcon, PhotoIcon, TrashIcon } from '@/components/icons';
 import { api, errorMessage } from '@/lib/api';
 import { preparePhoto, type PreparedPhoto } from '@/lib/image';
-import { useDeletePhoto, useMovePhoto, useSetPrimaryPhoto, useUploadPhoto } from '@/lib/queries';
+import {
+  useDeletePhoto,
+  useEnqueueCapture,
+  useMovePhoto,
+  useSetPrimaryPhoto,
+  useUploadPhoto,
+} from '@/lib/queries';
 import { strings } from '@/lib/strings';
 
 /**
@@ -27,11 +34,14 @@ import { strings } from '@/lib/strings';
 
 interface PhotoManagerProps {
   productId: string;
+  /** Identifies the product for a picture that is written down offline. */
+  ean: string;
+  productName: string;
   photos: Photo[];
   user: User;
 }
 
-export function PhotoManager({ productId, photos, user }: PhotoManagerProps) {
+export function PhotoManager({ productId, ean, productName, photos, user }: PhotoManagerProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [picked, setPicked] = useState<PreparedPhoto | null>(null);
@@ -44,6 +54,7 @@ export function PhotoManager({ productId, photos, user }: PhotoManagerProps) {
   const remove = useDeletePhoto();
   const setPrimary = useSetPrimaryPhoto();
   const move = useMovePhoto();
+  const capture = useEnqueueCapture();
 
   // An object URL is a reference the browser holds until it is told otherwise.
   useEffect(() => {
@@ -238,6 +249,24 @@ export function PhotoManager({ productId, photos, user }: PhotoManagerProps) {
             )}
 
             {upload.error !== null && <ErrorNotice message={errorMessage(upload.error)} />}
+
+            {/* The picture is already shrunk and in hand; the queue takes the
+                bytes as they are and uploads them when there is a line. */}
+            <OfflineCapture
+              error={upload.error}
+              onKeep={() => {
+                capture.mutate(
+                  {
+                    ean,
+                    label: productName,
+                    photos: [{ blob: picked.blob, filename: picked.filename }],
+                  },
+                  { onSuccess: clearPick },
+                );
+              }}
+              kept={capture.isSuccess}
+              pending={capture.isPending}
+            />
 
             <div className="form__actions">
               <button
