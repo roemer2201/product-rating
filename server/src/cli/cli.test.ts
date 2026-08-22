@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -324,6 +324,16 @@ describe('export and import', () => {
     expect(imported.code).toBe(0);
     expect(imported.out).toContain('accounts: 0 new');
     expect(imported.out).toContain('products: 0 new');
+  });
+
+  it('leaves the accounts out when --no-users says so', async () => {
+    const target = join(directory, 'export-no-users');
+
+    const exported = await run(['export', '--to', target, '--format', 'both', '--no-users']);
+    expect(exported.code).toBe(0);
+    expect(exported.err).toContain('0 account(s)');
+    expect(existsSync(join(target, 'users.csv'))).toBe(false);
+    expect(readFileSync(join(target, 'export.json'), 'utf8')).not.toContain('"users"');
   });
 
   it('brings accounts along without a password and says who needs a link', async () => {

@@ -22,6 +22,11 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 - Konten werden **vor** allem anderen geschrieben, damit jede Bewertung, jedes
   Foto und jeder Preis seinen Eigentümer wiederfindet, statt bei einem
   Sammelkonto zu landen.
+- **`--no-users` schaltet den Kontenexport ab.** Dann entsteht keine
+  `users.csv`, und in `export.json` fehlt der Schlüssel `users` – nicht als
+  leere Liste, weil das eine andere Aussage wäre. Einen Export gibt es nur auf
+  der Kommandozeile; in der Weboberfläche existiert er nicht, also auch keine
+  Ankreuzmöglichkeit.
 
 **Entscheidungen**
 

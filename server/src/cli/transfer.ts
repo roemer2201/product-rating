@@ -23,7 +23,8 @@ const EXPORT_USAGE = `Usage: product-rating export --to DIR [OPTIONS]
 Writes the catalogue into a directory:
 
   DIR/${EXPORT_JSON_FILE}     everything, in the form "product-rating import" reads
-  DIR/users.csv       one row per account, without anything secret
+  DIR/users.csv       one row per account, without anything secret (--no-users
+                      leaves this out)
   DIR/products.csv    one row per product, with rating count and average
   DIR/ratings.csv     one row per rating
   DIR/prices.csv      one row per recorded price
@@ -34,10 +35,16 @@ hashes, which would turn the file into a set of credentials. The import creates
 the accounts it does not find, without a password; each of them then needs a
 link from an administrator ("product-rating user reset-link NAME").
 
+--no-users leaves the accounts out. A move wants them, a spreadsheet does not:
+without them the other side has nobody to attribute a rating to, and the import
+needs --owner to take those entries over.
+
 Options:
       --to DIR        Directory to write into; created if it is missing.
                       Required.
       --format FORMAT json (the default), csv, or both.
+      --no-users      Do not write the accounts. Without them an import has to
+                      map every name onto an existing account (--owner).
       --with-photos   Copy the detail images into DIR/photos as well. Without
                       it the export is text only and stays small.
       --include-trash Take products in the trash along; left out by default.
@@ -50,7 +57,8 @@ umlauts correctly. It is an export format only - "import" reads the JSON file.
 
 Examples:
   product-rating export --to /tmp/catalogue
-  product-rating export --to /srv/move --format both --with-photos`;
+  product-rating export --to /srv/move --format both --with-photos
+  product-rating export --to /tmp/tabelle --format csv --no-users`;
 
 const IMPORT_USAGE = `Usage: product-rating import --from DIR [OPTIONS]
 
@@ -104,6 +112,7 @@ export const exportCommand: CliCommand = {
       help: 'boolean',
       to: 'string',
       format: 'string',
+      'no-users': 'boolean',
       'with-photos': 'boolean',
       'include-trash': 'boolean',
     });
@@ -123,6 +132,7 @@ export const exportCommand: CliCommand = {
         config,
         target,
         format,
+        withUsers: options['no-users'] !== true,
         withPhotos: options['with-photos'] === true,
         includeTrash: options['include-trash'] === true,
         onProgress: (message) => {

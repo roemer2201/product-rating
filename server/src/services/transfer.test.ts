@@ -17,6 +17,7 @@ import {
   EXPORT_PRICES_CSV,
   EXPORT_PRODUCTS_CSV,
   EXPORT_RATINGS_CSV,
+  EXPORT_USERS_CSV,
 } from './transfer.js';
 
 /**
@@ -154,6 +155,30 @@ describe('exporting', () => {
     expect(products).toMatch(/4260000000011.*,2,4,/);
     expect(ratings).toContain('"trüb, wie er soll"');
     expect(products.endsWith('\r\n')).toBe(true);
+  });
+
+  it('leaves the accounts out when they are not wanted', async () => {
+    const result = await exportCatalogue({
+      db: source.database.db,
+      config: source.config,
+      target: directory,
+      format: 'both',
+      withUsers: false,
+    });
+
+    expect(result.users).toBe(0);
+    expect(existsSync(join(directory, EXPORT_USERS_CSV))).toBe(false);
+
+    const file = JSON.parse(readFileSync(join(directory, EXPORT_JSON_FILE), 'utf8')) as {
+      users?: unknown;
+      products: { ratings: { user: string }[] }[];
+    };
+
+    // The key is absent rather than empty: "no accounts in this file" is not
+    // the same statement as "this instance has no accounts".
+    expect(file.users).toBeUndefined();
+    // The names stay on the entries — that is what an import maps.
+    expect(file.products.some((product) => product.ratings.length > 0)).toBe(true);
   });
 
   it('leaves the trash out unless it is asked for', async () => {

@@ -1034,7 +1034,7 @@ Konsole. Im Container liegt derselbe Befehl unter
 | `invite create\|list\|revoke` | Einladungscodes ausgeben, auflisten, zurückziehen |
 | `backup --to <dir>` | Snapshot aus `VACUUM INTO` plus Fotos, `--keep-days N` als Aufbewahrungsgrenze |
 | `restore --from <dir>` | Snapshot zurückspielen, nach ausdrücklicher Bestätigung (`--yes` überspringt sie) |
-| `export --to <dir>` | Katalog als JSON und/oder CSV schreiben, `--with-photos` nimmt die Bilder mit |
+| `export --to <dir>` | Katalog als JSON und/oder CSV schreiben; `--with-photos` nimmt die Bilder mit, `--no-users` lässt die Konten weg |
 | `import --from <dir>` | Export einlesen; `--owner`, `--update`, `--skip-users`, `--dry-run` |
 | `fsck --uploads` | Upload-Verzeichnis gegen die Fototabelle prüfen, `--repair` löscht verwaiste Dateien |
 | `help [befehl]`, `version` | Hilfe und Version |
@@ -1102,6 +1102,7 @@ Unterschied zu `backup`/`restore`:
 
 ```bash
 product-rating export --to /srv/umzug --format both --with-photos
+product-rating export --to /tmp/tabelle --format csv --no-users   # nur Daten
 product-rating import --from /srv/umzug --dry-run   # erst schauen
 product-rating import --from /srv/umzug            # dann einlesen
 product-rating user reset-link anna                # Link je Konto weitergeben
@@ -1111,7 +1112,7 @@ product-rating user reset-link anna                # Link je Konto weitergeben
 
 ```
 /srv/umzug/export.json     alles, in der Form, die "import" liest
-/srv/umzug/users.csv       eine Zeile je Konto, ohne alles Geheime
+/srv/umzug/users.csv       eine Zeile je Konto, ohne alles Geheime (entfällt mit --no-users)
 /srv/umzug/products.csv    eine Zeile je Produkt, mit Anzahl und Durchschnitt
 /srv/umzug/ratings.csv     eine Zeile je Bewertung
 /srv/umzug/prices.csv      eine Zeile je erfasstem Preis
@@ -1141,6 +1142,16 @@ Passwort dieser Instanz wiegen schwerer als eine Datei. `--skip-users` legt gar
 keine Konten an; dann muss jeder Name drüben existieren oder von
 `--owner <konto>` übernommen werden. Ein Name, der weder hier noch in der Datei
 steht, bricht den Import ab, **bevor** etwas geschrieben wird.
+
+**Konten mitzunehmen ist abschaltbar.** `product-rating export --no-users`
+lässt sie weg: `users.csv` entsteht gar nicht erst, und in `export.json` fehlt
+der Schlüssel `users` – bewusst nicht als leere Liste, denn „keine Konten in
+dieser Datei“ und „diese Instanz hat keine Konten“ sind zwei verschiedene
+Aussagen. Für einen Umzug will man die Konten (sonst hat drüben niemand die
+Bewertungen abgegeben, und der Import braucht `--owner`); für eine Datei, die
+nur als Tabelle gelesen wird, haben die Namen des Haushalts dagegen nichts
+verloren. Die Benutzernamen an den Bewertungen, Preisen und Fotos bleiben in
+beiden Fällen stehen – sie sind die Zuordnung, die der Import braucht.
 
 **Zusammenführen statt Ersetzen.** Ein Produkt, das drüben schon existiert,
 behält seine Daten (`--update` schreibt sie über und holt es zugleich aus dem

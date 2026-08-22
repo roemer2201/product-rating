@@ -130,6 +130,13 @@ export interface ExportOptions {
   /** Directory the files are written into; created if it is missing. */
   target: string;
   format?: ExportFormat;
+  /**
+   * Take the accounts along — names, roles, e-mail addresses, never hashes.
+   * On by default, because a move needs them: without accounts the other side
+   * has nobody to attribute a rating to. Off for an export that is only going
+   * to be read as a table, where the household's names have no business being.
+   */
+  withUsers?: boolean;
   /** Copy the detail images into `photos/` as well. */
   withPhotos?: boolean;
   /** Take products in the trash along; they are left out by default. */
@@ -262,7 +269,7 @@ export async function exportCatalogue(options: ExportOptions): Promise<ExportRes
   await mkdir(target, { recursive: true, mode: PRIVATE_MODE });
 
   const exported = collectProducts(db, includeTrash);
-  const accounts = collectUsers(db);
+  const accounts = options.withUsers === false ? [] : collectUsers(db);
   const photoRows = db.select().from(photos).all();
   const files: string[] = [];
 
@@ -276,7 +283,10 @@ export async function exportCatalogue(options: ExportOptions): Promise<ExportRes
       version: EXPORT_VERSION,
       exportedAt: (options.now ?? new Date()).toISOString(),
       application: APP_VERSION,
-      users: accounts,
+      // Left out entirely rather than written as an empty array: "no accounts
+      // in this file" and "this instance has no accounts" are different
+      // statements, and the import reads a missing key as the first one.
+      ...(options.withUsers === false ? {} : { users: accounts }),
       products: exported,
     };
     const path = join(target, EXPORT_JSON_FILE);
@@ -297,9 +307,11 @@ export async function exportCatalogue(options: ExportOptions): Promise<ExportRes
     await writeFile(ratingsPath, ratingsCsv(exported), { mode: 0o600 });
     files.push(ratingsPath);
 
-    const usersPath = join(target, EXPORT_USERS_CSV);
-    await writeFile(usersPath, usersCsv(accounts), { mode: 0o600 });
-    files.push(usersPath);
+    if (options.withUsers !== false) {
+      const usersPath = join(target, EXPORT_USERS_CSV);
+      await writeFile(usersPath, usersCsv(accounts), { mode: 0o600 });
+      files.push(usersPath);
+    }
 
     const pricesPath = join(target, EXPORT_PRICES_CSV);
     await writeFile(pricesPath, pricesCsv(exported), { mode: 0o600 });
