@@ -271,6 +271,7 @@ check_prerequisites() {
     case "${ARCH}" in
         amd64) NODE_ARCH="x64" ;;
         arm64) NODE_ARCH="arm64" ;;
+        armhf) NODE_ARCH="arm" ;;
         *) die "no mapping from the Debian architecture ${ARCH} to a node architecture" ;;
     esac
 
@@ -360,13 +361,34 @@ prune_foreign_binaries() {
     # better-sqlite3 ships a prebuild per platform plus the SQLite sources it
     # would need to compile one. It resolves prebuilds/<platform>-<arch>.node
     # at run time, so everything else can go.
+    #
+    # Not every architecture gets a prebuild: the module offers them for x64 and
+    # arm64 only, so on armhf npm compiled the addon during the install and it
+    # sits in build/Release instead. Deleting build/ would then leave a package
+    # that installs and fails at the first query, so which of the two is dead
+    # weight depends on which one is actually there.
     local sqlite_dir="${modules_dir}/better-sqlite3"
-    if [ -d "${sqlite_dir}/prebuilds" ]; then
+    local sqlite_prebuild="${sqlite_dir}/prebuilds/linux-${node_arch}.node"
+    local sqlite_compiled="${sqlite_dir}/build/Release/better_sqlite3.node"
+
+    if [ -f "${sqlite_prebuild}" ]; then
         find "${sqlite_dir}/prebuilds" -type f -name '*.node' \
             ! -name "linux-${node_arch}.node" -delete
+        rm -rf "${sqlite_dir}/build"
+    elif [ -f "${sqlite_compiled}" ]; then
+        log info "better-sqlite3 has no prebuild for linux-${node_arch}; keeping the addon compiled during the install"
+        # Everything else below build/ is node-gyp's intermediate output: the
+        # makefiles and the object files the addon was linked from.
+        find "${sqlite_dir}/build" -mindepth 1 -maxdepth 1 \
+            ! -name Release -exec rm -rf {} +
+        find "${sqlite_dir}/build/Release" -mindepth 1 \
+            ! -name better_sqlite3.node -exec rm -rf {} +
+        rm -rf "${sqlite_dir}/prebuilds"
+    else
+        die "better-sqlite3 has neither a prebuild for linux-${node_arch} nor a compiled addon; the package would not open the database"
     fi
-    rm -rf "${sqlite_dir}/deps" "${sqlite_dir}/src" "${sqlite_dir}/build" \
-        "${sqlite_dir}/binding.gyp"
+
+    rm -rf "${sqlite_dir}/deps" "${sqlite_dir}/src" "${sqlite_dir}/binding.gyp"
 
     # sharp and argon2 put each platform in its own optional package and try
     # them in turn, so an absent one is exactly the situation the module

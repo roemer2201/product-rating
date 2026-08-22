@@ -5,6 +5,38 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-22 – Debian-Paket auch für armhf
+
+**Umfang**
+
+- **`packaging/build-deb.sh`**: `armhf` in die Zuordnung von Debian- zu
+  node-Architektur aufgenommen (`armhf` → `arm`). Bis dahin brach der Bau auf
+  einem 32-Bit-ARM-Host mit „no mapping from the Debian architecture armhf“ ab.
+- **`prune_foreign_binaries`** entscheidet jetzt anhand dessen, was im Baum
+  liegt, statt anhand einer Annahme: Gibt es `prebuilds/linux-<arch>.node`,
+  bleibt der Prebuild und `build/` fällt weg; gibt es ihn nicht, bleibt das beim
+  Install übersetzte `build/Release/better_sqlite3.node` und die `prebuilds/`
+  fallen weg. Fehlen beide, bricht der Bau ab.
+
+**Entscheidungen**
+
+- *Die Architektur bestimmt nicht, woher das Addon kommt.* `better-sqlite3`
+  liefert Prebuilds nur für `x64` und `arm64` (`PREBUILD_ARCHS` in
+  `lib/binding.js`); auf armhf übersetzt npm beim Install und das Ergebnis
+  landet in `build/Release`. Das alte `rm -rf build/` hätte genau dieses Addon
+  entfernt – das Paket hätte sich installieren lassen und wäre bei der ersten
+  Abfrage gescheitert. Deshalb prüft das Skript, was tatsächlich da ist.
+- *Ein fehlendes Addon ist ein Abbruch, keine Warnung.* Ein Paket ohne
+  Datenbankbindung ist wertlos; es später beim Nutzer scheitern zu lassen ist
+  schlechter, als den Bau anzuhalten.
+- *`sharp` und `@node-rs/argon2` brauchten nichts.* Beide haben echte
+  armhf-Prebuilds (`@img/sharp-linux-arm`,
+  `@node-rs/argon2-linux-arm-gnueabihf`), und die vorhandene Auswahl über
+  `-${node_arch}` trifft sie mit `arm` richtig, ohne `arm64` zu erwischen.
+- **Offen:** Auf armhf gibt es kein CI. Geprüft ist, dass der amd64-Bau
+  unverändert dasselbe Paket erzeugt; der armhf-Bau selbst läuft bisher nur auf
+  der Maschine des Projektinhabers.
+
 ## 2026-08-22 – Backlog: Offline-Erfassung mit Warteschlange
 
 **Umfang**
