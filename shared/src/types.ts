@@ -104,6 +104,28 @@ export interface ProductRating extends Rating {
   username: string | null;
 }
 
+/**
+ * One recorded price of a product: what it cost, where, and when.
+ *
+ * The amount is a whole number in the smallest unit of `currency`, never a
+ * decimal — the client formats it, nothing calculates with a floating point
+ * number on the way. The currency travels with the entry because it is what was
+ * paid, not what the instance is set to today.
+ */
+export interface Price {
+  id: string;
+  productId: string;
+  userId: string;
+  /** Name of the account that recorded it; `null` if that account is gone. */
+  username: string | null;
+  cents: number;
+  currency: string;
+  shop: string | null;
+  note: string | null;
+  purchasedAt: string;
+  createdAt: string;
+}
+
 /** Aggregated rating information returned alongside a product. */
 export interface RatingSummary {
   average: number | null;
@@ -133,6 +155,12 @@ export interface ProductDetail extends ProductWithRatings {
    * each page.
    */
   allRatings: ProductRating[];
+  /**
+   * The recorded prices, most recent purchase first, at most
+   * `PRICE_LIST_LIMIT` of them. Like the ratings, this hangs off the single
+   * product and not off the list.
+   */
+  prices: Price[];
 }
 
 /**

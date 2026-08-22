@@ -5,7 +5,13 @@ import { Route, Routes } from 'react-router';
 import { ProductPage } from '@/routes/ProductPage';
 import { strings } from '@/lib/strings';
 import { mockFetch, testUser } from '@/testing/fetchMock';
-import { makePhoto, makeProductDetail, makeProductRating, makeRating } from '@/testing/fixtures';
+import {
+  makePhoto,
+  makePrice,
+  makeProductDetail,
+  makeProductRating,
+  makeRating,
+} from '@/testing/fixtures';
 import { renderWithProviders } from '@/testing/render';
 import { mockUpload } from '@/testing/xhrMock';
 
@@ -250,6 +256,93 @@ describe('ProductPage', () => {
     expect(screen.getByText('zu süß')).toBeInTheDocument();
     // Only the caller's own entry carries the marker.
     expect(screen.getAllByText(strings.rating.householdYou)).toHaveLength(1);
+  });
+
+  it('records a price in cents, whatever separator was typed', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      { path: '/prices/shops', body: { shops: ['Bioladen'] } },
+      {
+        path: '/products/prod-1/prices',
+        method: 'POST',
+        body: { price: makePrice() },
+      },
+      { path: '/products/prod-1', body: { product: makeProductDetail() } },
+    ]);
+
+    renderProduct();
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+
+    await user.type(screen.getByLabelText(new RegExp(strings.price.amount)), '1,99');
+    // Restricted to the input: the suggestion list next to it carries the
+    // word "Einkaufsort" in its own label.
+    await user.type(
+      screen.getByLabelText(new RegExp(strings.price.shop), { selector: 'input' }),
+      'Bioladen',
+    );
+    await user.click(screen.getByRole('button', { name: strings.price.add }));
+
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(
+        ([url, init]) =>
+          String(url).endsWith('/products/prod-1/prices') &&
+          (init as RequestInit)?.method === 'POST',
+      );
+      expect(post).toBeDefined();
+      const body = JSON.parse(String((post?.[1] as RequestInit).body)) as Record<string, unknown>;
+      // Whole cents on the wire, never a decimal.
+      expect(body.cents).toBe(199);
+      expect(body.shop).toBe('Bioladen');
+    });
+  });
+
+  it('says so when the amount is not one, instead of sending a zero', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      { path: '/prices/shops', body: { shops: [] } },
+      { path: '/products/prod-1', body: { product: makeProductDetail() } },
+    ]);
+
+    renderProduct();
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+
+    await user.type(screen.getByLabelText(new RegExp(strings.price.amount)), 'teuer');
+    await user.click(screen.getByRole('button', { name: strings.price.add }));
+
+    expect(await screen.findByText(strings.price.amountInvalid)).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).endsWith('/products/prod-1/prices')),
+    ).toBe(false);
+  });
+
+  it('marks the cheapest recorded purchase in the history', async () => {
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      { path: '/prices/shops', body: { shops: [] } },
+      {
+        path: '/products/prod-1',
+        body: {
+          product: makeProductDetail({
+            prices: [
+              makePrice({ id: 'price-2', cents: 249, shop: 'Supermarkt' }),
+              makePrice({ id: 'price-1', cents: 179, shop: 'Discounter' }),
+            ],
+          }),
+        },
+      },
+    ]);
+
+    renderProduct();
+
+    // Once in the summary above the list and once in the row it belongs to.
+    expect(await screen.findAllByText(/Discounter/)).toHaveLength(2);
+    // The label of the summary and the badge on the cheapest row.
+    expect(screen.getAllByText(strings.price.lowest)).toHaveLength(2);
   });
 
   it('shows the photos of a product with the primary one marked', async () => {

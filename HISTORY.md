@@ -5,6 +5,43 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-22 – Backlog: Preisverlauf und Einkaufsort
+
+**Umfang**
+
+- **Tabelle `prices`** (Migration `0004_product_prices.sql`): Betrag in der
+  kleinsten Währungseinheit, Währung, Einkaufsort, Notiz, Einkaufsdatum, dazu
+  Indizes auf (`product_id`, `purchased_at`), `user_id` und `shop` sowie ein
+  CHECK gegen negative Beträge.
+- **Routen** (README 4.3): `POST /api/v1/products/:id/prices`,
+  `DELETE /api/v1/prices/:id`, `GET /api/v1/prices/shops`. Gelesen wird der
+  Verlauf über die Produkt-Detailabfrage (`ProductDetail.prices`, jüngster
+  Einkauf zuerst, höchstens 50 Einträge).
+- **Konfiguration** `app.currency` (Standard `EUR`).
+- **Oberfläche**: Abschnitt „Preise“ auf der Produktseite mit dem zuletzt
+  bezahlten und dem günstigsten Preis obendrüber, der Liste darunter und einem
+  Formular mit Vorschlagsliste für den Einkaufsort. `web/src/lib/money.ts`
+  rechnet Eingaben in Cent um (Komma wie Punkt) und formatiert über `Intl`
+  zurück.
+
+**Entscheidungen**
+
+- *Ganze Zahlen, keine Dezimalzahlen.* 1,10 + 2,20 ergibt binär nicht 3,30 – ein
+  Preisverlauf, der sich verrechnet, ist schlimmer als keiner. Auf der Leitung
+  stehen Cent, gerechnet wird nirgends mit Gleitkomma.
+- *Die Währung steht am Eintrag, nicht nur in der Konfiguration.* Bezahlt ist
+  bezahlt; eine spätere Umstellung der Instanz schreibt die Vergangenheit nicht
+  um.
+- *Erfassen darf jedes Konto, löschen nur der Eigentümer* (und Administratoren)
+  – dieselbe Aufteilung wie bei Fotos: die Tatsache gehört dem Haushalt, der
+  Eintrag dem, der ihn geschrieben hat.
+- *Keine eigene Leseroute.* Ein Preis ist nur neben seinem Produkt interessant,
+  also hängt die Liste wie Fotos und Bewertungen an der Einzelabfrage – und
+  bleibt aus der Katalogliste heraus.
+- *Ein reines Datum wird als Mittag UTC gelesen*, damit der eingetippte Tag in
+  jeder Zeitzone der eingetippte Tag bleibt. Zukunft ist ausgeschlossen, mit
+  einem Tag Toleranz für schnell gehende Uhren.
+
 ## 2026-08-22 – Backlog: Volltextsuche über FTS5
 
 **Umfang**

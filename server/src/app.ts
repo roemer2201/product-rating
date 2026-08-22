@@ -17,6 +17,7 @@ import { registerStaticFrontend } from './plugins/staticFrontend.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerInviteRoutes } from './routes/invites.js';
 import { registerPhotoRoutes } from './routes/photos.js';
+import { registerPriceRoutes } from './routes/prices.js';
 import { registerProductRoutes } from './routes/products.js';
 import { registerRatingRoutes } from './routes/ratings.js';
 import { registerUserRoutes } from './routes/users.js';
@@ -137,6 +138,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   registerProductRoutes(app);
   registerRatingRoutes(app);
   registerPhotoRoutes(app);
+  registerPriceRoutes(app);
 
   /**
    * Empties the trash of everything older than `app.trash_retention_days`.

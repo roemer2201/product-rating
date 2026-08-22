@@ -19,15 +19,20 @@ sich unter iOS zum Home-Bildschirm hinzufügen.
 - Anmeldung mit Benutzername und Passwort (Session-Cookie)
 - EAN per Kamera scannen (EAN-13, EAN-8, UPC-A) oder manuell eingeben
 - Produkt anlegen und bearbeiten: Name, Marke, Kategorie, Notizen
-- Ein Foto pro Produkt aufnehmen oder hochladen
-- Bewertung von 0 bis 5 Sternen, optional mit Kommentar
-- Produktliste mit Suche (Name, Marke, EAN) und Filter/Sortierung nach Bewertung
+- Beliebig viele Fotos pro Produkt aufnehmen oder hochladen, in fester
+  Reihenfolge; das erste ist das Hauptbild
+- Bewertung von 0 bis 5 Sternen, optional mit Kommentar – die eigene ist
+  änderbar, die der anderen im Haushalt sichtbar
+- Preisverlauf je Produkt mit Einkaufsort
+- Produktliste mit Volltextsuche (Name, Marke, EAN) und Filter/Sortierung nach
+  Bewertung
+- Papierkorb: Gelöschtes lässt sich zurückholen
+- Export nach JSON und CSV, Import zum Umzug (Kommandozeile)
 - Installierbar als PWA auf dem iOS-Home-Bildschirm
 
 **Später** (siehe [TODO.md](TODO.md), Abschnitt Backlog)
 
-- Mehrere Fotos pro Produkt, Tags, Papierkorb
-- CSV-/JSON-Export, Statistiken
+- Tags mit Autovervollständigung, Statistiken
 - Offline-Erfassung mit Sync-Queue
 
 ---
@@ -229,6 +234,9 @@ ratings   (id, product_id, user_id, stars 0..5, comment, created_at, updated_at)
            UNIQUE (product_id, user_id)
 photos    (id, product_id, user_id, filename, mime, width, height,
            position, created_at)
+
+prices    (id, product_id, user_id, cents, currency, shop, note,
+           purchased_at, created_at)
 
 products_fts (name, brand, ean, product_id)   FTS5, Trigramme, per Trigger gepflegt
 ```
@@ -447,7 +455,44 @@ gleich schnell, müsste aber auch dann alles zusammenzählen, wenn nur ein
 einzelnes Produkt gefragt ist – und genau das ist die häufigste Anfrage nach
 einem Scan.
 
-### 4.3 Routen zu Fotos
+### 4.3 Routen zu Preisen
+
+Der Preisverlauf beantwortet eine Frage: „War es letztes Mal billiger, und wo?“
+Erfassen darf ihn jedes angemeldete Konto – was etwas kostet, ist eine Tatsache
+über den Haushalt. Ein Eintrag gehört aber dem Konto, das ihn geschrieben hat;
+Löschen bleibt ihm und den Administratoren, dieselbe Regel wie bei Fotos.
+
+| Route | Rolle | Zweck |
+|---|---|---|
+| `POST /api/v1/products/:id/prices` | angemeldet | Preis erfassen |
+| `DELETE /api/v1/prices/:id` | Eigentümer, admin | Eintrag entfernen |
+| `GET /api/v1/prices/shops` | angemeldet | Bereits verwendete Einkaufsorte als Vorschlagsliste |
+
+Gelesen wird der Verlauf über `GET /api/v1/products/:id`, der ihn unter
+`prices` mitliefert (jüngster Einkauf zuerst, höchstens 50 Einträge). Eine
+eigene Leseroute gibt es bewusst nicht: Ein Preis ist nur neben seinem Produkt
+interessant.
+
+**Körper von `POST`:** `{ "cents": 199, "shop": "Bioladen", "note": "Angebot",
+"purchasedAt": "2026-08-10" }`. Nur `cents` ist Pflicht.
+
+**Beträge sind ganze Zahlen in der kleinsten Einheit der Währung**, nie
+Dezimalzahlen: 1,10 + 2,20 ergibt binär nicht 3,30, und ein Preisverlauf, der
+sich verrechnet, ist schlimmer als keiner. Der Client rechnet um, was jemand
+tippt (`web/src/lib/money.ts`, Komma und Punkt gleichermaßen), und formatiert
+zurück über `Intl` – wie ein Betrag aussieht, entscheidet also das Telefon.
+
+**Die Währung steht am Eintrag**, kopiert aus `app.currency` beim Anlegen.
+Bezahlt ist bezahlt: Wird die Instanz später umgestellt, bleiben alte Einträge,
+was sie waren.
+
+**Das Einkaufsdatum** ist optional und heute, wenn es fehlt. Es darf in der
+Vergangenheit liegen – ein Kassenbon aus der Jackentasche ist genau der Fall –,
+aber nicht in der Zukunft (ein Tag Toleranz für Uhren und Zeitzonen). Ein
+reines Datum (`YYYY-MM-DD`) wird als Mittag UTC gelesen, damit der Tag der Tag
+bleibt, den jemand eingetippt hat.
+
+### 4.4 Routen zu Fotos
 
 Hochladen darf jedes angemeldete Konto – der Katalog ist gemeinsam. Ein Foto
 gehört aber dem Konto, das es aufgenommen hat: Löschen und Zum-Hauptbild-Machen
@@ -660,6 +705,7 @@ Konfigurationsdatei aufgelöst, ohne Datei gegen das Arbeitsverzeichnis.
 | `title` | Zeichenkette | `product-rating` | Anzeigename der Instanz |
 | `external_lookup` | Wahrheitswert | `false` | Reserviert; `true` wird abgelehnt, solange es keine Implementierung gibt |
 | `trash_retention_days` | Zahl 0–3650 | `30` | Tage im Papierkorb bis zum endgültigen Entfernen; `0` = nie automatisch |
+| `currency` | ISO-4217-Code | `EUR` | Währung neuer Preiseinträge; wird in den Eintrag kopiert |
 
 ### 6.2 Startprüfungen
 

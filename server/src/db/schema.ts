@@ -168,6 +168,43 @@ export const photos = sqliteTable(
   ],
 );
 
+export const prices = sqliteTable(
+  'prices',
+  {
+    id: text('id').primaryKey(),
+    productId: text('product_id')
+      .notNull()
+      .references(() => products.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /**
+     * The amount in the smallest unit of the currency. Money is never a
+     * floating point number: 1.10 + 2.20 is not 3.30 in binary, and a price
+     * history that adds up wrongly is worse than none.
+     */
+    cents: integer('cents').notNull(),
+    /**
+     * Copied from `app.currency` when the entry is written, not read from the
+     * configuration afterwards: what was paid in a currency stays paid in that
+     * currency, even if the instance is switched over later.
+     */
+    currency: text('currency').notNull(),
+    /** Where it was bought. Free text — a household knows its own shops. */
+    shop: text('shop'),
+    note: text('note'),
+    /** The day of the purchase, which is rarely the day of the entry. */
+    purchasedAt: integer('purchased_at', { mode: 'timestamp_ms' }).notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index('prices_product_purchased_idx').on(table.productId, table.purchasedAt),
+    index('prices_user_id_idx').on(table.userId),
+    index('prices_shop_idx').on(table.shop),
+    check('prices_cents_positive', sql`${table.cents} >= 0`),
+  ],
+);
+
 export type UserRow = typeof users.$inferSelect;
 export type NewUserRow = typeof users.$inferInsert;
 export type SessionRow = typeof sessions.$inferSelect;
@@ -180,3 +217,5 @@ export type RatingRow = typeof ratings.$inferSelect;
 export type NewRatingRow = typeof ratings.$inferInsert;
 export type PhotoRow = typeof photos.$inferSelect;
 export type NewPhotoRow = typeof photos.$inferInsert;
+export type PriceRow = typeof prices.$inferSelect;
+export type NewPriceRow = typeof prices.$inferInsert;

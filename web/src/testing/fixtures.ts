@@ -1,5 +1,6 @@
 import type {
   Photo,
+  Price,
   ProductDetail,
   ProductRating,
   ProductWithRatings,
@@ -50,6 +51,23 @@ export function makePhoto(overrides: Partial<Photo> = {}): Photo {
   };
 }
 
+/** One recorded price, as the product page lists it. */
+export function makePrice(overrides: Partial<Price> = {}): Price {
+  return {
+    id: 'price-1',
+    productId: 'prod-1',
+    userId: testUser.id,
+    username: 'anna',
+    cents: 199,
+    currency: 'EUR',
+    shop: 'Bioladen',
+    note: null,
+    purchasedAt: '2026-08-10T12:00:00.000Z',
+    createdAt: '2026-08-10T12:00:00.000Z',
+    ...overrides,
+  };
+}
+
 export function makeProduct(overrides: Partial<ProductWithRatings> = {}): ProductWithRatings {
   return {
     id: 'prod-1',
@@ -69,7 +87,7 @@ export function makeProduct(overrides: Partial<ProductWithRatings> = {}): Produc
 }
 
 export function makeProductDetail(overrides: Partial<ProductDetail> = {}): ProductDetail {
-  return { ...makeProduct(), photos: [], allRatings: [], ...overrides };
+  return { ...makeProduct(), photos: [], allRatings: [], prices: [], ...overrides };
 }
 
 /** One page of a product list, as `GET /api/v1/products` answers it. */

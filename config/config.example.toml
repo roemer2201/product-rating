@@ -98,3 +98,6 @@ external_lookup = false
 # entfernt wird (samt Bewertungen, Fotos und Bilddateien). 0 = nie automatisch;
 # dann leert nur die Verwaltung den Papierkorb.
 trash_retention_days = 30
+# Waehrung der erfassten Preise, ISO-4217-Code. Wird beim Anlegen in den
+# Eintrag kopiert; eine spaetere Aenderung laesst alte Eintraege unberuehrt.
+currency = "EUR"

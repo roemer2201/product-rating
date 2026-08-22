@@ -13,10 +13,12 @@ import {
 import type {
   ChangePasswordInput,
   CreateInviteInput,
+  CreatePriceInput,
   CreateProductInput,
   Invite,
   LoginInput,
   Photo,
+  Price,
   Product,
   ProductDetail,
   ProductListPage,
@@ -90,6 +92,7 @@ export const queryKeys = {
     all: ['ratings'] as const,
     mine: (params: MyRatingsParams) => ['ratings', 'mine', params] as const,
   },
+  shops: ['shops'] as const,
   trash: ['trash'] as const,
   invites: ['invites'] as const,
   users: ['users'] as const,
@@ -504,6 +507,54 @@ export function useSetPrimaryPhoto(): UseMutationResult<Photo, Error, PhotoVaria
       void client.invalidateQueries({ queryKey: queryKeys.products.byId(productId) });
       void client.invalidateQueries({ queryKey: queryKeys.products.all });
       void client.invalidateQueries({ queryKey: queryKeys.ratings.all });
+    },
+  });
+}
+
+/* ----------------------------------------------------------------- prices */
+
+/** The shops entered before, for the suggestion list of the price form. */
+export function useShops(): UseQueryResult<string[], Error> {
+  return useQuery({
+    queryKey: queryKeys.shops,
+    queryFn: async () => (await api.prices.shops()).shops,
+    // Suggestions may lag a little; a shop entered elsewhere is not urgent.
+    staleTime: CACHE_TIMES.own,
+  });
+}
+
+export interface AddPriceVariables {
+  productId: string;
+  input: CreatePriceInput;
+}
+
+export function useAddPrice(): UseMutationResult<Price, Error, AddPriceVariables> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ productId, input }: AddPriceVariables) =>
+      (await api.prices.add(productId, input)).price,
+    onSuccess: (_price, { productId }) => {
+      void client.invalidateQueries({ queryKey: queryKeys.products.byId(productId) });
+      void client.invalidateQueries({ queryKey: queryKeys.shops });
+    },
+  });
+}
+
+export interface DeletePriceVariables {
+  priceId: string;
+  productId: string;
+}
+
+export function useDeletePrice(): UseMutationResult<void, Error, DeletePriceVariables> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ priceId }: DeletePriceVariables) => {
+      await api.prices.remove(priceId);
+    },
+    onSuccess: (_result, { productId }) => {
+      void client.invalidateQueries({ queryKey: queryKeys.products.byId(productId) });
     },
   });
 }

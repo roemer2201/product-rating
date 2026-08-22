@@ -5,9 +5,11 @@ import type {
   CreateProductInput,
   CreateUserInput,
   Invite,
+  CreatePriceInput,
   LoginInput,
   MovePhotoInput,
   Photo,
+  Price,
   PhotoSize,
   Product,
   ProductDetail,
@@ -451,6 +453,19 @@ export const api = {
      */
     url: (id: string, size: PhotoSize = 'full') =>
       `${API_BASE}/${path('media', id)}${buildQuery({ size })}`,
+  },
+
+  prices: {
+    /** Shops that have been entered before, for the suggestion list. */
+    shops: () => request<{ shops: string[] }>('/prices/shops'),
+
+    add: (productId: string, input: CreatePriceInput) =>
+      request<{ price: Price }>(`/${path('products', productId, 'prices')}`, {
+        method: 'POST',
+        json: input,
+      }),
+
+    remove: (id: string) => request<{ ok: true }>(`/${path('prices', id)}`, { method: 'DELETE' }),
   },
 
   invites: {

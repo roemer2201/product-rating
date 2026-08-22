@@ -252,6 +252,34 @@ export const strings = {
     alt: (index: number) => `Produktfoto ${index}`,
   },
 
+  /* ---------------------------------------------------------------- prices */
+
+  price: {
+    title: 'Preise',
+    intro: 'Was hat es zuletzt gekostet, und wo?',
+    empty: 'Noch kein Preis erfasst.',
+    add: 'Preis erfassen',
+    adding: 'Wird gespeichert …',
+    amount: 'Preis',
+    amountHint: 'Zum Beispiel 1,99 – Komma oder Punkt, beides geht.',
+    amountInvalid: 'Bitte einen Betrag wie 1,99 eingeben.',
+    shop: 'Einkaufsort',
+    shopHint: 'Wo gekauft? Vorhandene Orte stehen zur Auswahl.',
+    shopList: 'Bereits verwendete Einkaufsorte',
+    noShop: 'Ohne Ort',
+    note: 'Notiz',
+    noteHint: 'Zum Beispiel „Angebot“ oder „500-g-Packung“.',
+    date: 'Einkaufsdatum',
+    dateHint: 'Standard ist heute; ein Kassenbon von letzter Woche darf zurückdatiert werden.',
+    lowest: 'Günstigster erfasster Preis',
+    latest: 'Zuletzt bezahlt',
+    remove: 'Preis löschen',
+    removeFor: (amount: string) => `Eintrag über ${amount} löschen`,
+    recordedBy: (username: string) => `erfasst von ${username}`,
+    unknownUser: 'Gelöschtes Konto',
+    capped: 'Es werden die 50 jüngsten Einträge gezeigt.',
+  },
+
   /* --------------------------------------------------------------- ratings */
 
   rating: {

@@ -12,6 +12,7 @@ import {
 } from '@product-rating/shared';
 import { currentUser } from '../plugins/auth.js';
 import { productPhotos, removePhotoFiles } from '../services/photos.js';
+import { listProductPrices } from '../services/prices.js';
 import { listProductRatings } from '../services/ratings.js';
 import {
   createProduct,
@@ -37,17 +38,18 @@ import {
  */
 
 /**
- * Fills a single product up to what the detail page needs: its photos and every
- * rating it carries. The list deliberately stays without both and reports
- * `primaryPhotoId` and the average alone — a card shows one image and one
- * number, and reading the photos and verdicts of every product would be paid
- * for on each page.
+ * Fills a single product up to what the detail page needs: its photos, every
+ * rating it carries and its price history. The list deliberately stays without
+ * all three and reports `primaryPhotoId` and the average alone — a card shows
+ * one image and one number, and reading the photos, verdicts and prices of
+ * every product would be paid for on each page.
  */
 function withDetails(app: FastifyInstance, product: ProductWithRatings): ProductDetail {
   return {
     ...product,
     photos: productPhotos(app.db, product.id),
     allRatings: listProductRatings(app.db, product.id),
+    prices: listProductPrices(app.db, product.id),
   };
 }
 

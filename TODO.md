@@ -262,7 +262,7 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [x] FTS5-Suche nachrüsten, falls die `LIKE`-Suche mit wachsendem Katalog spürbar langsam wird
 - [ ] TOTP-Zweitfaktor
 - [ ] Optionale Delegation der Authentifizierung an Reverse-Proxy-SSO
-- [ ] Preisverlauf und Einkaufsort je Produkt
+- [x] Preisverlauf und Einkaufsort je Produkt
 - [ ] Teilen einer Produktansicht per zeitlich begrenztem Link
 - [ ] Barrierefreiheitsdurchgang (Fokusreihenfolge, Kontraste, Screenreader)
 - [ ] Mehrere Fotos gleichzeitig auswählen und hochladen (die Ansicht nimmt bewusst eines nach dem anderen)

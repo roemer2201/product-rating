@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { updateProductSchema } from '@product-rating/shared';
 import { ErrorNotice, ErrorScreen, SkeletonBlock } from '@/components/Feedback';
 import { PhotoManager } from '@/components/PhotoManager';
+import { PriceHistory } from '@/components/PriceHistory';
 import { ProductForm, type ProductFormValues } from '@/components/ProductForm';
 import { RatingEditor } from '@/components/RatingEditor';
 import { StarDisplay } from '@/components/StarRating';
@@ -211,6 +212,10 @@ export function ProductPage() {
           </>
         )}
       </section>
+
+      {user !== null && user !== undefined && (
+        <PriceHistory productId={detail.id} prices={detail.prices} user={user} />
+      )}
 
       {user !== null && user !== undefined && (
         <PhotoManager productId={detail.id} photos={detail.photos} user={user} />

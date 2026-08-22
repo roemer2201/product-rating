@@ -188,6 +188,22 @@ const ROUTES: RouteRule[] = [
   },
 
   {
+    method: 'POST',
+    url: `/api/v1/products/${UNKNOWN_ID}/prices`,
+    pattern: '/api/v1/products/:id/prices',
+    access: 'user',
+    payload: { cents: 199 },
+  },
+  { method: 'GET', url: '/api/v1/prices/shops', pattern: '/api/v1/prices/shops', access: 'user' },
+  {
+    method: 'DELETE',
+    url: `/api/v1/prices/${UNKNOWN_ID}`,
+    pattern: '/api/v1/prices/:id',
+    access: 'user',
+    ownership: true,
+  },
+
+  {
     method: 'DELETE',
     url: `/api/v1/photos/${UNKNOWN_ID}`,
     pattern: '/api/v1/photos/:id',
