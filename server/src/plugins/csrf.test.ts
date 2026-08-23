@@ -1,7 +1,8 @@
+import type { FastifyRequest } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createUser } from '../services/users.js';
 import { createTestApp, sessionCookie, TEST_ORIGIN, type TestApp } from '../testing/harness.js';
-import { allowedOrigins, originOf } from './csrf.js';
+import { allowedOrigins, originOf, requestOrigin } from './csrf.js';
 
 /**
  * The origin check is the second lock next to `SameSite=Lax`: a writing
@@ -41,6 +42,41 @@ describe('originOf', () => {
   });
 });
 
+describe('requestOrigin', () => {
+  /** Only the headers the function reads; the rest of a request is irrelevant. */
+  function fakeRequest(headers: Record<string, string>, protocol = 'http'): FastifyRequest {
+    return { headers, protocol } as unknown as FastifyRequest;
+  }
+
+  it('prefers what the proxy forwards over the connection to the proxy', () => {
+    const origin = requestOrigin(
+      fakeRequest({
+        host: '127.0.0.1:8080',
+        'x-forwarded-host': 'rating.example.org',
+        'x-forwarded-proto': 'https',
+      }),
+    );
+
+    expect(origin).toBe('https://rating.example.org');
+  });
+
+  it('takes the first entry when a chain of proxies appended its own', () => {
+    const origin = requestOrigin(
+      fakeRequest({
+        'x-forwarded-host': 'rating.example.org, inner.example.org',
+        'x-forwarded-proto': 'https, http',
+      }),
+    );
+
+    expect(origin).toBe('https://rating.example.org');
+  });
+
+  it('falls back to Host and the connection without a proxy', () => {
+    expect(requestOrigin(fakeRequest({ host: '127.0.0.1:8080' }))).toBe('http://127.0.0.1:8080');
+    expect(requestOrigin(fakeRequest({}))).toBeNull();
+  });
+});
+
 describe('allowedOrigins', () => {
   it('always contains base_url and adds the trusted ones', () => {
     const origins = allowedOrigins('https://rating.example.org', ['http://localhost:5173']);
@@ -61,6 +97,19 @@ describe('origin check', () => {
     expect(response.json().error.message).toContain('origin');
   });
 
+  it('separates a rejected origin from a missing permission', async () => {
+    // The interface shows a different sentence for each: one is a wrong
+    // server.base_url, the other an account that may not do this.
+    const response = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/logout',
+      headers: { origin: 'https://evil.example.com', cookie },
+    });
+
+    expect(response.json().error.code).toBe('origin_rejected');
+    expect(response.json().error.details.reason).toBe('unknown_origin');
+  });
+
   it('rejects a cookie carrying request without any origin information', async () => {
     const response = await harness.app.inject({
       method: 'POST',
@@ -69,6 +118,8 @@ describe('origin check', () => {
     });
 
     expect(response.statusCode).toBe(403);
+    expect(response.json().error.code).toBe('origin_rejected');
+    expect(response.json().error.details.reason).toBe('no_origin');
   });
 
   it('accepts the configured base_url', async () => {

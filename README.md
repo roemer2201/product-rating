@@ -331,7 +331,11 @@ schneller, hält DB-Backups klein und erlaubt HTTP-Caching und Range-Requests.
   CSRF-Schutz über `SameSite=Lax` plus Origin-Prüfung, `/healthz`-Endpunkt.
   Die Origin-Prüfung greift bei jeder schreibenden Anfrage, die ein
   Session-Cookie mitbringt: `Origin` beziehungsweise `Referer` muss zu
-  `server.base_url` oder zu `server.trusted_origins` passen. Eine Anmeldung
+  `server.base_url` oder zu `server.trusted_origins` passen. Weist sie etwas
+  ab, ist das ein eigener Fehlercode (`origin_rejected`, nicht `forbidden`) mit
+  eigenem Satz in der Oberfläche und einer Zeile im Log – eine falsche
+  `base_url` ist eine Sache der Administration und keine fehlende
+  Berechtigung (8.4). Eine Anmeldung
   unter einem Namen, den es nicht gibt, kostet dieselbe argon2id-Prüfung wie
   eine echte – sonst verriete die Antwortzeit, wer hier ein Konto hat.
 - **Grenzen:** JSON-Rumpf höchstens 1 MiB, je Upload eine Datei bis
@@ -1267,6 +1271,58 @@ wie ein Upload – neu kodiert, Thumbnail erzeugt, Metadaten entfernt.
 **CSV** ist RFC 4180 mit Byte Order Mark, damit ein Tabellenprogramm
 „Getränke“ liest und nicht „GetrÃ¤nke“. Es ist ein reines Ausgabeformat;
 eingelesen wird die JSON-Datei.
+
+### 8.4 Häufige Störungen
+
+**„Der Server hat die Änderung abgelehnt, weil sie von einer anderen Adresse
+kam als eingestellt.“** Die Oberfläche lädt, Anmelden und Blättern gehen, aber
+jedes Speichern scheitert. Dann steht in `server.base_url` eine andere Adresse
+als die, unter der die Seite aufgerufen wird – der klassische Fall nach dem
+Vorschalten eines Reverse Proxy: Die Anwendung wurde mit
+`http://127.0.0.1:8080` installiert und ist jetzt `https://rating.example.org`.
+Jede schreibende Anfrage wird gegen diesen Wert geprüft (4), lesende nicht,
+deshalb fällt es erst beim Speichern auf.
+
+```bash
+# 1. Was ist eingestellt, was kommt an?
+grep -E 'base_url|trust_proxy' /etc/product-rating/config.toml
+journalctl -u product-rating | grep csrf
+
+# 2. In /etc/product-rating/config.toml eintragen, was der Browser benutzt -
+#    inklusive https und, falls vorhanden, des Unterpfads:
+#      [server]
+#      base_url    = "https://rating.example.org"
+#      trust_proxy = true
+systemctl restart product-rating
+```
+
+Im Log steht beides namentlich: `csrf.address_mismatch` beim ersten Aufruf
+unter einer unbekannten Adresse (mit `arrived` und `expected`) und
+`csrf.reject` bei jeder abgewiesenen Schreibanfrage. Die passende
+Proxy-Konfiguration schreibt `product-rating proxy-config --server apache
+--domain rating.example.org`; sie nennt dieselben drei Werte, die
+zusammenpassen müssen, in ihrem Kopf.
+
+Meldet das Log dagegen `reason: "no_origin"`, stimmt die Adresse, aber der
+Proxy entfernt `Origin` und `Referer`. Beide müssen durchgereicht werden; ein
+`RequestHeader unset Origin` in der Apache-Konfiguration ist der übliche
+Auslöser.
+
+**Kein Log unter `/var/log/product-rating/`.** Das ist der Normalfall:
+`log.destination` steht auf `stdout`, und das ist unter systemd das Journal.
+Die Anwendung legt die Datei nur an, wenn sie soll (8.2):
+
+```bash
+journalctl -u product-rating -f              # so ist es eingestellt
+journalctl -u product-rating -p warning      # nur Warnungen und Fehler
+
+# oder dauerhaft in die Datei, mit Rotation über /etc/logrotate.d/product-rating:
+#   [log] destination = "file"
+```
+
+**Anmelden geht nicht, obwohl das Passwort stimmt.** Ebenfalls die
+Origin-Prüfung – der Login ist eine schreibende Anfrage. Erst `base_url`
+richtigstellen, dann weitersuchen.
 
 ---
 

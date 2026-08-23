@@ -49,6 +49,23 @@ export class ForbiddenError extends ServiceError {
   }
 }
 
+/**
+ * 403 – the writing request did not come from this instance.
+ *
+ * Deliberately its own code next to `forbidden`: the two look identical to a
+ * client and have nothing in common. `forbidden` means the account may not do
+ * this, while this one almost always means the deployment disagrees with
+ * itself — `server.base_url` naming another address than the browser used, or
+ * a proxy dropping `Origin` and `Referer`. Both need an administrator, not the
+ * user, so the interface has to be able to tell them apart.
+ */
+export class OriginRejectedError extends ServiceError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(403, 'origin_rejected', message, details);
+    this.name = 'OriginRejectedError';
+  }
+}
+
 /** 404 – the addressed object does not exist (or must not be revealed). */
 export class NotFoundError extends ServiceError {
   constructor(message = 'not found', details?: Record<string, unknown>) {

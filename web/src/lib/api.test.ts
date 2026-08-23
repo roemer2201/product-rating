@@ -174,6 +174,37 @@ describe('ApiError', () => {
     expect((error as ApiError).details).toEqual({ field: 'username' });
   });
 
+  it('tells a rejected origin apart from a missing permission', async () => {
+    mockFetch([
+      {
+        path: '/products',
+        method: 'POST',
+        status: 403,
+        body: {
+          error: {
+            code: 'origin_rejected',
+            message: 'request origin is not allowed',
+            details: { reason: 'unknown_origin' },
+          },
+        },
+      },
+    ]);
+
+    const error = await api.products
+      .create({
+        ean: '4001234567890',
+        name: 'Milch',
+        variant: null,
+        brand: null,
+        category: null,
+        notes: null,
+      })
+      .catch((thrown: unknown) => thrown);
+
+    expect((error as ApiError).message).toBe(strings.errors.originRejected);
+    expect((error as ApiError).message).not.toBe(strings.errors.forbidden);
+  });
+
   it('passes on the minimum password length', async () => {
     mockFetch([
       {

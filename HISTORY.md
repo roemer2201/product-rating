@@ -5,6 +5,60 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-23 – Abgewiesene Origin-Prüfung erkennbar machen
+
+**Anlass**
+
+Eine Installation hinter Apache mit TLS meldete bei jedem Anlegen und Ändern
+eines Produkts „Dafür fehlen die Rechte.“, und im Log stand nichts. Ursache war
+`server.base_url`, das nach dem Vorschalten des Proxy weiter auf die
+Installationsadresse zeigte: Die Origin-Prüfung wies damit jede schreibende
+Anfrage ab. Die Diagnose war nur an drei Stellen möglich, an denen niemand
+sucht – lesende Anfragen funktionierten, der Fehlercode war derselbe wie bei
+einer fehlenden Berechtigung, und geschrieben wurde die Abweisung nirgends.
+
+**Umfang**
+
+- **Eigener Fehlercode** `origin_rejected` (`server/src/services/errors.ts`)
+  neben `forbidden`. Beide sind 403, meinen aber Verschiedenes: das eine ein
+  Konto, das etwas nicht darf, das andere eine Instanz, die mit sich selbst
+  uneins ist. `details.reason` unterscheidet `unknown_origin` von `no_origin`.
+- **Log statt Schweigen** (`server/src/plugins/csrf.ts`): Jede Abweisung
+  schreibt eine Warnung mit `event: "csrf.reject"`, der empfangenen und den
+  erlaubten Herkünften. Dazu meldet `csrf.address_mismatch` die erste Anfrage
+  unter einer Adresse, die `base_url` nicht kennt – aus `X-Forwarded-Host`,
+  `X-Forwarded-Proto` und `Host` – samt der Adresse, die einzutragen wäre. Die
+  Meldung kommt beim Aufruf der Oberfläche, also bevor jemand speichert.
+- **Eigener Satz in der Oberfläche** (`web/src/lib/strings.ts`): Er nennt die
+  Datei, den Schlüssel und den Neustart, statt den Nutzer nach Rechten suchen
+  zu lassen, die er hat.
+- **Dokumentation**: README 4 (Fehlercode) und neu 8.4 „Häufige Störungen“ mit
+  den drei Fällen, die diese Installation getroffen haben – falsche
+  `base_url`, ein Proxy, der `Origin` entfernt, und das vermeintlich fehlende
+  Log unter `/var/log/product-rating/`, das bei `log.destination = "stdout"`
+  schlicht im Journal steht.
+- **Tests**: Fehlercode und `reason` beider Abweisungen, `requestOrigin` gegen
+  Proxy-Ketten und einen Aufruf ohne Proxy, und in `web` die Zuordnung des
+  Codes zum neuen Satz.
+
+**Entscheidungen**
+
+- *Der Hinweis wird protokolliert, nicht in die Antwort geschrieben.* Welche
+  Herkünfte erlaubt sind, geht einen abgewiesenen Aufrufer nichts an; die
+  Oberfläche bekommt den Code und formuliert selbst. Für den Administrator ist
+  das Log der richtige Ort, weil dort auch die Abweisungen stehen, die nie
+  jemand zu Gesicht bekommt.
+- *`X-Forwarded-*` wird nur für die Meldung ausgewertet, nie für die
+  Entscheidung.* Die Header kommen vom Client, solange kein Proxy sie
+  überschreibt – als Grundlage einer Sicherheitsprüfung wären sie wertlos. Als
+  Hinweis in einer Zeile, die ein Mensch liest, sind sie genau richtig, und
+  gerade bei falsch gesetztem `trust_proxy` sind sie das Einzige, was die
+  öffentliche Adresse überhaupt nennt.
+- *Ein Hinweis je Adresse, höchstens acht.* Sonst schriebe jeder Scanner, der
+  die Instanz unter einem fremden Namen aufruft, das Journal voll.
+
+---
+
 ## 2026-08-23 – `proxy-config`: Webserver-Konfiguration aus der Instanz erzeugen
 
 **Umfang**

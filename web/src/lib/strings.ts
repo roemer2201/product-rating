@@ -142,6 +142,15 @@ export const strings = {
     network: 'Keine Verbindung zum Server. Bitte die Netzwerkverbindung prüfen.',
     unauthorized: 'Die Anmeldung ist abgelaufen. Bitte erneut anmelden.',
     forbidden: 'Dafür fehlen die Rechte.',
+    // Not a permission problem, even though the server answers with the same
+    // status: the address in server.base_url is not the one this page runs
+    // under, so the origin check refuses every save. Only an administrator can
+    // fix that, which is why the text names the setting instead of asking the
+    // user to try again.
+    originRejected:
+      'Der Server hat die Änderung abgelehnt, weil sie von einer anderen Adresse kam als eingestellt. ' +
+      'Das ist ein Konfigurationsfehler: In /etc/product-rating/config.toml muss server.base_url ' +
+      'genau die Adresse enthalten, unter der diese Seite aufgerufen wird. Danach den Dienst neu starten.',
     notFound: 'Das gibt es hier nicht (mehr).',
     conflict: 'Das gibt es schon.',
     invalidRequest: 'Die Eingabe passt nicht. Bitte prüfen.',
@@ -557,6 +566,8 @@ export function apiErrorText(
     if (details?.reason === 'password_reset_required') return strings.errors.passwordResetRequired;
     return strings.errors.unauthorized;
   }
+  // Two very different things behind one status, see errors.originRejected.
+  if (code === 'origin_rejected') return strings.errors.originRejected;
   if (status === 403) return strings.errors.forbidden;
   if (status === 404) return strings.errors.notFound;
 
