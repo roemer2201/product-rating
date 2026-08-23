@@ -74,6 +74,12 @@ export interface Product {
   id: string;
   ean: string;
   name: string;
+  /**
+   * The flavour or edition within a product line: "5 Minuten Terrine" is the
+   * name, "Spaghetti Bolognese" is the variant. Every variant carries its own
+   * EAN, so it is a field of the product rather than a second table.
+   */
+  variant: string | null;
   brand: string | null;
   category: string | null;
   notes: string | null;

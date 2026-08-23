@@ -18,14 +18,14 @@ sich unter iOS zum Home-Bildschirm hinzufügen.
 
 - Anmeldung mit Benutzername und Passwort (Session-Cookie)
 - EAN per Kamera scannen (EAN-13, EAN-8, UPC-A) oder manuell eingeben
-- Produkt anlegen und bearbeiten: Name, Marke, Kategorie, Notizen
+- Produkt anlegen und bearbeiten: Name, Sorte, Marke, Kategorie, Notizen
 - Beliebig viele Fotos pro Produkt aufnehmen oder hochladen, in fester
   Reihenfolge; das erste ist das Hauptbild
 - Bewertung von 0 bis 5 Sternen, optional mit Kommentar – die eigene ist
   änderbar, die der anderen im Haushalt sichtbar
 - Preisverlauf je Produkt mit Einkaufsort
-- Produktliste mit Volltextsuche (Name, Marke, EAN) und Filter/Sortierung nach
-  Bewertung
+- Produktliste mit Volltextsuche (Name, Sorte, Marke, EAN) und Filter/Sortierung
+  nach Bewertung
 - Papierkorb: Gelöschtes lässt sich zurückholen
 - Offline erfassen: Ohne Verbindung Eingetipptes wartet auf dem Gerät und geht
   später von selbst hoch, inklusive Rückfrage bei widersprüchlichen Bewertungen
@@ -286,7 +286,7 @@ sessions  (id, user_id, expires_at, user_agent, created_at, last_seen_at)
 password_resets (id = SHA-256 des Tokens, user_id, created_by, expires_at,
            used_at, created_at)
 invites   (code, created_by, expires_at, used_by, used_at)
-products  (id, ean UNIQUE, name, brand, category, notes,
+products  (id, ean UNIQUE, name, variant, brand, category, notes,
            created_by, created_at, updated_at, deleted_at, deleted_by)
 ratings   (id, product_id, user_id, stars 0..5, comment, created_at, updated_at)
            UNIQUE (product_id, user_id)
@@ -296,7 +296,7 @@ photos    (id, product_id, user_id, filename, mime, width, height,
 prices    (id, product_id, user_id, cents, currency, shop, note,
            purchased_at, created_at)
 
-products_fts (name, brand, ean, product_id)   FTS5, Trigramme, per Trigger gepflegt
+products_fts (name, variant, brand, ean, product_id)  FTS5, Trigramme, per Trigger gepflegt
 ```
 
 Fotos werden **nicht** als BLOB in der Datenbank abgelegt: das Dateisystem ist
@@ -385,7 +385,7 @@ vorbehalten, weil es fremde Bewertungen und Fotos mitnimmt.
 | `GET /api/v1/products/by-ean/:ean` | angemeldet | Nachschlagen nach dem Scan |
 | `GET /api/v1/products/categories` | angemeldet | Bereits verwendete Kategorien als Vorschlagsliste |
 | `GET /api/v1/products/:id` | angemeldet | Produkt inklusive eigener Bewertung, Durchschnitt, Anzahl, Fotos und aller Bewertungen |
-| `PATCH /api/v1/products/:id` | angemeldet | Name, Marke, Kategorie oder Notizen ändern |
+| `PATCH /api/v1/products/:id` | angemeldet | Name, Sorte, Marke, Kategorie oder Notizen ändern |
 | `DELETE /api/v1/products/:id` | admin | Produkt in den Papierkorb legen (umkehrbar) |
 | `GET /api/v1/trash` | admin | Inhalt des Papierkorbs, jüngste Löschung zuerst |
 | `POST /api/v1/trash/:id/restore` | admin | Produkt aus dem Papierkorb zurückholen |
@@ -403,10 +403,21 @@ danach einmal täglich, zusammen mit dem Aufräumen abgelaufener Sitzungen.
 Die EAN bleibt belegt, solange ein Produkt im Papierkorb liegt – der
 `UNIQUE`-Index kennt keinen Papierkorb. Wer dieselbe EAN erneut anlegt, holt das
 Produkt deshalb **zurück**, statt eine Fehlermeldung zu bekommen: die frisch
-eingegebenen Daten überschreiben Name, Marke, Kategorie und Notizen, die alten
+eingegebenen Daten überschreiben Name, Sorte, Marke, Kategorie und Notizen, die
+alten
 Bewertungen und Fotos kommen mit. Ein `409` wäre hier eine Sackgasse – wer am
 Regal steht, darf den Papierkorb in der Regel gar nicht sehen. Die Antwort auf
 `POST /api/v1/products` trägt dafür das Feld `restored`.
+
+**Name, Sorte und Marke.** Der Name ist die Produktlinie („5 Minuten Terrine“),
+die Sorte die Geschmacksrichtung oder Ausführung darin („Spaghetti Bolognese“,
+„Kartoffelbrei mit Röstzwiebeln“). Jede Sorte trägt eine eigene EAN und ist
+damit ein eigenes Produkt; die Trennung in zwei Felder hält nur die beiden
+Hälften des Namens auseinander, damit die Liste die Sorten einer Linie
+untereinander zeigt. Die Marke ist der Hersteller oder die Handelsmarke auf der
+Verpackung (bei der Terrine also „Maggi“), nicht der Laden, in dem gekauft
+wurde – der steht am Preiseintrag. Sorte und Marke sind beide freiwillig und
+werden beide durchsucht.
 
 **EAN-Normalisierung.** Akzeptiert werden EAN-13, EAN-8 und UPC-A, jeweils mit
 Prüfung der Prüfziffer. Gespeichert und nachgeschlagen wird immer die auf
@@ -418,7 +429,7 @@ welches Symbol der Scanner gelesen hat, denselben Eintrag. Führende Nullen
 
 | Parameter | Werte | Bedeutung |
 |---|---|---|
-| `q` | Text | Sucht in Name und Marke, bei mindestens vier Ziffern zusätzlich als EAN-Präfix |
+| `q` | Text | Sucht in Name, Sorte und Marke, bei mindestens vier Ziffern zusätzlich als EAN-Präfix |
 | `category` | Text | Genaue Kategorie, Groß- und Kleinschreibung egal |
 | `minStars` | 0–5 | Nur Produkte, deren Durchschnitt diesen Wert erreicht; unbewertete fallen heraus |
 | `ratedByMe` | `true`/`false` | Nur selbst bewertete Produkte |
@@ -433,8 +444,9 @@ mit `400`, statt Produkte zu überspringen oder doppelt zu liefern.
 
 **Suche.** `q` läuft über `products_fts`, eine FTS5-Tabelle mit dem
 **Trigramm-Tokenizer** (`tokenize='trigram remove_diacritics 1'`) über Name,
-Marke und EAN. Drei Trigger auf `products` halten sie aktuell; angelegt und
-gefüllt wird sie in der Migration `0003_product_search.sql`.
+Sorte, Marke und EAN. Drei Trigger auf `products` halten sie aktuell; angelegt
+und gefüllt wird sie in der Migration `0003_product_search.sql`, um die Sorte
+erweitert in `0006_product_variant.sql`.
 
 Trigramme statt Wörtern, weil Deutsch es verlangt: „saft“ findet „Apfelsaft“,
 was ein wortbasierter Index nie täte. Groß-/Kleinschreibung und diakritische

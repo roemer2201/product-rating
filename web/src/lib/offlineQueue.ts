@@ -29,6 +29,7 @@ export type CaptureState = 'pending' | 'conflict' | 'failed';
 
 export interface CapturedProduct {
   name: string;
+  variant: string | null;
   brand: string | null;
   category: string | null;
   notes: string | null;

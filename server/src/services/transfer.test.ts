@@ -61,6 +61,7 @@ function newInstance(withProducts = true): Instance {
         {
           ean: '4260000000011',
           name: 'Apfelsaft',
+          variant: 'naturtrüb',
           brand: 'Bio Hof',
           category: 'Getränke',
           createdBy: ANNA,
@@ -149,8 +150,8 @@ describe('exporting', () => {
 
     // Byte order mark first, otherwise a spreadsheet mangles the umlauts.
     expect(products.startsWith('\uFEFF')).toBe(true);
-    expect(products).toContain('ean,name,brand,category');
-    expect(products).toContain('4260000000011,Apfelsaft,Bio Hof,Getränke');
+    expect(products).toContain('ean,name,variant,brand,category');
+    expect(products).toContain('4260000000011,Apfelsaft,naturtrüb,Bio Hof,Getränke');
     // The average of five and three stars, next to the count.
     expect(products).toMatch(/4260000000011.*,2,4,/);
     expect(ratings).toContain('"trüb, wie er soll"');

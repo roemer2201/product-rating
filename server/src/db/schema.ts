@@ -120,6 +120,13 @@ export const products = sqliteTable(
     /** Normalised to EAN-13; UPC-A and EAN-8 are widened before writing. */
     ean: text('ean').notNull().unique(),
     name: text('name').notNull(),
+    /**
+     * The flavour or edition within a product line — "Spaghetti Bolognese" to
+     * the name "5 Minuten Terrine". Each variant has its own EAN and is
+     * therefore its own row; the column keeps the two halves of the name apart
+     * so a list can group by the line and the search can find either half.
+     */
+    variant: text('variant'),
     brand: text('brand'),
     category: text('category'),
     notes: text('notes'),

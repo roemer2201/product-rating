@@ -52,6 +52,7 @@ export interface SeedProduct {
   id?: string;
   ean: string;
   name: string;
+  variant?: string | null;
   brand?: string | null;
   category?: string | null;
   createdBy: string;
@@ -102,6 +103,7 @@ export function seedDatabase(db: AppDatabase, data: SeedData): SeedData {
       id: product.id ?? randomUUID(),
       ean: product.ean,
       name: product.name,
+      variant: product.variant ?? null,
       brand: product.brand ?? null,
       category: product.category ?? null,
       createdBy: product.createdBy,

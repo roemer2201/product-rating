@@ -46,7 +46,7 @@ describe('CataloguePage', () => {
         path: '/products',
         body: makeProductPage([
           makeProduct({ name: 'Apfelsaft', ratings: { average: 4.5, count: 2 } }),
-          makeProduct({ id: 'prod-2', name: 'Haferflocken', brand: 'Kölln' }),
+          makeProduct({ id: 'prod-2', name: 'Haferflocken', variant: null, brand: 'Kölln' }),
         ]),
       },
     ]);
@@ -55,6 +55,9 @@ describe('CataloguePage', () => {
 
     expect(await screen.findByText('Apfelsaft')).toBeInTheDocument();
     expect(screen.getByText('Haferflocken')).toBeInTheDocument();
+    // The variant is what tells two products of one line apart, so the row
+    // shows it; a product without one shows no empty line either.
+    expect(screen.getByText('naturtrüb')).toBeInTheDocument();
     expect(screen.getByText(strings.catalogue.total(2))).toBeInTheDocument();
     expect(screen.getByText(/4[.,]5/)).toBeInTheDocument();
     // A product nobody has rated says so rather than showing zero stars.

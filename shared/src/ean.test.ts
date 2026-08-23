@@ -107,6 +107,7 @@ describe('createProductSchema', () => {
     const parsed = createProductSchema.parse({
       ean: '96385074',
       name: '  Haferflocken  ',
+      variant: '  Kernig  ',
       brand: '',
       category: 'Frühstück',
     });
@@ -114,6 +115,7 @@ describe('createProductSchema', () => {
     expect(parsed).toEqual({
       ean: '0000096385074',
       name: 'Haferflocken',
+      variant: 'Kernig',
       brand: null,
       category: 'Frühstück',
       notes: null,

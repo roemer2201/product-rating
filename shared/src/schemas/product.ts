@@ -12,6 +12,7 @@ import { SORT_ORDERS, type SortOrder } from './sort.js';
  */
 
 export const PRODUCT_NAME_MAX_LENGTH = 200;
+export const PRODUCT_VARIANT_MAX_LENGTH = 200;
 export const PRODUCT_BRAND_MAX_LENGTH = 120;
 export const PRODUCT_CATEGORY_MAX_LENGTH = 60;
 export const PRODUCT_NOTES_MAX_LENGTH = 2000;
@@ -58,6 +59,7 @@ export const eanSchema = z
   .transform((value) => normaliseEan(value) ?? value);
 
 const nameSchema = z.string().trim().min(1).max(PRODUCT_NAME_MAX_LENGTH);
+const variantSchema = z.string().trim().max(PRODUCT_VARIANT_MAX_LENGTH);
 const brandSchema = z.string().trim().max(PRODUCT_BRAND_MAX_LENGTH);
 const categorySchema = z.string().trim().max(PRODUCT_CATEGORY_MAX_LENGTH);
 const notesSchema = z.string().trim().max(PRODUCT_NOTES_MAX_LENGTH);
@@ -69,6 +71,7 @@ const optionalText = <T extends z.ZodType<string, string>>(schema: T) =>
 export const createProductSchema = z.object({
   ean: eanSchema,
   name: nameSchema,
+  variant: optionalText(variantSchema),
   brand: optionalText(brandSchema),
   category: optionalText(categorySchema),
   notes: optionalText(notesSchema),
@@ -81,6 +84,7 @@ export const createProductSchema = z.object({
 export const updateProductSchema = z
   .object({
     name: nameSchema.optional(),
+    variant: optionalText(variantSchema).optional(),
     brand: optionalText(brandSchema).optional(),
     category: optionalText(categorySchema).optional(),
     notes: optionalText(notesSchema).optional(),
@@ -95,7 +99,7 @@ const flagSchema = z
   .transform((value) => value === true || value === 'true' || value === '1');
 
 export const productListQuerySchema = z.object({
-  /** Free text over name, brand and — for digits — the EAN prefix. */
+  /** Free text over name, variant, brand and — for digits — the EAN. */
   q: z.string().trim().max(PRODUCT_SEARCH_MAX_LENGTH).optional(),
   category: z.string().trim().max(PRODUCT_CATEGORY_MAX_LENGTH).optional(),
   /** Keeps products whose average rating reaches this many stars. */

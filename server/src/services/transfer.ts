@@ -93,6 +93,7 @@ const exportedPhotoSchema = z.object({
 const exportedProductSchema = z.object({
   ean: z.string().min(1),
   name: z.string().min(1),
+  variant: z.string().nullish(),
   brand: z.string().nullish(),
   category: z.string().nullish(),
   notes: z.string().nullish(),
@@ -212,6 +213,7 @@ function collectProducts(db: DbHandle, includeTrash: boolean): ExportedProduct[]
   return productRows.map((product) => ({
     ean: product.ean,
     name: product.name,
+    variant: product.variant,
     brand: product.brand,
     category: product.category,
     notes: product.notes,
@@ -396,6 +398,7 @@ function productsCsv(exported: ExportedProduct[]): string {
     [
       'ean',
       'name',
+      'variant',
       'brand',
       'category',
       'notes',
@@ -418,6 +421,7 @@ function productsCsv(exported: ExportedProduct[]): string {
     rows.push([
       product.ean,
       product.name,
+      product.variant ?? null,
       product.brand ?? null,
       product.category ?? null,
       product.notes ?? null,
@@ -740,6 +744,7 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
           id: productId,
           ean,
           name: entry.name,
+          variant: entry.variant ?? null,
           brand: entry.brand ?? null,
           category: entry.category ?? null,
           notes: entry.notes ?? null,
@@ -757,6 +762,7 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
         db.update(products)
           .set({
             name: entry.name,
+            variant: entry.variant ?? null,
             brand: entry.brand ?? null,
             category: entry.category ?? null,
             notes: entry.notes ?? null,

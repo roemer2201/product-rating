@@ -68,6 +68,7 @@ function seedCatalogue(): void {
       {
         ean: EAN.muesli,
         name: 'Müsli Knusper',
+        variant: 'Schoko',
         brand: 'Kölln',
         category: 'Frühstück',
         createdBy: bertId,
@@ -330,6 +331,14 @@ describe('searching and filtering', () => {
     expect(namesOf(page)).toEqual(['Haferflocken', 'Müsli Knusper']);
   });
 
+  it('searches the variant as well', async () => {
+    // The half of the name that tells two products of one line apart: whoever
+    // types the flavour has to find it without knowing the line it belongs to.
+    expect(namesOf(await listProducts('?q=schoko'))).toEqual(['Müsli Knusper']);
+    // Two characters go through LIKE instead of the index, and have to agree.
+    expect(namesOf(await listProducts('?q=ko'))).toEqual(['Müsli Knusper']);
+  });
+
   it('searches an EAN, whole or in part', async () => {
     expect(namesOf(await listProducts(`?q=${EAN.oats}`))).toEqual(['Haferflocken']);
     expect(namesOf(await listProducts('?q=4260000000011'))).toEqual(['Apfelsaft']);
@@ -374,6 +383,16 @@ describe('searching and filtering', () => {
 
     expect((await listProducts('?q=apfel')).total).toBe(0);
     expect(namesOf(await listProducts('?q=birnen'))).toEqual(['Birnensaft']);
+
+    // The variant is indexed too, so changing it moves the product as well.
+    const flavoured = await harness.app.inject({
+      method: 'PATCH',
+      url: `/api/v1/products/${productIds.juice}`,
+      headers: writeHeaders(annaCookie),
+      payload: { variant: 'naturtrüb' },
+    });
+    expect(flavoured.statusCode).toBe(200);
+    expect(namesOf(await listProducts('?q=naturtr%C3%BCb'))).toEqual(['Birnensaft']);
 
     // A product in the trash is out of the catalogue, index or not.
     const trashed = await harness.app.inject({

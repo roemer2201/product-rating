@@ -116,6 +116,7 @@ describe('createProduct', () => {
     const first = createProduct(database.db, annaId, {
       ean: '4260000000011',
       name: 'Apfelsaft',
+      variant: null,
       brand: null,
       category: null,
       notes: null,
@@ -125,6 +126,7 @@ describe('createProduct', () => {
       createProduct(database.db, annaId, {
         ean: '4260000000011',
         name: 'Anderer Name',
+        variant: null,
         brand: null,
         category: null,
         notes: null,
@@ -142,6 +144,7 @@ describe('updateProduct', () => {
     const created = createProduct(database.db, annaId, {
       ean: '4260000000011',
       name: 'Apfelsaft',
+      variant: 'naturtrüb',
       brand: 'Bio Hof',
       category: 'Getränke',
       notes: 'trüb',
@@ -150,8 +153,24 @@ describe('updateProduct', () => {
     const updated = updateProduct(database.db, created.product.id, { category: 'Saft' });
 
     expect(updated.category).toBe('Saft');
+    expect(updated.variant).toBe('naturtrüb');
     expect(updated.brand).toBe('Bio Hof');
     expect(updated.notes).toBe('trüb');
+  });
+
+  it('clears the variant when an empty one is sent', () => {
+    const created = createProduct(database.db, annaId, {
+      ean: '4260000000011',
+      name: '5 Minuten Terrine',
+      variant: 'Spaghetti Bolognese',
+      brand: null,
+      category: null,
+      notes: null,
+    });
+
+    // `null` is a value, not "leave it alone" — the form sends it when
+    // somebody empties the field.
+    expect(updateProduct(database.db, created.product.id, { variant: null }).variant).toBeNull();
   });
 
   it('fails for an unknown product', () => {
@@ -210,6 +229,7 @@ describe('the trash', () => {
     const created = createProduct(database.db, annaId, {
       ean: '4260000000011',
       name: 'Apfelsaft naturtrüb',
+      variant: null,
       brand: null,
       category: null,
       notes: null,
