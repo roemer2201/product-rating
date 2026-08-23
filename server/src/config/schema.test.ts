@@ -53,6 +53,21 @@ describe('config schema', () => {
     expect(() => parseConfig({ server: { base_url: 'not-a-url' } })).toThrow(ConfigError);
   });
 
+  it('refuses a wildcard address as base_url but allows it as host', () => {
+    // The wildcard would otherwise surface as a 403 from the CSRF guard on
+    // every writing request instead of as a configuration error.
+    for (const base_url of ['http://0.0.0.0:8080', 'http://[::]:8080']) {
+      try {
+        parseConfig({ server: { base_url } });
+        expect.unreachable('expected a ConfigError');
+      } catch (error) {
+        expect((error as ConfigError).details.join('\n')).toContain('server.host');
+      }
+    }
+
+    expect(parseConfig({ server: { host: '0.0.0.0' } }).server.host).toBe('0.0.0.0');
+  });
+
   it('keeps the session renewal threshold below the session lifetime', () => {
     expect(() =>
       parseConfig({ auth: { session_ttl_days: 5, session_renew_threshold_days: 5 } }),

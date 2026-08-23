@@ -5,10 +5,17 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
-## 2026-08-23 – Dienst startet auch mit `server.host = "0.0.0.0"`
+## 2026-08-23 – Erste Installation: Wildcard-Bindung und Wildcard-`base_url`
 
 **Umfang**
 
+- **`server/src/config/schema.ts`**: `server.base_url` lehnt eine
+  Wildcard-Adresse (`0.0.0.0`, `::`) jetzt beim Start ab, mit dem Hinweis auf
+  `server.host`. Dokumentiert in der README-Tabelle, in
+  `config/config.example.toml` und in der ausgelieferten
+  `packaging/debian/config.package.toml`.
+- **`server/src/plugins/csrf.ts`**: Eine abgelehnte Herkunft wird als Warnung
+  protokolliert, mit der gesendeten Herkunft und der Liste der erlaubten.
 - **`packaging/debian/product-rating.service`**: `AF_NETLINK` zu
   `RestrictAddressFamilies` hinzugefügt. Bis dahin beendete sich der Dienst
   unmittelbar nach dem Binden des Ports, sobald `server.host` auf `0.0.0.0`
@@ -17,7 +24,25 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 **Entscheidungen**
 
-- *Die Ursache lag in der Härtung, nicht in der Anwendung.* Fastify protokolliert
+- *Eine Wildcard in `base_url` ist ein Fehler, keine Geschmacksfrage.* Bei der
+  ersten Installation stand dort `http://0.0.0.0:8080`, während der Browser die
+  IP des Containers ansprach. Die Origin-Prüfung in `plugins/csrf.ts` leitet
+  ihre erlaubten Herkünfte aus `base_url` ab, also endete jede schreibende
+  Anfrage – die Anmeldung eingeschlossen – als 403, das die Oberfläche als
+  „Dafür fehlen die Rechte" zeigt. Das ist maximal irreführend: Es sieht nach
+  einem Rechteproblem des frisch angelegten Kontos aus und ist eine falsche
+  Adresse. Der Wert ist nie richtig, deshalb bricht der Start jetzt ab, statt
+  zu warnen.
+- *Die Schema-Prüfung reicht nicht, deshalb zusätzlich das Log.* Die Wildcard
+  ist nur der auffälligste Fall; bei derselben Installation folgte direkt
+  danach `http://product-rating:8080` gegen einen Browser, der
+  `product-rating.lan` ansprach. Solche Abweichungen kann die Konfiguration
+  nicht kennen – wohl aber die Prüfung selbst, im Moment der Ablehnung. Sie
+  schreibt jetzt beide Werte ins Log, statt einen nackten 403 zu hinterlassen.
+- *Die Prüfung gehört ins Zod-Schema, nicht in `config/checks.ts`.* Dort geht es
+  um Verzeichnisse und Dateirechte, also um die Umgebung; hier ist der Wert
+  selbst unsinnig, und das ist eine Frage der Validierung.
+- *Die Ursache des Startfehlers lag in der Härtung, nicht in der Anwendung.* Fastify protokolliert
   nach dem Start die Adressen, unter denen es erreichbar ist; bei einer
   Wildcard-Bindung zählt es dafür die Schnittstellen auf
   (`os.networkInterfaces()`). glibc beantwortet `getifaddrs()` über einen

@@ -20,6 +20,10 @@
 host = "127.0.0.1"
 port = 8080
 # Öffentlich erreichbare Adresse, für absolute Links und Cookie-Einstellungen.
+# Genau die Adresse aus der Adresszeile des Browsers, samt Schema und Port: Die
+# Origin-Prüfung vergleicht jede schreibende Anfrage damit, ein falscher Wert
+# endet also in abgelehnten Anmeldungen. Eine Wildcard wie 0.0.0.0 gehört zu
+# host und wird hier beim Start abgelehnt.
 base_url = "http://127.0.0.1:8080"
 # X-Forwarded-*-Header auswerten. Nur hinter einem vertrauenswürdigen Proxy!
 trust_proxy = false

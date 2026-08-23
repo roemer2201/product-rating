@@ -767,7 +767,7 @@ Alle dort eingetragenen Werte entsprechen den Standardwerten.
 |---|---|---|---|
 | `host` | Zeichenkette | `127.0.0.1` | Adresse, an die gebunden wird |
 | `port` | Zahl 1–65535 | `8080` | Port der HTTP-Schnittstelle |
-| `base_url` | URL | `http://127.0.0.1:8080` | Öffentliche Adresse, für absolute Links und Cookies |
+| `base_url` | URL | `http://127.0.0.1:8080` | Öffentliche Adresse, für absolute Links und Cookies; keine Wildcard – `0.0.0.0` gehört zu `host` und wird beim Start abgelehnt |
 | `trust_proxy` | Wahrheitswert | `false` | `X-Forwarded-*` auswerten, nur hinter vertrauenswürdigem Proxy |
 | `trusted_origins` | Liste von URLs | `[]` | Zusätzlich für schreibende Anfragen erlaubte Herkünfte; `base_url` gilt immer |
 | `static_dir` | Pfad | `""` | Verzeichnis der gebauten Weboberfläche, relativ zur Konfigurationsdatei aufgelöst; leer heißt „nur API“ (Entwicklung) |

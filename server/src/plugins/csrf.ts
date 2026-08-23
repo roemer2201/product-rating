@@ -58,6 +58,15 @@ export function registerCsrfGuard(app: FastifyInstance): void {
 
     const origin = originOf(header);
     if (origin === null || !origins.has(origin)) {
+      // Both values go into the log because the answer is a bare 403, which
+      // the interface shows as a missing permission. The usual cause is a
+      // server.base_url that does not match the address the browser uses, and
+      // that looks like a problem with the account until the two are seen side
+      // by side.
+      request.log.warn(
+        { origin: origin ?? header, allowed: [...origins] },
+        'rejected a writing request: origin is not allowed, check server.base_url',
+      );
       throw new ForbiddenError('request origin is not allowed');
     }
   });

@@ -19,12 +19,40 @@ export const LOG_LEVELS = ['error', 'warn', 'info', 'debug'] as const;
 export const LOG_FORMATS = ['json', 'pretty'] as const;
 export const LOG_DESTINATIONS = ['stdout', 'file', 'syslog'] as const;
 
+/**
+ * Addresses that mean "every interface". Valid for `server.host`, useless for
+ * anything a browser has to dial.
+ */
+const WILDCARD_HOSTS = new Set(['0.0.0.0', '::', '[::]']);
+
+function hasWildcardHost(url: string): boolean {
+  try {
+    return WILDCARD_HOSTS.has(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
+
 const serverSection = z.strictObject({
   /** Interface the HTTP server binds to. Stays on loopback behind a proxy. */
   host: z.string().min(1).default('127.0.0.1'),
   port: z.int().min(1).max(65535).default(8080),
-  /** Public origin, used for absolute links and cookie settings. */
-  base_url: z.url().default('http://127.0.0.1:8080'),
+  /**
+   * Public origin, used for absolute links and cookie settings.
+   *
+   * A wildcard is refused here. It answers the question `server.host` asks -
+   * which interfaces to bind - and no browser can dial it. Left standing it
+   * fails late and confusingly: the CSRF guard derives the origins it accepts
+   * from this value, so every writing request, the log-in included, comes back
+   * as 403 while the address bar shows an address that plainly works.
+   */
+  base_url: z
+    .url()
+    .refine((value) => !hasWildcardHost(value), {
+      message:
+        'has to be the address the browser uses; a wildcard such as 0.0.0.0 belongs in server.host',
+    })
+    .default('http://127.0.0.1:8080'),
   /** Evaluate `X-Forwarded-*`; only enable behind a trusted reverse proxy. */
   trust_proxy: z.boolean().default(false),
   /**
