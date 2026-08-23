@@ -5,6 +5,41 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-23 – Dienst startet auch mit `server.host = "0.0.0.0"`
+
+**Umfang**
+
+- **`packaging/debian/product-rating.service`**: `AF_NETLINK` zu
+  `RestrictAddressFamilies` hinzugefügt. Bis dahin beendete sich der Dienst
+  unmittelbar nach dem Binden des Ports, sobald `server.host` auf `0.0.0.0`
+  stand – mit `ERR_SYSTEM_ERROR: uv_interface_addresses returned Unknown system
+  error 97` und anschließender Neustartschleife.
+
+**Entscheidungen**
+
+- *Die Ursache lag in der Härtung, nicht in der Anwendung.* Fastify protokolliert
+  nach dem Start die Adressen, unter denen es erreichbar ist; bei einer
+  Wildcard-Bindung zählt es dafür die Schnittstellen auf
+  (`os.networkInterfaces()`). glibc beantwortet `getifaddrs()` über einen
+  Netlink-Socket, und der war durch `RestrictAddressFamilies` ausgeschlossen –
+  `socket(AF_NETLINK, …)` scheitert dann mit `EAFNOSUPPORT`, Errno 97. Mit der
+  Vorgabe `127.0.0.1` trat das nie auf, weil Fastify dort nichts aufzuzählen
+  braucht.
+- *Repariert wird die Unit, nicht die Konfiguration.* `0.0.0.0` ist ein
+  angebotener Wert – `packaging/examples/systemd/override.conf` nennt ihn
+  ausdrücklich. Eine dokumentierte Einstellung darf den Dienst nicht in eine
+  Neustartschleife schicken.
+- *Der Zugewinn an Angriffsfläche ist begrenzt.* Über Netlink lässt sich hier
+  nur lesen: Alles Verändernde verlangt `CAP_NET_ADMIN`, und
+  `CapabilityBoundingSet` ist leer. Umgehen ließe sich das nur, indem die
+  Anwendung nicht mehr auf Wildcards gebunden werden darf, und das ist die
+  schlechtere Einschränkung.
+- *Am Container ändert sich nichts.* Dort gibt es kein systemd und damit keine
+  Einschränkung der Adressfamilien; das Image bindet seit jeher auf `0.0.0.0`.
+- **Offen:** Das ist der zweite Fall dieser Art nach `MemoryDenyWriteExecute`.
+  Beide fallen nur auf, wenn der Dienst wirklich unter systemd startet – ein
+  Test kann sie nicht finden. Der entsprechende TODO-Punkt ist ergänzt.
+
 ## 2026-08-22 – Debian-Paket auch für armhf
 
 **Umfang**

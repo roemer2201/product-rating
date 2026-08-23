@@ -61,7 +61,16 @@ SystemCallFilter=@system-service
 SystemCallErrorNumber=EPERM
 # HTTP and the loopback socket; AF_UNIX stays because the runtime uses it for
 # the journal and for name resolution.
-RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+#
+# AF_NETLINK is in the list because the framework logs the addresses it is
+# reachable under once it is listening, and with server.host = 0.0.0.0 that
+# means enumerating the interfaces. glibc answers getifaddrs() over a netlink
+# socket, so without the family the call fails with EAFNOSUPPORT and the
+# service dies right after it bound the port - a crash loop for a setting the
+# configuration offers. Reading the interface list is all it buys: changing
+# anything over netlink needs CAP_NET_ADMIN, and CapabilityBoundingSet below
+# is empty.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
 # The service binds a port above 1024 and needs no capability at all. A port
 # below 1024 would need CAP_NET_BIND_SERVICE here and in AmbientCapabilities -
 # but that is what the reverse proxy in front is for.
