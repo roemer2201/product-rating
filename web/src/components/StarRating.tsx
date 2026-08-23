@@ -6,10 +6,14 @@ import { strings } from '@/lib/strings';
 /**
  * The star rating, once to look at and once to set.
  *
- * Whole stars only — halves would not survive a thumb on a phone, and a
- * household arguing over 3.5 versus 4 was never the point. Zero stars is a
+ * Whole stars only — halves would not survive a thumb on a phone. Ten of them
+ * is what replaced the half stars: the finer grades a household actually argues
+ * over are on the scale itself instead of between its steps. Zero stars is a
  * deliberate verdict and therefore its own option: "not rated" is expressed by
  * having no rating at all, which is what the remove button is for.
+ *
+ * The number of options comes from `RATING_MAX_STARS`, so the widget follows
+ * the scale the server enforces rather than a length of its own.
  */
 
 interface StarDisplayProps {

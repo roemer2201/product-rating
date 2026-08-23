@@ -1,7 +1,7 @@
 # product-rating
 
 Selbst-hostbare Web-App zum Erfassen und Bewerten von Produkten: EAN scannen oder
-eingeben, Foto hinterlegen, 0–5 Sterne vergeben. Die App läuft als PWA und lässt
+eingeben, Foto hinterlegen, 0–10 Sterne vergeben. Die App läuft als PWA und lässt
 sich unter iOS zum Home-Bildschirm hinzufügen.
 
 > **Status:** Version 0.1.0, der MVP aus Abschnitt 1 ist gebaut – Server,
@@ -21,7 +21,7 @@ sich unter iOS zum Home-Bildschirm hinzufügen.
 - Produkt anlegen und bearbeiten: Name, Sorte, Marke, Kategorie, Notizen
 - Beliebig viele Fotos pro Produkt aufnehmen oder hochladen, in fester
   Reihenfolge; das erste ist das Hauptbild
-- Bewertung von 0 bis 5 Sternen, optional mit Kommentar – die eigene ist
+- Bewertung von 0 bis 10 Sternen, optional mit Kommentar – die eigene ist
   änderbar, die der anderen im Haushalt sichtbar
 - Preisverlauf je Produkt mit Einkaufsort
 - Produktliste mit Volltextsuche (Name, Sorte, Marke, EAN) und Filter/Sortierung
@@ -431,7 +431,7 @@ welches Symbol der Scanner gelesen hat, denselben Eintrag. Führende Nullen
 |---|---|---|
 | `q` | Text | Sucht in Name, Sorte und Marke, bei mindestens vier Ziffern zusätzlich als EAN-Präfix |
 | `category` | Text | Genaue Kategorie, Groß- und Kleinschreibung egal |
-| `minStars` | 0–5 | Nur Produkte, deren Durchschnitt diesen Wert erreicht; unbewertete fallen heraus |
+| `minStars` | 0–10 | Nur Produkte, deren Durchschnitt diesen Wert erreicht; unbewertete fallen heraus |
 | `ratedByMe` | `true`/`false` | Nur selbst bewertete Produkte |
 | `sort` | `name`, `created`, `updated`, `rating` | Standard `updated` |
 | `order` | `asc`, `desc` | Standard: `asc` bei `name`, sonst `desc` |
@@ -475,7 +475,7 @@ nicht adressieren, Eigentum wird also nicht nachträglich geprüft.
 | `DELETE /api/v1/products/:id/rating` | angemeldet | Eigene Bewertung entfernen |
 | `GET /api/v1/ratings/mine` | angemeldet | Eigene Bewertungen mit Sortierung und Cursor-Pagination |
 
-**Körper von `PUT`:** `{ "stars": 0…5, "comment": "…" }`. `stars` ist eine ganze
+**Körper von `PUT`:** `{ "stars": 0…10, "comment": "…" }`. `stars` ist eine ganze
 Zahl; null Sterne sind ein bewusstes Urteil und keine fehlende Bewertung –
 „nicht bewertet“ drückt sich dadurch aus, dass es keine Bewertung gibt. Der
 Kommentar ist optional und höchstens 1000 Zeichen lang. `PUT` ersetzt die

@@ -118,7 +118,7 @@ describe('schema constraints', () => {
     ).toThrow(/CHECK/i);
   });
 
-  it('rejects stars outside 0..5', () => {
+  it('rejects stars outside 0..10', () => {
     const { db: handle } = db();
     const userId = randomUUID();
     const productId = randomUUID();
@@ -128,7 +128,7 @@ describe('schema constraints', () => {
     });
 
     expect(() =>
-      handle.insert(ratings).values({ id: randomUUID(), productId, userId, stars: 6 }).run(),
+      handle.insert(ratings).values({ id: randomUUID(), productId, userId, stars: 11 }).run(),
     ).toThrow(/CHECK/i);
     expect(() =>
       handle.insert(ratings).values({ id: randomUUID(), productId, userId, stars: -1 }).run(),

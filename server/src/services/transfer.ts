@@ -3,7 +3,7 @@ import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
-import { normaliseEan } from '@product-rating/shared';
+import { normaliseEan, RATING_MAX_STARS, RATING_MIN_STARS } from '@product-rating/shared';
 import type { AppConfig } from '../config/index.js';
 import type { AppDatabase, DbHandle } from '../db/index.js';
 import { photos, prices, products, ratings, users, type ProductRow } from '../db/index.js';
@@ -67,7 +67,7 @@ const exportedUserSchema = z.object({
 
 const exportedRatingSchema = z.object({
   user: z.string().min(1),
-  stars: z.number().int().min(0).max(5),
+  stars: z.number().int().min(RATING_MIN_STARS).max(RATING_MAX_STARS),
   comment: z.string().nullish(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),

@@ -1,7 +1,7 @@
 import { RATING_MAX_STARS, RATING_MIN_STARS, type RatingSummary } from './types.js';
 
 /**
- * Whether a value is a usable star rating: a whole number between 0 and 5.
+ * Whether a value is a usable star rating: a whole number within the scale.
  * Zero is a deliberate rating ("bad"), not a missing value.
  */
 export function isValidStars(value: unknown): value is number {
@@ -14,7 +14,7 @@ export function isValidStars(value: unknown): value is number {
 }
 
 /**
- * Two decimals are as much as five stars can meaningfully carry. Rounding
+ * Two decimals are as much as the star scale can meaningfully carry. Rounding
  * happens on the way out only; anything comparing or sorting averages works
  * with the full value.
  */

@@ -9,7 +9,7 @@ Beschreibung steht in [README.md](README.md), der Umsetzungsplan in
 ## 1. Was dieses Projekt ist
 
 Selbst-hostbare Web-App (PWA) zum Erfassen von Produkten per EAN, mit Foto und
-Bewertung von 0 bis 5 Sternen. Zielbetrieb: eigener Server oder NAS im Haushalt,
+Bewertung von 0 bis 10 Sternen. Zielbetrieb: eigener Server oder NAS im Haushalt,
 Nutzung überwiegend vom iPhone über eine zum Home-Bildschirm hinzugefügte PWA.
 
 Zielgrößen: einstellige Nutzerzahl, bis in den sechsstelligen Bereich an

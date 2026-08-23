@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { normaliseEan } from '../ean.js';
+import { RATING_MAX_STARS, RATING_MIN_STARS } from '../types.js';
 import { SORT_ORDERS, type SortOrder } from './sort.js';
 
 /**
@@ -103,7 +104,7 @@ export const productListQuerySchema = z.object({
   q: z.string().trim().max(PRODUCT_SEARCH_MAX_LENGTH).optional(),
   category: z.string().trim().max(PRODUCT_CATEGORY_MAX_LENGTH).optional(),
   /** Keeps products whose average rating reaches this many stars. */
-  minStars: z.coerce.number().int().min(0).max(5).optional(),
+  minStars: z.coerce.number().int().min(RATING_MIN_STARS).max(RATING_MAX_STARS).optional(),
   /** Restricts the list to products the caller has rated themselves. */
   ratedByMe: flagSchema.optional(),
   sort: z.enum(PRODUCT_SORT_FIELDS).default('updated'),

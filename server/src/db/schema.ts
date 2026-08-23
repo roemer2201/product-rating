@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { RATING_MAX_STARS, RATING_MIN_STARS } from '@product-rating/shared';
 
 /**
  * The complete database schema.
@@ -12,6 +13,16 @@ import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-o
  * Changes here are never applied with `db push`. Generate a migration with
  * `npm run db:generate`, review the SQL and commit it.
  */
+
+/**
+ * The star range of the rating CHECK constraint, spelled out from the shared
+ * constants.
+ *
+ * `sql.raw` rather than an interpolated value: a CHECK constraint is stored SQL
+ * and cannot carry a bound parameter, so the numbers have to end up as literals
+ * in the generated migration.
+ */
+const starsRange = sql.raw(`between ${RATING_MIN_STARS} and ${RATING_MAX_STARS}`);
 
 /** Column helper for a required timestamp defaulting to "now". */
 const createdAt = () =>
@@ -174,7 +185,7 @@ export const ratings = sqliteTable(
   (table) => [
     uniqueIndex('ratings_product_user_unique').on(table.productId, table.userId),
     index('ratings_user_id_idx').on(table.userId),
-    check('ratings_stars_range', sql`${table.stars} between 0 and 5`),
+    check('ratings_stars_range', sql`${table.stars} ${starsRange}`),
   ],
 );
 

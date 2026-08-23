@@ -33,7 +33,7 @@ import {
 } from './products.js';
 
 /**
- * Ratings: zero to five stars plus an optional comment, one per product and
+ * Ratings: zero to ten stars plus an optional comment, one per product and
  * account.
  *
  * A rating always belongs to the caller. The routes address it as "my rating of

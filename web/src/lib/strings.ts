@@ -8,7 +8,13 @@
  *
  * Texts that need a value are functions rather than templates with
  * placeholders, so the type checker catches a missing argument.
+ *
+ * The star scale is spelled out from `RATING_MAX_STARS` rather than written
+ * into the sentences: "7 von 10" has to follow the scale, not a number somebody
+ * has to remember to change here too.
  */
+
+import { RATING_MAX_STARS } from '@product-rating/shared';
 
 export const strings = {
   app: {
@@ -194,7 +200,7 @@ export const strings = {
     capturedAt: (date: string) => `Erfasst am ${date}`,
     contains: 'Enthält',
     partProduct: 'Produktdaten',
-    partRating: (stars: number) => `Bewertung (${stars} von 5)`,
+    partRating: (stars: number) => `Bewertung (${stars} von ${RATING_MAX_STARS})`,
     partPrice: (amount: string) => `Preis (${amount})`,
     partPhotos: (count: number) => (count === 1 ? '1 Foto' : `${count} Fotos`),
     statePending: 'Wartet',
@@ -202,7 +208,8 @@ export const strings = {
     stateFailed: 'Abgelehnt',
     conflictTitle: 'Diese Bewertung wurde inzwischen woanders geändert',
     conflictText: (mine: number, theirs: number, date: string) =>
-      `Offline erfasst: ${mine} von 5. Auf dem Server steht seit ${date}: ${theirs} von 5.`,
+      `Offline erfasst: ${mine} von ${RATING_MAX_STARS}. Auf dem Server steht seit ${date}: ` +
+      `${theirs} von ${RATING_MAX_STARS}.`,
     keepMine: 'Meine Offline-Eingabe',
     keepServer: 'Fassung vom Server',
     retry: 'Erneut versuchen',
@@ -351,7 +358,7 @@ export const strings = {
     count: (count: number) => (count === 1 ? '1 Bewertung' : `${count} Bewertungen`),
     starsLabel: 'Sterne',
     starLabel: (stars: number) => (stars === 1 ? '1 Stern' : `${stars} Sterne`),
-    starsOf: (stars: number) => `${stars} von 5 Sternen`,
+    starsOf: (stars: number) => `${stars} von ${RATING_MAX_STARS} Sternen`,
     comment: 'Kommentar',
     commentHint: 'Was war gut, was nicht?',
     save: 'Bewertung speichern',

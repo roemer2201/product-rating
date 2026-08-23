@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import {
   PRODUCT_SEARCH_MAX_LENGTH,
+  RATING_MAX_STARS,
   type ProductSortField,
   type SortOrder,
 } from '@product-rating/shared';
@@ -27,6 +28,12 @@ import { strings } from '@/lib/strings';
 
 /** How long a keystroke waits before it turns into a request. */
 const SEARCH_DEBOUNCE_MS = 300;
+
+/**
+ * The choices of the "at least this many stars" filter: every star of the
+ * scale except zero, which is not a filter — it lets everything through.
+ */
+const MIN_STARS_OPTIONS = Array.from({ length: RATING_MAX_STARS }, (_entry, index) => index + 1);
 
 const SORT_LABELS: Record<ProductSortField, string> = {
   name: strings.catalogue.sortName,
@@ -121,7 +128,7 @@ export function CataloguePage() {
             }}
           >
             <option value="">{strings.catalogue.anyStars}</option>
-            {[1, 2, 3, 4, 5].map((stars) => (
+            {MIN_STARS_OPTIONS.map((stars) => (
               <option key={stars} value={stars}>
                 {strings.rating.starLabel(stars)}
               </option>
