@@ -7,6 +7,22 @@ Keine dieser Dateien wird von der Anwendung gelesen oder beim Aktualisieren
 angefasst – es sind Vorlagen zum Kopieren und Anpassen. Was in jeder einzelnen
 zu ändern ist, steht als Kommentar in der Datei selbst.
 
+Wer nichts von Hand ersetzen will, lässt sich dieselbe Konfiguration ausgefüllt
+schreiben:
+
+```bash
+product-rating proxy-config --server nginx --out /etc/nginx/sites-available/
+product-rating proxy-config --server caddy --cert /pfad/fullchain.pem \
+  --key /pfad/privkey.pem
+```
+
+Hostname und Unterpfad kommen dann aus `server.base_url`, die Adresse aus
+`server.host` und `server.port`, das Größenlimit aus
+`uploads.max_file_size_mb`. Die Dateien hier bleiben trotzdem die ausführliche
+Fassung: Sie erklären jede Einstellung, während die erzeugte nur das Nötige
+kommentiert. Für Traefik als Container-Labels gibt es keinen erzeugten
+Gegenpart – dafür ist `traefik/docker-compose.labels.yml` da.
+
 | Datei | Wofür |
 | --- | --- |
 | `nginx/product-rating.conf` | nginx-Vhost mit TLS, eigener Hostname |

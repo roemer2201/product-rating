@@ -30,7 +30,7 @@
 # log level (--log-level, log.level in the configuration). Adding switches that
 # do nothing would only suggest an effect that is not there.
 #
-# Version: 2.0.0  (2026-08-16)
+# Version: 2.1.0  (2026-08-23)
 
 # Robustness baseline: a wrapper that cannot resolve its target must not fall
 # through to something else.
@@ -77,6 +77,7 @@ Examples:
   product-rating user add anna --role admin
   product-rating backup --to /var/backups/product-rating
   product-rating fsck --uploads
+  product-rating proxy-config --server nginx --out /etc/nginx/sites-available/
 EOF
 }
 

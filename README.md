@@ -1027,6 +1027,35 @@ mit einer eigenen [Übersicht](packaging/examples/README.md)):
   verlinkt) mit `.service` und `.timer` für den täglichen Lauf.
 - **ufw** – Applikationsprofil.
 
+**Dieselbe Konfiguration ausgefüllt statt als Vorlage.** Die vier
+Proxy-Beispiele erklären jede Einstellung und erwarten, dass Hostname,
+Zertifikatspfade und Port von Hand ersetzt werden.
+`product-rating proxy-config --server <name>` schreibt dieselbe Konfiguration
+mit den Werten dieser Instanz – Hostname und Unterpfad aus `server.base_url`,
+Adresse aus `server.host` und `server.port`, Größenlimit aus
+`uploads.max_file_size_mb` plus fünf Megabyte Luft für den Multipart-Rahmen:
+
+```bash
+# nach stdout, zum Ansehen oder Weiterleiten
+product-rating proxy-config --server nginx
+
+# mit eigenem Zertifikat direkt an seinen Platz
+product-rating proxy-config --server apache \
+  --cert /etc/ssl/certs/produkte.pem --key /etc/ssl/private/produkte.key \
+  --out /etc/apache2/sites-available/product-rating.conf
+```
+
+`--cert` und `--key` gehören zusammen; die Zertifikatsdatei muss die volle
+Kette enthalten. Ohne sie stehen bei nginx und Apache die Pfade von certbot in
+der Datei (`/etc/letsencrypt/live/<domain>/fullchain.pem` und `privkey.pem`) –
+beide können sich kein Zertifikat selbst besorgen. Caddy und Traefik bleiben
+ohne `--cert` bei ihrer eigenen ACME-Verwaltung und werden mit `--cert` auf die
+angegebenen Dateien umgestellt. Was die Anwendung noch braucht
+(`server.base_url`, `server.trust_proxy`) und was noch fehlt (Zertifikat nicht
+vorhanden, Unterpfad nicht mitgebaut), meldet der Befehl auf stderr; die Datei
+selbst enthält nur Konfiguration. Eine vorhandene Datei wird nur mit `--force`
+überschrieben.
+
 Die logrotate-Regel ist keine Vorlage, sondern Teil des Pakets
 (`/etc/logrotate.d/product-rating`, als `conffile` registriert).
 
@@ -1083,6 +1112,12 @@ gilt für `/` und beide überschrieben sich gegenseitig.
   keine Zeile mehr existiert, und Zeilen, deren Datei fehlt. Gemeldet wird
   immer, gelöscht nur mit `--repair` – eine verwaiste Datei kostet Platz, eine
   zu Unrecht gelöschte ein Foto.
+- **Webserver davor:** `product-rating proxy-config --server <name>` schreibt
+  die Konfiguration für nginx, Apache, Caddy oder Traefik – nicht als Vorlage
+  mit Platzhaltern, sondern mit den Werten dieser Instanz: Hostname und Pfad aus
+  `server.base_url`, Adresse aus `server.host`/`server.port`, Größenlimit aus
+  `uploads.max_file_size_mb`. Die Zertifikatspfade nimmt `--cert` und `--key`
+  entgegen (7.3).
 
 ### 8.1 Kommandozeile
 
@@ -1104,6 +1139,7 @@ Konsole. Im Container liegt derselbe Befehl unter
 | `export --to <dir>` | Katalog als JSON und/oder CSV schreiben; `--with-photos` nimmt die Bilder mit, `--no-users` lässt die Konten weg |
 | `import --from <dir>` | Export einlesen; `--owner`, `--update`, `--skip-users`, `--dry-run` |
 | `fsck --uploads` | Upload-Verzeichnis gegen die Fototabelle prüfen, `--repair` löscht verwaiste Dateien |
+| `proxy-config --server <name>` | Webserver-Konfiguration für diese Instanz schreiben (`nginx`, `apache`, `caddy`, `traefik`); `--cert`/`--key`, `--domain`, `--base-path`, `--out` |
 | `help [befehl]`, `version` | Hilfe und Version |
 
 Jeder Befehl versteht zusätzlich die Konfigurationsschalter aus 6:
