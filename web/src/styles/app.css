@@ -689,7 +689,12 @@ a {
   font-size: 0.8125rem;
 }
 
+.product-card__variant {
+  font-size: 0.875rem;
+}
+
 .product-card__name,
+.product-card__variant,
 .product-card__brand,
 .product-card__comment {
   overflow: hidden;

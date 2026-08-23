@@ -11,7 +11,9 @@ import { strings } from '@/lib/strings';
  * The whole row is the link, which on a phone is the difference between hitting
  * the product and hitting the gap next to its name. What it shows is picked for
  * the question a list answers: is this the thing I am holding (picture, name,
- * brand), and what did we think of it (average, and whether I rated it myself).
+ * variant, brand), and what did we think of it (average, and whether I rated it
+ * myself). The variant gets a line of its own: where a product line has a dozen
+ * flavours, it is the only thing that tells two rows apart.
  */
 
 interface ProductCardProps {
@@ -39,6 +41,9 @@ export function ProductCard({ product, showOwnRating = false }: ProductCardProps
 
         <span className="product-card__body">
           <span className="product-card__name">{product.name}</span>
+          {product.variant !== null && (
+            <span className="product-card__variant">{product.variant}</span>
+          )}
           <span className="product-card__brand">
             {product.brand ?? strings.product.noBrand}
             {product.category !== null && ` · ${product.category}`}

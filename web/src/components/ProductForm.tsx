@@ -4,6 +4,7 @@ import {
   PRODUCT_CATEGORY_MAX_LENGTH,
   PRODUCT_NAME_MAX_LENGTH,
   PRODUCT_NOTES_MAX_LENGTH,
+  PRODUCT_VARIANT_MAX_LENGTH,
 } from '@product-rating/shared';
 import { Field, TextAreaField } from '@/components/Field';
 import { ErrorNotice } from '@/components/Feedback';
@@ -18,6 +19,11 @@ import { strings } from '@/lib/strings';
  * at the shelf is corrected later from the sofa — the two are the same act, so
  * they look the same.
  *
+ * Name and variant are two fields rather than one long name: a product line
+ * like "5 Minuten Terrine" has a dozen flavours, each with its own EAN, and
+ * telling them apart is the whole job of the list. Both halves are searched,
+ * so it costs nothing to find a product by either one.
+ *
  * The category is a free text field with a suggestion list rather than a
  * dropdown. A household invents its own categories, but it should not invent
  * "Getränke", "getraenke" and "Getränk" — offering what is already there is
@@ -26,6 +32,7 @@ import { strings } from '@/lib/strings';
 
 export interface ProductFormValues {
   name: string;
+  variant: string;
   brand: string;
   category: string;
   notes: string;
@@ -56,6 +63,7 @@ export function ProductForm({
   secondaryAction,
 }: ProductFormProps) {
   const [name, setName] = useState(initial?.name ?? '');
+  const [variant, setVariant] = useState(initial?.variant ?? '');
   const [brand, setBrand] = useState(initial?.brand ?? '');
   const [category, setCategory] = useState(initial?.category ?? '');
   const [notes, setNotes] = useState(initial?.notes ?? '');
@@ -66,7 +74,7 @@ export function ProductForm({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
-    onSubmit({ name, brand, category, notes });
+    onSubmit({ name, variant, brand, category, notes });
   };
 
   return (
@@ -86,11 +94,24 @@ export function ProductForm({
       />
 
       <Field
+        label={strings.fields.variant}
+        name="variant"
+        value={variant}
+        onChange={(event) => setVariant(event.target.value)}
+        maxLength={PRODUCT_VARIANT_MAX_LENGTH}
+        hint={strings.product.variantHint}
+        error={errors.variant}
+        autoComplete="off"
+        optional
+      />
+
+      <Field
         label={strings.fields.brand}
         name="brand"
         value={brand}
         onChange={(event) => setBrand(event.target.value)}
         maxLength={PRODUCT_BRAND_MAX_LENGTH}
+        hint={strings.product.brandHint}
         error={errors.brand}
         autoComplete="off"
         optional

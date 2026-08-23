@@ -42,6 +42,7 @@ export function ProductNewPage() {
     const parsed = createProductSchema.safeParse({
       ean,
       name: values.name,
+      variant: emptyToNull(values.variant),
       brand: emptyToNull(values.brand),
       category: emptyToNull(values.category),
       notes: emptyToNull(values.notes),
@@ -99,6 +100,7 @@ export function ProductNewPage() {
               label: values.name,
               product: {
                 name: values.name,
+                variant: emptyToNull(values.variant),
                 brand: emptyToNull(values.brand),
                 category: emptyToNull(values.category),
                 notes: emptyToNull(values.notes),

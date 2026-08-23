@@ -312,7 +312,7 @@ describe('export and import', () => {
     expect(exported.code).toBe(0);
     expect(exported.out).toBe(target);
     expect(readFileSync(join(target, 'export.json'), 'utf8')).toContain('product-rating-export');
-    expect(readFileSync(join(target, 'products.csv'), 'utf8')).toContain('ean,name,brand');
+    expect(readFileSync(join(target, 'products.csv'), 'utf8')).toContain('ean,name,variant,brand');
 
     expect(readFileSync(join(target, 'users.csv'), 'utf8')).toContain('username,role,email');
     // Whatever else is in the export, a password hash is not.

@@ -5,6 +5,51 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-23 – Attribut „Sorte“ am Produkt
+
+**Umfang**
+
+- **Datenmodell**: Spalte `products.variant` (Migration
+  `0006_product_variant.sql`). Dieselbe Migration baut `products_fts` neu auf –
+  die FTS5-Tabelle bekommt eine Spalte `variant`, die drei Trigger werden mit
+  ihr neu angelegt und der Index aus den vorhandenen Zeilen gefüllt.
+- **API**: `variant` in `createProductSchema`, `updateProductSchema` und im
+  Typ `Product` (bis 200 Zeichen, leer bedeutet `null` wie bei Marke,
+  Kategorie und Notizen). Die Suche über `q` liest die Sorte mit – über den
+  Trigramm-Index und über den `LIKE`-Rückfallweg für Begriffe unter drei
+  Zeichen.
+- **Export und Import**: Sorte in `export.json` und als Spalte `variant` in
+  `products.csv`; eine ältere Datei ohne das Feld liest sich unverändert ein.
+- **Oberfläche**: Feld „Sorte“ im Produktformular zwischen Name und Marke,
+  eigene Zeile auf der Produktkarte, in der Kopfzeile der Detailseite vor Marke
+  und Kategorie. Auch in der Offline-Warteschlange, damit am Regal Erfasstes
+  die Sorte mitnimmt.
+- **Dokumentation**: README 1, 3 und 4.1 auf den Stand gebracht, dazu ein
+  Absatz in 4.1, der Name, Sorte und Marke gegeneinander abgrenzt.
+
+**Entscheidungen**
+
+- *Eine Spalte, keine zweite Tabelle.* Jede Sorte trägt eine eigene EAN und ist
+  damit ohnehin ein eigenes Produkt. Eine Tabelle „Produktlinie“ mit
+  Fremdschlüssel würde am Regal eine zweite Erfassungsstufe verlangen und für
+  einen Haushaltskatalog nichts einbringen; die Zusammengehörigkeit ergibt sich
+  aus gleichem Namen und gleicher Marke.
+- *Bezeichner `variant`.* Code ist englisch; `variant` ist der geläufige
+  Begriff für die Ausführung innerhalb einer Produktlinie und enger als
+  `flavour`, das nur zu Essbarem passt.
+- *Die Sorte gehört in den Suchindex.* Wer „Bolognese“ tippt, sucht die Sorte
+  und nicht die Linie. Weil FTS5-Tabellen keine Spalten nachrüsten lassen,
+  wird `products_fts` verworfen und neu aufgebaut – der Index ist abgeleitete
+  Daten, und der Aufbau kostet bei sechsstelligen Katalogen Sekunden. Vor jeder
+  Migration liegt ohnehin ein Snapshot.
+- *Kein Index auf der Spalte.* Gefiltert wird nach Kategorie, sortiert nach
+  Name – die Sorte wird nur durchsucht, und das erledigt der Volltextindex.
+- *Keine Vorschlagsliste wie bei der Kategorie.* Eine Sorte gehört zu genau
+  einem Produkt und wiederholt sich nicht; eine Liste aller bisherigen Sorten
+  wäre so lang wie der Katalog.
+
+---
+
 ## 2026-08-22 – Debian-Paket auch für armhf
 
 **Umfang**

@@ -89,7 +89,7 @@ describe('syncing a capture', () => {
     await enqueueCapture({
       ean: TEST_EAN,
       label: 'Apfelsaft',
-      product: { name: 'Apfelsaft', brand: 'Bio Hof', category: null, notes: null },
+      product: { name: 'Apfelsaft', variant: null, brand: 'Bio Hof', category: null, notes: null },
     });
 
     const fetchMock = mockFetch([
@@ -115,7 +115,13 @@ describe('syncing a capture', () => {
     await enqueueCapture({
       ean: TEST_EAN,
       label: 'Apfelsaft',
-      product: { name: 'Apfelsaft vom Regal', brand: null, category: null, notes: null },
+      product: {
+        name: 'Apfelsaft vom Regal',
+        variant: null,
+        brand: null,
+        category: null,
+        notes: null,
+      },
       price: { cents: 199, shop: 'Bioladen', note: null, purchasedAt: '2026-08-20' },
     });
 

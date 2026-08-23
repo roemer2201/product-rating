@@ -109,6 +109,7 @@ export const strings = {
     invite: 'Einladungscode',
     ean: 'EAN',
     name: 'Name',
+    variant: 'Sorte',
     brand: 'Marke',
     category: 'Kategorie',
     notes: 'Notizen',
@@ -259,6 +260,9 @@ export const strings = {
     newIntro: 'Diese EAN ist noch nicht im Katalog. Lege das Produkt an.',
     editTitle: 'Produkt bearbeiten',
     nameHint: 'So, wie du das Produkt im Katalog wiederfinden möchtest.',
+    variantHint:
+      'Die Geschmacksrichtung oder Ausführung, zum Beispiel „Spaghetti Bolognese“ zur „5 Minuten Terrine“.',
+    brandHint: 'Der Hersteller oder die Handelsmarke auf der Verpackung.',
     categoryHint: 'Vorhandene Kategorien stehen zur Auswahl, neue dürfen dazukommen.',
     categoryList: 'Vorhandene Kategorien',
     notesHint: 'Platz für alles, was du dir merken willst.',
@@ -369,7 +373,7 @@ export const strings = {
   catalogue: {
     title: 'Katalog',
     search: 'Suchen',
-    searchPlaceholder: 'Name, Marke oder EAN',
+    searchPlaceholder: 'Name, Sorte, Marke oder EAN',
     filters: 'Filter',
     category: 'Kategorie',
     allCategories: 'Alle Kategorien',

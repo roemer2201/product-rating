@@ -73,6 +73,7 @@ export function makeProduct(overrides: Partial<ProductWithRatings> = {}): Produc
     id: 'prod-1',
     ean: TEST_EAN,
     name: 'Apfelsaft',
+    variant: 'naturtrüb',
     brand: 'Bio Hof',
     category: 'Getränke',
     notes: null,

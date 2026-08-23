@@ -60,6 +60,7 @@ export function ProductPage() {
   const onSave = (values: ProductFormValues): void => {
     const parsed = updateProductSchema.safeParse({
       name: values.name,
+      variant: emptyToNull(values.variant),
       brand: emptyToNull(values.brand),
       category: emptyToNull(values.category),
       notes: emptyToNull(values.notes),
@@ -94,6 +95,7 @@ export function ProductPage() {
         <ProductForm
           initial={{
             name: detail.name,
+            variant: detail.variant ?? '',
             brand: detail.brand ?? '',
             category: detail.category ?? '',
             notes: detail.notes ?? '',
@@ -123,8 +125,16 @@ export function ProductPage() {
   return (
     <section>
       <h1 className="page__title">{detail.name}</h1>
+      {/* The variant leads: it is what distinguishes this product from the
+          others of the same line, and the name above already said the rest. */}
       <p className="page__intro">
-        {detail.brand ?? strings.product.noBrand} · {detail.category ?? strings.product.noCategory}
+        {[
+          detail.variant,
+          detail.brand ?? strings.product.noBrand,
+          detail.category ?? strings.product.noCategory,
+        ]
+          .filter((entry) => entry !== null)
+          .join(' · ')}
       </p>
 
       {detail.primaryPhotoId !== null ? (

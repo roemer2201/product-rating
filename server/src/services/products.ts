@@ -112,6 +112,7 @@ export function toPublicProduct(row: ProductRow): Product {
     id: row.id,
     ean: row.ean,
     name: row.name,
+    variant: row.variant,
     brand: row.brand,
     category: row.category,
     notes: row.notes,
@@ -262,6 +263,7 @@ export function createProduct(
     id: randomUUID(),
     ean: input.ean,
     name: input.name,
+    variant: input.variant,
     brand: input.brand,
     category: input.category,
     notes: input.notes,
@@ -299,6 +301,7 @@ function restoreWithData(
   const row: ProductRow = {
     ...existing,
     name: input.name,
+    variant: input.variant,
     brand: input.brand,
     category: input.category,
     notes: input.notes,
@@ -310,6 +313,7 @@ function restoreWithData(
   db.update(products)
     .set({
       name: row.name,
+      variant: row.variant,
       brand: row.brand,
       category: row.category,
       notes: row.notes,
@@ -346,6 +350,7 @@ export function updateProduct(
 
   const changes: Partial<ProductRow> = { updatedAt: now };
   if (input.name !== undefined) changes.name = input.name;
+  if (input.variant !== undefined) changes.variant = input.variant;
   if (input.brand !== undefined) changes.brand = input.brand;
   if (input.category !== undefined) changes.category = input.category;
   if (input.notes !== undefined) changes.notes = input.notes;
@@ -558,17 +563,21 @@ export function ftsQuery(term: string): string | null {
   return words.map((word) => `"${word.replace(/"/g, '""')}"`).join(' ');
 }
 
-/** Free text search over name, brand and EAN through `LIKE`, as a fallback. */
+/**
+ * Free text search over name, variant, brand and EAN through `LIKE`, as a
+ * fallback.
+ */
 function likeSearchCondition(term: string): SQL | undefined {
   return or(
     containsInsensitive(products.name, term),
+    containsInsensitive(products.variant, term),
     containsInsensitive(products.brand, term),
     containsInsensitive(products.ean, term),
   );
 }
 
 /**
- * Free text search over name, brand and EAN.
+ * Free text search over name, variant, brand and EAN.
  *
  * The words go against `products_fts`, a trigram index kept up to date by
  * triggers on `products`. Trigrams are what makes this useful for German: a

@@ -255,6 +255,8 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 ## Backlog (nach dem MVP)
 
 - [x] Mehrere Fotos pro Produkt inklusive Sortierung
+- [x] Attribut „Sorte“ am Produkt (Name „5 Minuten Terrine“, Sorte „Spaghetti
+      Bolognese“), auch in Suche, Export und Offline-Erfassung
 - [ ] Tags und freie Kategorien mit Autovervollständigung
 - [x] Papierkorb mit Wiederherstellung statt endgültigem Löschen
 - [x] Export nach CSV und JSON, Import zum Umzug
