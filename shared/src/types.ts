@@ -9,9 +9,16 @@
 /** Roles a user account can hold. */
 export type UserRole = 'admin' | 'user';
 
-/** Lowest and highest number of stars a rating may carry. */
+/**
+ * Lowest and highest number of stars a rating may carry.
+ *
+ * Ten stars rather than five: a household comparing two shampoos wants to say
+ * "a bit better than the other one" without arguing over half stars. Everything
+ * that bounds, validates or renders a rating derives from these two constants,
+ * so the scale is changed here and nowhere else.
+ */
 export const RATING_MIN_STARS = 0;
-export const RATING_MAX_STARS = 5;
+export const RATING_MAX_STARS = 10;
 
 /** A user account as exposed by the API. Never carries the password hash. */
 export interface User {

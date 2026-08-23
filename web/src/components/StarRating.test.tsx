@@ -1,17 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { RATING_MAX_STARS } from '@product-rating/shared';
 import userEvent from '@testing-library/user-event';
 import { StarDisplay, StarRating } from '@/components/StarRating';
 import { strings } from '@/lib/strings';
 
 describe('StarRating', () => {
-  it('offers zero to five stars as one radio group', () => {
+  it('offers zero to ten stars as one radio group', () => {
     render(<StarRating value={null} onChange={vi.fn()} />);
 
     const group = screen.getByRole('radiogroup', { name: strings.rating.starsLabel });
     expect(group).toBeInTheDocument();
-    // Zero is a rating of its own, so six options rather than five.
-    expect(screen.getAllByRole('radio')).toHaveLength(6);
+    // Zero is a rating of its own, so eleven options rather than ten.
+    expect(screen.getAllByRole('radio')).toHaveLength(RATING_MAX_STARS + 1);
   });
 
   it('reports the number of stars that was picked', async () => {
@@ -46,7 +47,9 @@ describe('StarRating', () => {
     const onChange = vi.fn();
 
     render(<StarRating value={1} onChange={onChange} disabled />);
-    await user.click(screen.getByRole('radio', { name: strings.rating.starLabel(5) }));
+    await user.click(
+      screen.getByRole('radio', { name: strings.rating.starLabel(RATING_MAX_STARS) }),
+    );
 
     expect(onChange).not.toHaveBeenCalled();
   });
@@ -55,7 +58,9 @@ describe('StarRating', () => {
 describe('StarDisplay', () => {
   it('says the rating in words for a screen reader', () => {
     render(<StarDisplay stars={3} />);
-    expect(screen.getByRole('img', { name: strings.rating.starsOf(3) })).toHaveTextContent('★★★☆☆');
+    expect(screen.getByRole('img', { name: strings.rating.starsOf(3) })).toHaveTextContent(
+      '★★★☆☆☆☆☆☆☆',
+    );
   });
 
   it('stays silent where the text next to it already says it', () => {

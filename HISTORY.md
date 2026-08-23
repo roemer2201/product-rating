@@ -5,6 +5,59 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-23 – Bewertungsskala von 0–5 auf 0–10 Sterne
+
+**Umfang**
+
+- **Skala**: `RATING_MAX_STARS` in `shared/src/types.ts` von `5` auf `10`.
+  Alles, was die Skala begrenzt, prüft oder darstellt, leitet sich von dieser
+  Konstante ab; die Stellen, an denen bis dahin eine `5` fest verdrahtet war,
+  sind auf sie umgestellt: `minStars` in `productListQuerySchema`, das
+  Import-Schema `exportedRatingSchema` in `server/src/services/transfer.ts`,
+  der Filter „Mindestens“ auf der Katalogseite und die Oberflächentexte
+  („… von 10 Sternen“) in `web/src/lib/strings.ts`.
+- **Datenbank**: Der CHECK `ratings_stars_range` lautet jetzt
+  `between 0 and 10` und wird in `schema.ts` aus denselben Konstanten
+  geschrieben. Weil SQLite einen CHECK nicht ändern kann, baut die Migration
+  `0007_rating_scale.sql` die Tabelle `ratings` neu auf und übernimmt die
+  vorhandenen Zeilen – Werte, Kommentare, Zeitstempel und Fremdschlüssel
+  bleiben, geprüft an einer Datenbank mit Bestand.
+- **Sterne-Widget**: Elf Auswahlmöglichkeiten (0 bis 10) passen nicht in eine
+  Reihe, solange jede ihr 44-Pixel-Ziel behält. `.stars` ist deshalb ein Raster
+  aus sechs Spalten, das erst ab 38 rem in eine einzige Reihe fällt; die
+  Glyphengröße wächst mit `clamp()` mit der Spalte.
+- **Dokumentation**: README 1, 4.1 und 4.2, CLAUDE.md 1 und ein Punkt im
+  Backlog von TODO.md.
+
+**Entscheidungen**
+
+- *Zehn Sterne statt halber Sterne.* Der Wunsch nach feineren Abstufungen ist
+  derselbe, den halbe Sterne bedienen würden – nur ist ein ganzer Schritt auf
+  einer längeren Skala am Telefon mit dem Daumen zu treffen, ein halber nicht.
+  Die Bewertung bleibt damit eine ganze Zahl, und Durchschnitt, Sortierung und
+  Cursor rechnen unverändert weiter.
+- *Vorhandene Bewertungen behalten ihre Zahl.* Die einzige Installation ist
+  eine Testinstallation mit einer einzigen Bewertung; der Projektinhaber hat
+  ausdrücklich auf Kompatibilität verzichtet. Eine Umrechnung (`stars * 2`)
+  hätte aus fünf von fünf zehn von zehn gemacht, aber auch aus jeder Drei eine
+  Sechs, ohne dass jemand das je so gemeint hätte – aus einer Skala mit sechs
+  Stufen lassen sich elf nicht nachträglich erfinden. Wer die alten Urteile
+  behalten will, liest sie danach als „von zehn“ und bewertet neu.
+- *Der CHECK bleibt in der Datenbank.* Zod prüft die Skala schon an der Route,
+  aber Import, CLI und ein direkter `sqlite3`-Zugriff gehen daran vorbei. Die
+  Grenze steht deshalb weiter dort, wo sie niemand umgehen kann – und wird
+  über `sql.raw` aus den Konstanten geschrieben, damit die generierte Migration
+  Literale enthält statt gebundener Parameter.
+- *Sechs Spalten, nicht ein Umbruch nach Platz.* Ein `flex-wrap` hätte die
+  Reihe irgendwo aufgetrennt, je nach Gerätebreite. Sechs Spalten teilen die
+  Skala in ihrer Mitte – 0 bis 5 oben, 6 bis 10 unten – und lassen sie damit
+  auch umgebrochen wie eine Skala aussehen.
+- *Die abgehakten Punkte in TODO.md bleiben, wie sie sind.* Sie halten fest,
+  was in M4 und M8 geplant und gebaut wurde; was heute gilt, steht in README
+  und in diesem Eintrag.
+
+---
+
 ## 2026-08-23 – Attribut „Sorte“ am Produkt
 
 **Umfang**

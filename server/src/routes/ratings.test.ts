@@ -164,13 +164,13 @@ describe('saving a rating', () => {
     );
   });
 
-  it('accepts the bounds zero and five', async () => {
+  it('accepts the bounds zero and ten', async () => {
     const zero = await putRating(productIds.juice, { stars: 0 });
     expect(zero.statusCode).toBe(201);
     expect((await readProduct(productIds.juice)).ratings).toEqual({ average: 0, count: 1 });
 
-    const five = await putRating(productIds.oats, { stars: 5 });
-    expect(five.statusCode).toBe(201);
+    const ten = await putRating(productIds.oats, { stars: 10 });
+    expect(ten.statusCode).toBe(201);
 
     // Zero is a verdict, not a missing rating.
     const page = await myRatings();
@@ -178,7 +178,7 @@ describe('saving a rating', () => {
   });
 
   it('rejects values outside the range, fractions and non-numbers', async () => {
-    for (const stars of [6, -1, 2.5, '3', null]) {
+    for (const stars of [11, -1, 2.5, '3', null]) {
       const response = await putRating(productIds.juice, { stars });
       expect(response.statusCode).toBe(400);
     }

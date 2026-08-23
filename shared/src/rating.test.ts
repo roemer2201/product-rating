@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { isValidStars, RATING_MAX_STARS, RATING_MIN_STARS } from './index.js';
 
 describe('rating bounds', () => {
-  it('spans zero to five stars', () => {
+  it('spans zero to ten stars', () => {
     expect(RATING_MIN_STARS).toBe(0);
-    expect(RATING_MAX_STARS).toBe(5);
+    expect(RATING_MAX_STARS).toBe(10);
   });
 
   it('accepts every whole star count in range, including zero', () => {
@@ -15,7 +15,7 @@ describe('rating bounds', () => {
 
   it('rejects out-of-range, fractional and non-numeric values', () => {
     expect(isValidStars(-1)).toBe(false);
-    expect(isValidStars(6)).toBe(false);
+    expect(isValidStars(11)).toBe(false);
     expect(isValidStars(3.5)).toBe(false);
     expect(isValidStars(Number.NaN)).toBe(false);
     expect(isValidStars('4')).toBe(false);

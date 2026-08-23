@@ -261,6 +261,8 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [x] Papierkorb mit Wiederherstellung statt endgültigem Löschen
 - [x] Export nach CSV und JSON, Import zum Umzug
 - [x] Offline-Erfassung mit Sync-Queue (IndexedDB) und Konfliktbehandlung
+- [x] Bewertungsskala von 0–5 auf 0–10 Sterne erweitern – halbe Sterne bleiben
+      draußen, die feineren Abstufungen stehen stattdessen auf der Skala selbst
 - [ ] Statistiken: Bewertungsverteilung, meistbewertete Marken
 - [x] Fremde Bewertungen sichtbar machen: wer im Haushalt hat wie viele Sterne vergeben – bisher liefert die API nur Durchschnitt, Anzahl und die eigene Bewertung
 - [x] FTS5-Suche nachrüsten, falls die `LIKE`-Suche mit wachsendem Katalog spürbar langsam wird
