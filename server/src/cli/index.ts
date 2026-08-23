@@ -6,6 +6,7 @@ import { fsckCommand } from './fsck.js';
 import { consoleIo, type CliIo } from './io.js';
 import { inviteCommand } from './invites.js';
 import { migrateCommand } from './migrate.js';
+import { proxyConfigCommand } from './proxy.js';
 import { UsageError } from './options.js';
 import { restoreCommand } from './restore.js';
 import { serveCommand } from './serve.js';
@@ -33,6 +34,7 @@ export const COMMANDS: readonly CliCommand[] = [
   exportCommand,
   importCommand,
   fsckCommand,
+  proxyConfigCommand,
 ];
 
 /** The help shown without a command, and by `product-rating help`. */

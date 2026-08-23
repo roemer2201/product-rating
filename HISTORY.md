@@ -5,6 +5,68 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-23 – `proxy-config`: Webserver-Konfiguration aus der Instanz erzeugen
+
+**Umfang**
+
+- **Neuer CLI-Befehl** `product-rating proxy-config --server
+  nginx|apache|caddy|traefik` (`apache2` und `httpd` meinen `apache`). Er
+  schreibt dieselben vier Konfigurationen, die `packaging/examples/` als
+  Vorlage enthält – nur ausgefüllt: Hostname und Unterpfad aus
+  `server.base_url`, Adresse der Anwendung aus `server.host` und
+  `server.port`, Größenlimit aus `uploads.max_file_size_mb` plus fünf Megabyte
+  Luft für den Multipart-Rahmen. Jeder Wert lässt sich mit `--domain`,
+  `--base-path`, `--upstream` und `--max-body` überschreiben.
+- **Zertifikat**: `--cert` und `--key` nehmen die Pfade entgegen und gehören
+  zusammen; einer allein ist ein Aufruffehler (Exit-Code 2). Ohne sie stehen
+  bei nginx und Apache die certbot-Pfade in der Datei, Caddy und Traefik
+  bleiben bei ihrer eigenen ACME-Verwaltung.
+- **Ausgabe**: ohne `--out` nach stdout, mit `--out` in eine Datei; ein
+  Verzeichnis wird als solches erkannt und der Dateiname aus dem Ziel
+  abgeleitet (`product-rating.conf`, `product-rating.caddy`,
+  `product-rating.yml`). Fehlende Elternverzeichnisse werden angelegt, eine
+  vorhandene Datei nur mit `--force` überschrieben.
+- **Hinweise auf stderr**: abweichende `server.base_url` samt fertigem
+  `--set`-Aufruf, `server.trust_proxy = false`, ein Zertifikat, das noch nicht
+  existiert, und der Hinweis, dass ein Unterpfad in den Client gebaut werden
+  muss. Die Datei selbst bleibt frei davon und lässt sich weiterleiten.
+- **Code**: `server/src/services/proxyConfig.ts` (Auflösung der Werte und die
+  vier Vorlagen), `server/src/cli/proxy.ts` (Befehl, Optionen, Schreiben),
+  Registrierung in `server/src/cli/index.ts`. Tests: 18 neue Fälle für die
+  Erzeugung, sechs für den Befehl von außen.
+- **Dokumentation**: README 7.3 und 8.1, `packaging/examples/README.md`,
+  CLAUDE.md 4, ein Beispiel im Debian-Wrapper (Version 2.1.0) und drei Punkte
+  in TODO.md.
+
+**Entscheidungen**
+
+- *Ein Befehl der Anwendung, kein eigenes Shell-Skript.* Die Werte, die in der
+  Proxy-Konfiguration stehen müssen, kennt die Anwendung bereits – ein Skript
+  daneben müsste die TOML-Datei, die Umgebungsvariablen und die Vorrangkette
+  ein zweites Mal auswerten. Über die CLI gilt außerdem `--config`
+  unverändert, der Befehl lässt sich also auf eine zweite Instanz richten.
+- *Die Beispieldateien bleiben.* Sie sind die ausführliche Fassung, die jede
+  Einstellung begründet, und werden gelesen, bevor irgendetwas installiert
+  ist. Die erzeugte Datei kommentiert nur, was beim Betrieb wichtig ist, und
+  verweist auf sie.
+- *Kein Zertifikat raten, wo es nicht nötig ist.* Caddy und Traefik besorgen
+  sich eins selbst; würde der Befehl dort certbot-Pfade eintragen, nähme er
+  ihnen genau das ab. nginx und Apache können es nicht, und eine Datei mit
+  einem Platzhalter im `ssl_certificate` wäre keine fertige Konfiguration –
+  dort steht deshalb die Vorgabe von certbot.
+- *Warnen statt abbrechen.* Ein noch nicht ausgestelltes Zertifikat ist der
+  Normalfall, solange der Proxy noch gar nicht steht; die Datei wird trotzdem
+  geschrieben und der fehlende Pfad genannt.
+- *`loadConfig` statt `loadRuntimeConfig`.* Eine Proxy-Konfiguration zu
+  schreiben ist kein Grund, die Datenverzeichnisse der Anwendung anzulegen –
+  der Befehl läuft auch als gewöhnlicher Nutzer auf einer Maschine, die keins
+  davon hat.
+- *Härtungs-Header bleiben, wo sie sind.* Auch die erzeugten Dateien setzen
+  nur `Strict-Transport-Security` und keine Cache-Regeln; alles andere ist
+  Sache der Anwendung (CLAUDE.md 5).
+
+---
+
 ## 2026-08-23 – Bewertungsskala von 0–5 auf 0–10 Sterne
 
 **Umfang**

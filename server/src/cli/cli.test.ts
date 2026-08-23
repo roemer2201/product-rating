@@ -382,3 +382,114 @@ describe('export and import', () => {
     expect(result.err).toContain('export.json');
   });
 });
+
+describe('proxy-config', () => {
+  it('writes an nginx configuration filled in with this instance', async () => {
+    const result = await run([
+      'proxy-config',
+      '--server',
+      'nginx',
+      '--base-url',
+      'https://produkte.example.org',
+      '--set',
+      'server.trust_proxy=true',
+    ]);
+
+    expect(result.code).toBe(0);
+    expect(result.out).toContain('server_name produkte.example.org;');
+    expect(result.out).toContain('server 127.0.0.1:8080;');
+    // Nothing to complain about: base_url matches and the proxy is trusted.
+    expect(result.err).not.toContain('warning:');
+  });
+
+  it('takes the certificate paths and writes them into the file', async () => {
+    const target = join(directory, 'proxy', 'apache.conf');
+    const certificate = join(directory, 'cert.pem');
+    const key = join(directory, 'cert.key');
+    writeFileSync(certificate, 'not a certificate');
+    writeFileSync(key, 'not a key');
+
+    const result = await run([
+      'proxy-config',
+      '--server',
+      'apache2',
+      '--base-url',
+      'https://produkte.example.org',
+      '--set',
+      'server.trust_proxy=true',
+      '--cert',
+      certificate,
+      '--key',
+      key,
+      '--out',
+      target,
+    ]);
+
+    expect(result.code).toBe(0);
+    // The directory did not exist; the result goes to standard error, so the
+    // file itself stays free of anything but configuration.
+    expect(result.err).toContain(`wrote ${target}`);
+    expect(result.out).toBe('');
+
+    const written = readFileSync(target, 'utf8');
+    expect(written).toContain(`SSLCertificateFile    ${certificate}`);
+    expect(written).toContain(`SSLCertificateKeyFile ${key}`);
+  });
+
+  it('refuses to replace a file that is there, unless told to', async () => {
+    const target = join(directory, 'proxy', 'caddy');
+    writeFileSync(target, 'earlier work\n');
+
+    const refused = await run(['proxy-config', '--server', 'caddy', '--out', target]);
+    expect(refused.code).toBe(1);
+    expect(refused.err).toContain('exists already');
+    expect(readFileSync(target, 'utf8')).toBe('earlier work\n');
+
+    const forced = await run(['proxy-config', '--server', 'caddy', '--out', target, '--force']);
+    expect(forced.code).toBe(0);
+    expect(readFileSync(target, 'utf8')).toContain('reverse_proxy');
+  });
+
+  it('names the file itself when --out is a directory', async () => {
+    const target = join(directory, 'proxy');
+
+    const result = await run(['proxy-config', '--server', 'traefik', '--out', target]);
+
+    expect(result.code).toBe(0);
+    expect(existsSync(join(target, 'product-rating.yml'))).toBe(true);
+  });
+
+  it('warns about what the application still has to be told', async () => {
+    const result = await run([
+      'proxy-config',
+      '--server',
+      'nginx',
+      '--domain',
+      'anders.example.org',
+      '--base-url',
+      'https://produkte.example.org',
+    ]);
+
+    expect(result.code).toBe(0);
+    // base_url points somewhere else, and the proxy is not trusted yet -
+    // both let the interface load and then fail at the first save or hide
+    // the client from the log.
+    expect(result.err).toContain('--set server.base_url=https://anders.example.org');
+    expect(result.err).toContain('server.trust_proxy is false');
+  });
+
+  it('rejects a web server it does not know and a half given certificate', async () => {
+    const unknown = await run(['proxy-config', '--server', 'lighttpd']);
+    expect(unknown.code).toBe(2);
+    expect(unknown.err).toContain('unknown web server: lighttpd');
+    expect(unknown.err).toContain('Usage: product-rating proxy-config');
+
+    const half = await run(['proxy-config', '--server', 'nginx', '--cert', '/etc/ssl/x.pem']);
+    expect(half.code).toBe(2);
+    expect(half.err).toContain('--cert and --key go together');
+
+    const missing = await run(['proxy-config']);
+    expect(missing.code).toBe(2);
+    expect(missing.err).toContain('--server is required');
+  });
+});
