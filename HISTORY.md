@@ -65,6 +65,38 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-24 – Offline-Queue: gleiche Millisekunde, zufällige Reihenfolge
+
+**Umfang**
+
+- **Fehler behoben**: `enqueueCapture` (`web/src/lib/offlineQueue.ts`) nahm
+  `Date.now()` direkt als `createdAt`. Zwei Erfassungen innerhalb derselben
+  Millisekunde bekamen damit denselben Zeitstempel, und da die Sortierung in
+  `listCaptures` stabil ist, blieb bei Gleichstand die Reihenfolge stehen, in
+  der IndexedDB die Datensätze herausgibt – die des Schlüssels, also der
+  zufälligen UUID. Zwei hintereinander gescannte Artikel konnten so vertauscht
+  in der Warteschlange stehen. Der Zeitstempel kommt jetzt aus `nextCreatedAt`
+  und ist streng monoton steigend.
+- **Test**: Der bestehende Reihenfolge-Test wartete darauf, dass der
+  Gleichstand von selbst auftritt, und schlug entsprechend sporadisch fehl (in
+  einem Versuchsaufbau 20 von 40 Durchläufen). Der neue Fall hält die
+  Millisekunde mit `vi.spyOn(Date, 'now')` fest und erzwingt den Gleichstand
+  über 20 Durchläufe.
+
+**Entscheidungen**
+
+- **Monotoner Zähler statt feinerer Uhr**: `performance.now()` oder ein
+  zusätzliches Sequenzfeld hätten das Schema oder einen zweiten Lesezugriff
+  gekostet. `Math.max(Date.now(), lastCreatedAt + 1)` bleibt ein `number` in
+  Millisekunden, bestehende Einträge bleiben gültig, und nach einem Neuladen
+  ist die Uhr ohnehin weiter.
+- **Sortierung unverändert**: Kein zweites Sortierkriterium in `listCaptures`.
+  Ein Gleichstand kann dort nicht mehr entstehen, und ein Vergleich nach der
+  zufälligen ID hätte die Reihenfolge nur festgeschrieben, nicht richtig
+  gemacht.
+
+---
+
 ## 2026-08-24 – `proxy-config`: `--server apache` wies den eigenen Namen ab
 
 **Umfang**
