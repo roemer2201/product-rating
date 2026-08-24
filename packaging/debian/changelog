@@ -9,6 +9,8 @@ product-rating (0.2.0) unstable; urgency=medium
     plus --display-name for "user add" and a column in "user list".
   * Export and import carry the display name along; older export files
     without the field are still read.
+  * "proxy-config --server apache" resolves again; the canonical name was
+    missing from the alias table while help and README used it.
   * No change to the installation layout or to the configuration.
 
  -- roemer2201 <roemer2201@users.noreply.github.com>  Mon, 24 Aug 2026 12:00:00 +0000

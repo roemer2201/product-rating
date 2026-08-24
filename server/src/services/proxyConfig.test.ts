@@ -4,6 +4,8 @@ import type { AppConfig } from '../config/index.js';
 import {
   normaliseBasePath,
   parseProxyTarget,
+  PROXY_TARGETS,
+  PROXY_TARGET_NAMES,
   renderProxyConfig,
   resolveProxyConfig,
   type ProxyConfigOptions,
@@ -30,11 +32,22 @@ function render(options: ProxyConfigOptions, config: AppConfig = configuration()
 describe('the target names', () => {
   it('knows the four web servers and the usual other spellings', () => {
     expect(parseProxyTarget('nginx')).toBe('nginx');
+    expect(parseProxyTarget('apache')).toBe('apache');
     expect(parseProxyTarget('Apache2')).toBe('apache');
     expect(parseProxyTarget(' httpd ')).toBe('apache');
     expect(parseProxyTarget('caddy')).toBe('caddy');
     expect(parseProxyTarget('traefik')).toBe('traefik');
     expect(parseProxyTarget('lighttpd')).toBeUndefined();
+  });
+
+  it('resolves every name it offers, the targets themselves included', () => {
+    for (const name of PROXY_TARGET_NAMES) {
+      expect(parseProxyTarget(name)).toBeDefined();
+    }
+    for (const target of PROXY_TARGETS) {
+      expect(PROXY_TARGET_NAMES).toContain(target);
+      expect(parseProxyTarget(target)).toBe(target);
+    }
   });
 });
 
