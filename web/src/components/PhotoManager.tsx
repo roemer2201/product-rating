@@ -1,8 +1,22 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import type { Photo, User } from '@product-rating/shared';
 import { ErrorNotice } from '@/components/Feedback';
 import { OfflineCapture } from '@/components/OfflineCapture';
-import { ArrowDownIcon, ArrowUpIcon, CheckIcon, PhotoIcon, TrashIcon } from '@/components/icons';
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  CameraIcon,
+  CheckIcon,
+  PhotoIcon,
+  TrashIcon,
+} from '@/components/icons';
 import { api, errorMessage } from '@/lib/api';
 import { preparePhoto, type PreparedPhoto } from '@/lib/image';
 import {
@@ -26,11 +40,48 @@ import { strings } from '@/lib/strings';
  * A failed upload keeps the prepared picture, so retrying is one tap and not
  * another trip to the camera.
  *
+ * There are two ways to pick, because on iOS the `capture` attribute is not a
+ * preference the user can step around: with it, Safari opens the camera and
+ * nothing else. A picture that already exists — a label photographed earlier,
+ * something a family member sent — would be unreachable behind that one
+ * button, so the library gets a button of its own without the attribute.
+ *
  * The tiles are shown in the order the product carries them, and the first one
  * is the picture on the card. Moving a photo is therefore the same act as
  * promoting it, which is why the arrows and "Als Hauptbild" sit next to each
  * other instead of in two different places.
  */
+
+interface PhotoSourceProps {
+  label: string;
+  icon: ReactNode;
+  /**
+   * Set for the camera only. It is a wish, not a demand: a phone opens the
+   * camera, a desktop browser ignores it and shows its usual file dialogue.
+   * Left off, iOS offers the photo library instead.
+   */
+  capture?: 'environment';
+  inputRef: RefObject<HTMLInputElement | null>;
+  onPick: (event: ChangeEvent<HTMLInputElement>) => void;
+}
+
+/** One way into the picker; both sources end in the same `onPick`. */
+function PhotoSource({ label, icon, capture, inputRef, onPick }: PhotoSourceProps) {
+  return (
+    <label className="button">
+      {icon}
+      {label}
+      <input
+        ref={inputRef}
+        className="visually-hidden"
+        type="file"
+        accept="image/*"
+        capture={capture}
+        onChange={onPick}
+      />
+    </label>
+  );
+}
 
 interface PhotoManagerProps {
   productId: string;
@@ -42,7 +93,10 @@ interface PhotoManagerProps {
 }
 
 export function PhotoManager({ productId, ean, productName, photos, user }: PhotoManagerProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  // One ref per source: whichever one was used has to be emptied afterwards,
+  // or picking the same file again fires no `change` event.
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const libraryRef = useRef<HTMLInputElement>(null);
 
   const [picked, setPicked] = useState<PreparedPhoto | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -69,7 +123,9 @@ export function PhotoManager({ productId, ean, productName, photos, user }: Phot
     setPreview(null);
     setProgress(null);
     upload.reset();
-    if (inputRef.current !== null) inputRef.current.value = '';
+    for (const ref of [cameraRef, libraryRef]) {
+      if (ref.current !== null) ref.current.value = '';
+    }
   };
 
   const onPick = async (event: ChangeEvent<HTMLInputElement>): Promise<void> => {
@@ -215,20 +271,24 @@ export function PhotoManager({ productId, ean, productName, photos, user }: Phot
       {move.error !== null && <ErrorNotice message={errorMessage(move.error)} />}
 
       <div className="photo-upload">
-        <label className="button">
-          <PhotoIcon className="button__icon" />
-          {strings.photo.take}
-          <input
-            ref={inputRef}
-            className="visually-hidden"
-            type="file"
-            accept="image/*"
-            // Opens the camera directly on a phone and stays a file picker
-            // everywhere else — the attribute is a wish, not a demand.
+        <div className="photo-upload__sources">
+          <PhotoSource
+            label={strings.photo.take}
+            icon={<CameraIcon className="button__icon" />}
             capture="environment"
-            onChange={(event) => void onPick(event)}
+            inputRef={cameraRef}
+            onPick={(event) => void onPick(event)}
           />
-        </label>
+
+          <PhotoSource
+            label={strings.photo.choose}
+            icon={<PhotoIcon className="button__icon" />}
+            inputRef={libraryRef}
+            onPick={(event) => void onPick(event)}
+          />
+        </div>
+
+        <p className="section__intro">{strings.photo.sourceHint}</p>
 
         {preparing && <p role="status">{strings.photo.preparing}</p>}
         {done && <p role="status">{strings.photo.uploaded}</p>}

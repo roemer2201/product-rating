@@ -202,6 +202,37 @@ describe('ProductPage', () => {
     expect(await screen.findByText(strings.photo.uploaded)).toBeInTheDocument();
   });
 
+  it('takes a picture from the library as well as from the camera', async () => {
+    const user = userEvent.setup();
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      { path: '/products/prod-1', body: { product: makeProductDetail() } },
+    ]);
+    const upload = mockUpload();
+
+    renderProduct();
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+
+    // The camera button carries `capture`, which is exactly what makes iOS
+    // skip the library; the second one must not carry it.
+    const camera = screen.getByLabelText(strings.photo.take);
+    const library = screen.getByLabelText(strings.photo.choose);
+    expect(camera).toHaveAttribute('capture', 'environment');
+    expect(library).not.toHaveAttribute('capture');
+
+    await user.upload(
+      library,
+      new File([new Uint8Array(64)], 'IMG_0042.jpg', { type: 'image/jpeg' }),
+    );
+    expect(await screen.findByAltText(strings.photo.previewAlt)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: strings.photo.upload }));
+    upload().respond(201, { photo: makePhoto() });
+
+    expect(await screen.findByText(strings.photo.uploaded)).toBeInTheDocument();
+  });
+
   it('offers a retry when the upload fails and keeps the picture', async () => {
     const user = userEvent.setup();
     mockFetch([
