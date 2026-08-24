@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearCaptures, enqueueCapture, listCaptures, type Capture } from '@/lib/offlineQueue';
 import { discardCapturedRating, keepCapturedRating, syncCaptures } from '@/lib/sync';
 import { mockFetch } from '@/testing/fetchMock';
@@ -41,6 +41,23 @@ describe('the queue', () => {
     await enqueueCapture({ ean: '4006381333931', label: 'dann' });
 
     expect((await listCaptures()).map((entry) => entry.label)).toEqual(['erst', 'dann']);
+  });
+
+  it('keeps that order when both captures fall into the same millisecond', async () => {
+    // Two articles scanned in one go land on the same `Date.now()`. Freezing the
+    // clock forces the tie instead of waiting for it to show up on its own.
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(CAPTURED_AT);
+    try {
+      for (let round = 0; round < 20; round += 1) {
+        await clearCaptures();
+        await enqueueCapture({ ean: TEST_EAN, label: 'erst' });
+        await enqueueCapture({ ean: '4006381333931', label: 'dann' });
+
+        expect((await listCaptures()).map((entry) => entry.label)).toEqual(['erst', 'dann']);
+      }
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   it('takes a picture along with the capture', async () => {
