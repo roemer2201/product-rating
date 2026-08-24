@@ -5,7 +5,7 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
-## 2026-08-24 – Offline-Warteschlange: Erfassungen überleben das Beenden der App
+## 2026-08-24 – Offline-Warteschlange: Erfassungen überleben das Beenden der App (0.2.1)
 
 **Anlass**
 
