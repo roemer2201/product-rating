@@ -197,6 +197,14 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [ ] **[S]** Beim Löschen des Pakets bleibt `/opt` als von dpkg angelegtes
       Verzeichnis zurück; harmlos, aber es lohnt zu prüfen, ob das Paket den
       Eintrag für `/opt` selbst gar nicht mitliefern muss
+- [ ] **[M]** Dependencies-Install-Skript (`packaging/install-dependencies.sh`
+      o. ä.) nach den Skript-Konventionen: installiert die für den Betrieb
+      nötigen Systemabhängigkeiten (u. a. Node.js 22 LTS, Build-Werkzeuge für
+      die nativen Module `better-sqlite3`/`sharp`) auf einem frischen System,
+      damit `dpkg -i` bzw. `apt install ./product-rating*.deb` ohne manuelle
+      Vorbereitung durchläuft. Vorerst nur für Debian/Ubuntu (`apt`); weitere
+      Distributionen bei Bedarf als eigene Zweige im selben Skript oder als
+      eigene Skripte ergänzen
 
 ## M12 – Mitgelieferte Konfigurationen
 
