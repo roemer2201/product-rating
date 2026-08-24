@@ -5,6 +5,31 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-24 – Nachtest auf dem iPhone: Behebung der Warteschlange bestätigt
+
+**Anlass**
+
+Der Nachtest zur vorherigen Behebung (M9), auf demselben Gerät.
+
+**Ergebnis**
+
+Eine Erfassung wurde offline angelegt, die App anschließend aus dem
+App-Umschalter gewischt und neu gestartet – die Erfassung war weiterhin in der
+Warteschlange und wurde bei wiederhergestellter Verbindung automatisch
+übertragen. Damit gilt der Commit-statt-Request-Fix aus 0.2.1 als bestätigt.
+
+Ebenfalls geprüft: Das Safe-Area-Layout kollidiert am unteren Rand nicht mit
+dem Home-Indikator. Offen bleibt nur noch die Erfassung mit Foto im selben
+Ablauf – ob ein `Blob` das Beenden der App ebenso übersteht, ist bisher nur
+durch die Konstruktion des Fixes plausibel, nicht am Gerät gezeigt.
+
+**Umfang**
+
+- TODO M9 nachgezogen: der Nachtest-Punkt ist abgehakt, der übergeordnete
+  Gerätetest-Punkt trägt den bestätigten Stand.
+
+---
+
 ## 2026-08-24 – Offline-Warteschlange: Erfassungen überleben das Beenden der App (0.2.1)
 
 **Anlass**
