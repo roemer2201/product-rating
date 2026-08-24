@@ -162,13 +162,31 @@ export function offlineQueueAvailable(): boolean {
 }
 
 /**
+ * The stamp handed out last.
+ *
+ * Two captures written within the same millisecond would otherwise share their
+ * `createdAt`. The sort in `listCaptures` is stable, so equal stamps keep the
+ * order the store hands the records over in - and that is the order of the
+ * identifiers, which are random. Scanning two articles in one go was enough to
+ * hit it. A strictly increasing stamp makes "oldest first" a promise instead of
+ * a likelihood.
+ */
+let lastCreatedAt = 0;
+
+/** The current time, but never the same value twice, and never going backwards. */
+function nextCreatedAt(): number {
+  lastCreatedAt = Math.max(Date.now(), lastCreatedAt + 1);
+  return lastCreatedAt;
+}
+
+/**
  * Puts a capture into the queue, oldest first when it comes back out.
  *
  * The identifier is generated here rather than by the store, so the caller can
  * refer to what it just wrote without a second read.
  */
 export async function enqueueCapture(input: NewCapture): Promise<Capture> {
-  const now = Date.now();
+  const now = nextCreatedAt();
 
   const capture: Capture = {
     id: crypto.randomUUID(),
