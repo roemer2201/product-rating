@@ -277,6 +277,11 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [x] Bewertungsskala von 0–5 auf 0–10 Sterne erweitern – halbe Sterne bleiben
       draußen, die feineren Abstufungen stehen stattdessen auf der Skala selbst
 - [ ] Statistiken: Bewertungsverteilung, meistbewertete Marken
+- [ ] Globale Statistik-Seite mit Kennzahlen für den ganzen Katalog: Anzahl
+      erfasster Produkte, Anzahl Bewertungen, Anzahl Fotos, Größe der
+      Datenbank, Größe aller Fotos zusammen, Anzahl Nutzer, ggf. weitere
+      interessante Kennzahlen (z. B. Durchschnittsbewertung, Produkte ohne
+      Bewertung, Aktivität je Nutzer)
 - [x] Anzeigename je Konto, selbst gesetzt und selbst geändert: der Name, unter
       dem die anderen im Haushalt eine Bewertung, einen Preis oder einen
       Papierkorb-Eintrag sehen. Bewusst ohne Eindeutigkeit; Anmeldung und
