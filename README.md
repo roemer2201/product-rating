@@ -1016,15 +1016,26 @@ fremder Plattformen heraus, legt den Baum unter `packaging/build/` an und ruft
 `--help` zeigt die Schalter, unter anderem `--version` und `--output`.
 
 Weil `better-sqlite3`, `sharp` und `@node-rs/argon2` native Module enthalten,
-wird das Paket je Architektur gebaut (`amd64`, `arm64`). Die Prebuilds stammen
-vom Baurechner, deshalb lehnt das Skript ein `--arch` ab, das nicht zur eigenen
-Architektur passt – für die andere wird auf ihr gebaut, notfalls im Container:
+wird das Paket je Architektur gebaut. Unterstützt sind `amd64`, `arm64` und
+`armhf`. Die Prebuilds stammen vom Baurechner, deshalb lehnt das Skript ein
+`--arch` ab, das nicht zur eigenen Architektur passt – für eine andere wird auf
+ihr gebaut, notfalls im Container:
 
 ```bash
 docker run --rm -v "${PWD}:/src" -w /src --platform linux/arm64 \
   node:22-bookworm bash -c 'apt-get update && apt-get install -y dpkg-dev \
     && npm run package:deb'
 ```
+
+**`armhf` ist der Sonderfall der drei.** Der automatisierte Release (9.2) baut
+ihn nicht mit, weil GitHub Actions keinen `armhf`-Runner anbietet – ein Paket
+für diese Architektur entsteht nur, wer selbst auf einem 32-Bit-ARM-System oder
+im entsprechenden Container baut (`--platform linux/arm/v7`). `better-sqlite3`
+hat dort außerdem keinen Prebuild, der native Anteil wird also bei jedem Bau neu
+übersetzt statt heruntergeladen – das dauert einige Minuten länger als bei den
+beiden anderen Architekturen, ändert aber nichts am Ergebnis. Im Alltagsbetrieb
+auf `armhf` (Tests wie Produkterfassung) verhält sich das Paket wie auf `amd64`
+und `arm64`.
 
 Abhängigkeiten des Pakets: `nodejs (>= 22)`, `adduser`, `init-system-helpers`,
 `debconf` sowie die C-Bibliotheken, die `dpkg-shlibdeps` beim Bau aus den

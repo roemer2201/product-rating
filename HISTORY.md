@@ -5,6 +5,37 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-24 – `armhf` als unterstützte Architektur aufgenommen
+
+**Anlass**
+
+`armhf` ist seit dem 22.08.2026 baubar (`build-deb.sh`), stand aber als
+ungetestet in TODO. Tests und Produkterfassungen liefen im Alltag bislang
+durchgängig auf dieser Architektur – der offene Punkt ist damit beantwortet.
+
+**Umfang**
+
+- README 7.2 nennt `armhf` jetzt neben `amd64` und `arm64` als unterstützte
+  Architektur des Debian-Pakets, mit dem Unterschied klar benannt: kein
+  GitHub-Actions-Runner, also kein Teil des automatisierten Release (9.2) –
+  wer ein `armhf`-Paket will, baut es selbst, auf dem Zielsystem oder im
+  `linux/arm/v7`-Container. `better-sqlite3` hat dort keinen Prebuild und wird
+  bei jedem Bau übersetzt, was den Bau um einige Minuten verlängert, am
+  Ergebnis aber nichts ändert.
+- CLAUDE.md 7 (bekannte Fallstricke) unterscheidet jetzt zwischen den
+  Docker-Architekturen (`amd64`, `arm64`) und den Debian-Architekturen
+  (zusätzlich `armhf`), statt beide unter einer Aufzählung zu vermengen.
+- TODO abgehakt.
+
+**Entscheidungen**
+
+- Nur das Debian-Paket führt `armhf`, nicht das Container-Image: Dafür gibt es
+  weder eine Anfrage noch einen belegten Anwendungsfall, und `docker buildx`
+  auf `linux/arm/v7` bräuchte eine eigene Prüfung der nativen Module, die
+  bislang niemand gemacht hat.
+
+---
+
 ## 2026-08-24 – Nachtest auf dem iPhone: Behebung der Warteschlange bestätigt
 
 **Anlass**

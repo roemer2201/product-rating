@@ -207,7 +207,10 @@ vollständige Ablauf eines Release steht in README 9.1.
 ## 7. Bekannte Fallstricke
 
 - `better-sqlite3` und `sharp` sind native Module: Debian-Pakete und
-  Docker-Images müssen je Architektur (`amd64`, `arm64`) gebaut werden.
+  Docker-Images müssen je Architektur gebaut werden – Docker-Images für `amd64`
+  und `arm64`, das Debian-Paket zusätzlich für `armhf` (README 7.2), das aber
+  nicht Teil des automatisierten Release ist, weil GitHub Actions dafür keinen
+  Runner anbietet.
 - Ein laufendes SQLite im WAL-Modus lässt sich nicht durch bloßes Kopieren der
   `.db` sichern. Immer `VACUUM INTO` beziehungsweise die Backup-API verwenden.
 - iOS-PWA: Der Service Worker cacht aggressiv. Beim Ausrollen neuer Versionen
