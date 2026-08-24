@@ -174,6 +174,11 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [x] **[M]** Auslieferung der gebauten Oberfläche durch den Server selbst (`server.static_dir`, `@fastify/static`, App-Shell-Fallback, Cache-Regeln) – ohne sie wäre das Image nur die API, während README 2 „API und Frontend in einem Prozess“ zusagt
 - [ ] **[M]** Image real bauen und starten: `docker build`, `docker compose up`, Anmeldung, Scan, Foto-Upload, Neustart mit vorhandenem Volume, `docker compose pull && up -d` als Update – in der Entwicklungsumgebung stand kein Docker-Daemon zur Verfügung, geprüft wurde bisher nur der Laufzeitpfad ohne Container (Entrypoint, gebautes Bundle, Auslieferung, `npm prune --omit=dev`)
 - [ ] **[S]** Multi-Arch-Bau auf `linux/arm64` einmal durchführen und die Prebuilds von `better-sqlite3` und `sharp` bestätigen
+- [ ] **[S]** `linux/arm/v7` (`armhf`) als weitere Zielarchitektur für den
+      Multi-Arch-Build ergänzen, analog zum Debian-Paket (M14), das `armhf`
+      bereits unterstützt. `better-sqlite3` hat dort keinen Prebuild und wird
+      bei jedem Bau übersetzt (mehrere Minuten); Release-Workflow und
+      Dokumentation (README 7.2) entsprechend nachziehen
 - [ ] **[S]** Image-Größe prüfen: `npm prune --omit=dev` lässt auch die Laufzeitabhängigkeiten des Web-Workspaces (React, Router, `zxing-wasm`) im Baum, obwohl das Image nur das gebaute Bundle braucht; dazu die Frage, ob die Sourcemaps in der Laufzeitstufe bleiben
 
 ## M11 – Debian-Paket
