@@ -5,7 +5,7 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
-## 2026-08-24 – Anzeigename je Konto
+## 2026-08-24 – Anzeigename je Konto (0.2.0)
 
 **Umfang**
 
@@ -44,6 +44,10 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
   CSV-Kopfzeile und Registrierungs-Payload nachgezogen.
 - **Dokumentation**: README 2.1, 3, 4.2 (fremde Bewertungen), 5, 5.1, 8.1 und
   8.3, dazu ein erledigter Punkt im Backlog von TODO.md.
+- **Version 0.2.0** in den vier `package.json` und in
+  `packaging/debian/changelog`: neue Funktion samt Migration, die von allein
+  durchläuft – in der `0.x`-Reihe ist das ein MINOR (README 9.1). Der Tag
+  bleibt dem Projektinhaber vorbehalten.
 
 **Entscheidungen**
 
