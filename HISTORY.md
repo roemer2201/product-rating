@@ -5,6 +5,61 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-24 – Offline-Warteschlange: Erfassungen überleben das Beenden der App
+
+**Anlass**
+
+Der erste Test auf einem echten iPhone (offener Punkt aus M9). Hinzufügen zum
+Home-Bildschirm, Scanner und Kamera-Upload verhielten sich wie gedacht. Die
+Warteschlange nicht: Eine Erfassung mit „Offline merken“ wurde angenommen, die
+Oberfläche meldete „1 Erfassung wartet“ – wischte man die App danach aus dem
+App-Umschalter, war sie nach dem Neustart verschwunden, auch mit Verbindung.
+
+**Ursache**
+
+`withStore` in `web/src/lib/offlineQueue.ts` löste sein Promise in
+`request.onsuccess` auf. Das ist die falsche Stelle: Der Request meldet, dass
+der Object Store den Wert genommen hat, nicht dass die Transaktion committet
+ist. Dazwischen liegt ein Fenster, das auf iOS regelmäßig getroffen wird, weil
+das Wischen aus dem App-Umschalter den Prozess sofort beendet und WebKit
+IndexedDB asynchron und gebündelt auf die Platte schreibt. Der Zähler in der
+Oberfläche zählte also etwas, das noch nirgends stand. Ein Foto als `Blob`
+verbreitert das Fenster zusätzlich, weil WebKit es in eine eigene Datei legt.
+
+Zweiter, unabhängiger Verlustweg: Ohne `navigator.storage.persist()` gilt der
+Speicher als verzichtbar. WebKit räumt ihn bei Platzmangel ab und löscht ihn
+nach sieben Tagen ohne Besuch – für eine Warteschlange, deren ganzer Zweck das
+Aufheben über Tage ist, die falsche Voreinstellung.
+
+**Umfang**
+
+- **Commit statt Request**: `withStore` legt das Ergebnis beiseite und gibt es
+  in `transaction.oncomplete` heraus. Schreibende Transaktionen laufen zusätzlich
+  mit `durability: 'strict'`, weil die Voreinstellung `relaxed` einen Commit
+  melden darf, bevor die Bytes im Dateisystem sind. Ältere Engines ignorieren
+  das Optionsargument, verhalten sich also wie bisher.
+- **Persistenz anfragen**: `requestPersistentStorage()` fragt einmal je Sitzung
+  `navigator.storage.persist()` an, ausgelöst vom ersten Schreiben – vorher gibt
+  es nichts zu schützen. Bewusst nicht abgewartet: Ob der Browser zusagt, ändert
+  nichts an diesem Schreibvorgang, und ein Rückfragedialog gehörte nicht vor die
+  Erfassung, die jemand gerade retten will. Lehnt der Browser ab oder kennt er
+  die API nicht, arbeitet die Warteschlange unverändert weiter.
+- **Regressionstest** `web/src/lib/offlineQueue.test.ts`: Er hängt sich an die
+  Transaktion und besteht darauf, dass `committed` vor `resolved` steht. Gegen
+  den alten Stand schlägt er fehl, was der Punkt dieses Tests ist. Dazu die drei
+  Fälle der Persistenzanfrage (frisch zugesagt, schon zugesagt, keine API).
+
+**Entscheidungen**
+
+- `durability: 'strict'` trotz der Kosten. Ein Commit pro Erfassung ist ein
+  seltenes Ereignis am Regal, und die Zusage „was die App als aufgehoben meldet,
+  ist aufgehoben“ ist der einzige Grund, warum diese Warteschlange existiert.
+- Die Persistenzanfrage bleibt vorerst stumm. Sie sichtbar zu machen, wenn sie
+  abgelehnt wird, steht als eigener Punkt in TODO – erst sollte der Nachtest auf
+  dem Gerät zeigen, ob iOS sie einer Home-Bildschirm-App überhaupt verweigert.
+
+---
+
 ## 2026-08-23 – `proxy-config`: Webserver-Konfiguration aus der Instanz erzeugen
 
 **Umfang**

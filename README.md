@@ -237,6 +237,22 @@ die überlegte Korrektur. Die Erfassung wechselt in den Zustand `conflict` und
 stellt die Frage: „Meine Offline-Eingabe“ oder „Fassung vom Server“. Alles
 andere ist entweder anhängend (Preis, Foto) oder über die EAN idempotent.
 
+**Haltbarkeit ist hier eine Zusage, kein Nebeneffekt.** Zwei Dinge, die man in
+IndexedDB leicht falsch macht und die auf dem iPhone sofort auffallen:
+
+- Ein Schreibvorgang gilt erst als erledigt, wenn die **Transaktion committet**
+  ist, nicht wenn `request.onsuccess` gefeuert hat. Dazwischen liegt ein echtes
+  Fenster: Wer die App aus dem App-Umschalter wischt, beendet den Prozess sofort,
+  und was noch nicht committet war, ist weg – während die Oberfläche es längst
+  mitgezählt hatte. `withStore` löst deshalb in `transaction.oncomplete` auf und
+  schreibt mit `durability: 'strict'`, weil die Voreinstellung `relaxed` einen
+  Commit melden darf, bevor die Bytes im Dateisystem sind.
+- Beim ersten Schreiben wird `navigator.storage.persist()` angefragt. Ohne das
+  ist der Speicher „best effort“: WebKit räumt ihn bei Platzmangel ab und löscht
+  ihn nach sieben Tagen ohne Besuch. Eine Home-Bildschirm-App bekommt die Zusage
+  in aller Regel ohne Rückfrage; lehnt der Browser ab, arbeitet die
+  Warteschlange unverändert weiter, nur eben ohne diesen Schutz.
+
 **Verworfen wird nichts von selbst.** Eine Erfassung, die der Server ablehnt
 (etwa: das Produkt ist inzwischen gelöscht und die Erfassung trägt keine
 Produktdaten), bleibt als `failed` mit der Begründung stehen; löschen kann sie

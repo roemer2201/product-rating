@@ -14,6 +14,12 @@
  * IndexedDB rather than `localStorage`, for one reason above all: photos.
  * A `Blob` survives here as bytes, while `localStorage` would need base64 in a
  * few megabytes of string quota.
+ *
+ * Everything below treats "it is saved" as a statement about the disk, not
+ * about the object store: a write resolves when its transaction has committed
+ * (`withStore`) and the storage is marked as persistent (below), because the
+ * queue is read again after the app has been killed, which on iOS happens the
+ * moment somebody swipes it out of the app switcher.
  */
 
 const DATABASE_NAME = 'product-rating-offline';
@@ -133,7 +139,23 @@ function openDatabase(): Promise<IDBDatabase> {
   return connection;
 }
 
-/** Runs one transaction and resolves with what the request produced. */
+/**
+ * Runs one transaction and resolves once it has **committed**.
+ *
+ * The distinction matters more than it looks. `request.onsuccess` fires as soon
+ * as the store has taken the value, which is well before the transaction is on
+ * disk; resolving there reports "saved" for something that is still only in
+ * memory. On an iOS home screen app that is not a theoretical window: swiping
+ * the app out of the switcher kills the process outright, and everything that
+ * had not committed yet is gone — while the interface had already counted it.
+ * So the result of the request is put aside and handed out by `oncomplete`.
+ *
+ * `durability: 'strict'` for writes on top of that, because the default
+ * (`relaxed`) lets the browser report a commit before the bytes have reached
+ * the file system. That costs a moment per capture and buys the one property
+ * this queue exists for: what it says it kept, it kept. Older engines ignore
+ * the options argument, which is the same behaviour as before.
+ */
 async function withStore<T>(
   mode: IDBTransactionMode,
   work: (store: IDBObjectStore) => IDBRequest<T>,
@@ -141,19 +163,60 @@ async function withStore<T>(
   const db = await openDatabase();
 
   return new Promise<T>((resolve, reject) => {
-    const transaction = db.transaction(STORE, mode);
+    const transaction =
+      mode === 'readwrite'
+        ? db.transaction(STORE, mode, { durability: 'strict' })
+        : db.transaction(STORE, mode);
+
+    let result: T;
     const request = work(transaction.objectStore(STORE));
 
     request.onsuccess = () => {
-      resolve(request.result);
+      result = request.result;
     };
     request.onerror = () => {
       reject(request.error ?? new Error('the offline queue could not be read'));
+    };
+
+    transaction.oncomplete = () => {
+      resolve(result);
     };
     transaction.onabort = () => {
       reject(transaction.error ?? new Error('the offline queue could not be written'));
     };
   });
+}
+
+/**
+ * Asks the browser to treat this storage as worth keeping.
+ *
+ * Without it the queue is "best effort": WebKit may throw the storage of a site
+ * away when the device runs short of space, and clears it altogether after
+ * seven days without a visit. A capture is somebody standing in a shop with no
+ * signal, so it is exactly the kind of data that must not be evicted to make
+ * room for a cache. A home screen app is usually granted this without asking;
+ * a browser tab may refuse, and there is nothing to do about that but carry on.
+ *
+ * Asked once per session, on the first write — before that there is nothing to
+ * protect.
+ */
+let persistence: Promise<boolean> | null = null;
+
+export function requestPersistentStorage(): Promise<boolean> {
+  persistence ??= (async () => {
+    if (typeof navigator === 'undefined' || navigator.storage === undefined) return false;
+
+    try {
+      if (await navigator.storage.persisted()) return true;
+      return await navigator.storage.persist();
+    } catch {
+      // Storage is switched off, or the engine has the API but not the
+      // permission behind it. The queue works either way.
+      return false;
+    }
+  })();
+
+  return persistence;
 }
 
 /** True when this browser can hold a queue at all. */
@@ -186,6 +249,11 @@ export async function enqueueCapture(input: NewCapture): Promise<Capture> {
     progress: { productId: null, rating: false, price: false, photos: 0 },
     conflict: null,
   };
+
+  // Not awaited: whether the browser grants persistence changes nothing about
+  // this write, and on a cold start the permission prompt of some engines would
+  // otherwise sit in front of the capture the person is trying to save.
+  void requestPersistentStorage();
 
   await withStore('readwrite', (store) => store.put(capture));
   return capture;
