@@ -60,6 +60,135 @@ Aufheben über Tage ist, die falsche Voreinstellung.
 
 ---
 
+## 2026-08-24 – Anzeigename je Konto (0.2.0)
+
+**Umfang**
+
+- **Neue Spalte** `users.display_name` (Migration `0008_user_display_name`,
+  `ALTER TABLE … ADD COLUMN`, `null`-bar). Bewusst **ohne** Unique-Index: der
+  Anzeigename ist ein Etikett, keine Kennung – niemand meldet sich damit an,
+  und zwei Personen im Haushalt dürfen sich „Oma“ nennen. `null` heißt „nicht
+  gesetzt“; dann steht überall der Benutzername.
+- **Selbst verwalten**: `PATCH /api/v1/auth/profile` setzt den eigenen Namen,
+  `null` gibt ihn wieder auf. Die Route nimmt bewusst keine Kennung entgegen,
+  spricht also immer „mein Konto“ an – damit ist Umbenennen fremder Konten
+  nicht ausdrückbar statt nachträglich geprüft. Administratoren können den
+  Namen zusätzlich über `PATCH /api/v1/users/:id` und beim Anlegen setzen,
+  ebenso die Registrierung (optionales Feld).
+- **Wo er erscheint**: fremde Bewertungen auf der Produktseite, der
+  Preisverlauf, der Papierkorb in der Verwaltung, die Nutzerliste und die
+  Begrüßung in der Kopfzeile. Die API liefert dafür `username` **und**
+  `displayName`; welcher gezeigt wird, entscheidet `accountName()` in
+  `shared/src/account.ts` an einer Stelle für alle Ansichten.
+- **Regeln**: zwei bis 40 Zeichen, Leerzeichen, Umlaute und Großschreibung
+  erlaubt, Steuerzeichen nicht – die würden Zeilenumbrüche oder
+  Bidi-Overrides in eine Liste tragen, in der jeder andere Eintrag einzeilig
+  ist. Getrimmt wird serverseitig, ein leeres Feld ist kein Fehler, sondern
+  der Weg, den Namen abzulegen (`normaliseDisplayName()`).
+- **Kommandozeile**: `product-rating user display-name <konto> [text]` setzt
+  und entfernt ihn, `user add --display-name` legt ihn gleich mit an,
+  `user list` zeigt ihn in einer eigenen Spalte. Der Text darf ohne
+  Anführungszeichen Leerzeichen enthalten.
+- **Umzug**: Export und Import nehmen den Anzeigenamen mit (`export.json`,
+  neue Spalte `display_name` in `users.csv`). Ältere Dateien ohne das Feld
+  werden weiter gelesen; Konten, die auf der Zielinstanz schon existieren,
+  bleiben wie gehabt unangetastet.
+- **Tests**: fünf für die neue Route, drei für den Dienst, je einer für
+  Bewertungsliste, Umzug, zwei für die CLI und drei für die Oberfläche
+  (Einstellungen, Produktseite). Bestehende Erwartungen an Routentabelle,
+  CSV-Kopfzeile und Registrierungs-Payload nachgezogen.
+- **Dokumentation**: README 2.1, 3, 4.2 (fremde Bewertungen), 5, 5.1, 8.1 und
+  8.3, dazu ein erledigter Punkt im Backlog von TODO.md.
+- **Version 0.2.0** in den vier `package.json` und in
+  `packaging/debian/changelog`: neue Funktion samt Migration, die von allein
+  durchläuft – in der `0.x`-Reihe ist das ein MINOR (README 9.1). Der Tag
+  bleibt dem Projektinhaber vorbehalten.
+
+**Entscheidungen**
+
+- **Zwei Namen statt einem.** Der Benutzername bleibt, was er ist: klein
+  geschrieben, eindeutig, das, was Anmeldung, Log, CLI und Passwort-Link
+  meinen. Der Anzeigename liegt darüber und ist frei. Ihn stattdessen
+  änderbar zu machen hätte jede Referenz auf „anna“ zu einem beweglichen Ziel
+  gemacht – bis hin zu `--owner` beim Import.
+- **Beide Namen reisen über die API**, statt serverseitig einen fertigen Namen
+  einzusetzen. So bleibt das Feld ehrlich benannt, und die Verwaltung kann den
+  Benutzernamen weiter danebenschreiben, wo er gebraucht wird.
+- **Kein Zwang und keine Eindeutigkeit.** Ein Haushalt mit fünf Konten braucht
+  keine Namenskollisionsverwaltung; wer keinen Anzeigenamen setzt, erscheint
+  wie bisher.
+
+---
+
+## 2026-08-24 – Offline-Queue: gleiche Millisekunde, zufällige Reihenfolge
+
+**Umfang**
+
+- **Fehler behoben**: `enqueueCapture` (`web/src/lib/offlineQueue.ts`) nahm
+  `Date.now()` direkt als `createdAt`. Zwei Erfassungen innerhalb derselben
+  Millisekunde bekamen damit denselben Zeitstempel, und da die Sortierung in
+  `listCaptures` stabil ist, blieb bei Gleichstand die Reihenfolge stehen, in
+  der IndexedDB die Datensätze herausgibt – die des Schlüssels, also der
+  zufälligen UUID. Zwei hintereinander gescannte Artikel konnten so vertauscht
+  in der Warteschlange stehen. Der Zeitstempel kommt jetzt aus `nextCreatedAt`
+  und ist streng monoton steigend.
+- **Test**: Der bestehende Reihenfolge-Test wartete darauf, dass der
+  Gleichstand von selbst auftritt, und schlug entsprechend sporadisch fehl (in
+  einem Versuchsaufbau 20 von 40 Durchläufen). Der neue Fall hält die
+  Millisekunde mit `vi.spyOn(Date, 'now')` fest und erzwingt den Gleichstand
+  über 20 Durchläufe.
+
+**Entscheidungen**
+
+- **Monotoner Zähler statt feinerer Uhr**: `performance.now()` oder ein
+  zusätzliches Sequenzfeld hätten das Schema oder einen zweiten Lesezugriff
+  gekostet. `Math.max(Date.now(), lastCreatedAt + 1)` bleibt ein `number` in
+  Millisekunden, bestehende Einträge bleiben gültig, und nach einem Neuladen
+  ist die Uhr ohnehin weiter.
+- **Sortierung unverändert**: Kein zweites Sortierkriterium in `listCaptures`.
+  Ein Gleichstand kann dort nicht mehr entstehen, und ein Vergleich nach der
+  zufälligen ID hätte die Reihenfolge nur festgeschrieben, nicht richtig
+  gemacht.
+
+---
+
+## 2026-08-24 – `proxy-config`: `--server apache` wies den eigenen Namen ab
+
+**Umfang**
+
+- **Fehler behoben**: In `TARGET_ALIASES` (`server/src/services/proxyConfig.ts`)
+  standen `apache2` und `httpd`, aber nicht `apache` selbst. Da die Tabelle der
+  einzige Weg ist, einen Namen aufzulösen, war ausgerechnet der kanonische
+  Name ein Aufruffehler – während die Meldung dazu `apache` als bekannt
+  auflistete und die Beispiele in Hilfe und README ihn benutzten. Der Eintrag
+  fehlt nicht mehr.
+- **Eine Quelle für die Namen**: Neu exportiert wird `PROXY_TARGET_NAMES`, die
+  Schlüssel der Alias-Tabelle in Reihenfolge. Hilfetext und Fehlermeldung
+  bauen darauf auf, statt aus `PROXY_TARGETS` nur die Zielnamen zu nehmen und
+  die übrigen Schreibweisen daneben in Prosa zu erwähnen.
+- **Hilfezeile**: `--server NAME` schreibt jetzt alle sechs akzeptierten Namen
+  aus (`nginx | apache | apache2 | httpd | caddy | traefik`) statt vier davon
+  plus einem Klammerzusatz.
+- **Tests**: `parseProxyTarget('apache')` fehlte in der Prüfung – genau die
+  Lücke, durch die der Fehler kam. Dazu ein Fall, der jeden angebotenen Namen
+  auflöst und jedes Ziel in den angebotenen Namen wiederfindet, sowie ein
+  Aufruf des Befehls mit allen drei Apache-Schreibweisen und eine Prüfung der
+  Hilfezeile.
+- **Dokumentation**: README 7.3 und die Befehlstabelle in 8.1 nennen die
+  akzeptierten Schreibweisen.
+
+**Entscheidungen**
+
+- **Den Alias ergänzen statt die Dokumentation anzupassen.** `apache` ist der
+  Zielname im Typ, steht in `PROXY_TARGETS` und wird in beiden Beispielen
+  verwendet; dass er nicht auflöste, war ein Versehen und keine Festlegung.
+- **Die Liste der Namen aus der Alias-Tabelle ableiten.** Eine zweite,
+  handgepflegte Aufzählung im Hilfetext wäre genau die Art von Duplikat, die
+  hier auseinandergelaufen ist.
+
+
+---
+
 ## 2026-08-23 – `proxy-config`: Webserver-Konfiguration aus der Instanz erzeugen
 
 **Umfang**

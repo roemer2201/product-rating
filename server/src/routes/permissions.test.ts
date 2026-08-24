@@ -94,6 +94,13 @@ const ROUTES: RouteRule[] = [
     payload: {},
   },
   { method: 'GET', url: '/api/v1/auth/me', pattern: '/api/v1/auth/me', access: 'user' },
+  {
+    method: 'PATCH',
+    url: '/api/v1/auth/profile',
+    pattern: '/api/v1/auth/profile',
+    access: 'user',
+    payload: { displayName: null },
+  },
   { method: 'GET', url: '/api/v1/auth/sessions', pattern: '/api/v1/auth/sessions', access: 'user' },
   {
     method: 'DELETE',

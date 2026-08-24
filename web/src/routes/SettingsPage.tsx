@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { changePasswordSchema } from '@product-rating/shared';
+import { changePasswordSchema, updateProfileSchema } from '@product-rating/shared';
 import { EmptyState, ErrorNotice, SkeletonList } from '@/components/Feedback';
 import { CaptureQueue } from '@/components/CaptureQueue';
 import { Field } from '@/components/Field';
@@ -13,6 +13,7 @@ import {
   useOwnSessions,
   useRevokeSession,
   useSession,
+  useUpdateProfile,
 } from '@/lib/queries';
 import { strings } from '@/lib/strings';
 
@@ -21,6 +22,10 @@ import { strings } from '@/lib/strings';
  *
  * Logging out is offered here as well as in the header. The header is where it
  * has to work from anywhere; this is where people look for it.
+ *
+ * The display name is the one thing about the account that changes here
+ * without an administrator: it is what the others in the household see at a
+ * rating, so whoever wears the name decides what it is.
  */
 export function SettingsPage() {
   const navigate = useNavigate();
@@ -28,14 +33,39 @@ export function SettingsPage() {
   const session = useSession();
   const sessions = useOwnSessions();
   const changePassword = useChangePassword();
+  const updateProfile = useUpdateProfile();
   const revoke = useRevokeSession();
   const logout = useLogout();
 
+  const [displayName, setDisplayName] = useState<string | null>(null);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [errors, setErrors] = useState<FieldErrors>({});
 
   const user = session.data;
+
+  // The field follows the account until it is typed in for the first time:
+  // `null` means "not touched yet", so a name saved on another device still
+  // shows up here after a refetch.
+  const displayNameValue = displayName ?? user?.displayName ?? '';
+
+  const onSaveDisplayName = (event: FormEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+
+    // An empty field is not an error but the way to give the name up again,
+    // so it skips the schema and goes to the server as `null`.
+    const wanted = displayNameValue.trim();
+    if (wanted !== '') {
+      const parsed = updateProfileSchema.safeParse({ displayName: wanted });
+      if (!parsed.success) {
+        setErrors(fieldErrors(parsed.error.issues));
+        return;
+      }
+    }
+
+    setErrors({});
+    updateProfile.mutate({ displayName: wanted === '' ? null : wanted });
+  };
 
   const onChangePassword = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
@@ -85,6 +115,10 @@ export function SettingsPage() {
               <dd>{user.username}</dd>
             </div>
             <div className="product__fact">
+              <dt>{strings.fields.displayName}</dt>
+              <dd>{user.displayName ?? strings.settings.displayNameNone}</dd>
+            </div>
+            <div className="product__fact">
               <dt>{strings.settings.role}</dt>
               <dd>
                 {user.role === 'admin' ? strings.settings.roleAdmin : strings.settings.roleUser}
@@ -98,6 +132,46 @@ export function SettingsPage() {
           <p className="product__meta">
             {strings.settings.memberSince(formatDate(user.createdAt))}
           </p>
+        </section>
+      )}
+
+      {user != null && (
+        <section className="section">
+          <h2 className="section__title">{strings.settings.displayNameTitle}</h2>
+          <p className="section__intro">{strings.settings.displayNameIntro}</p>
+
+          <form className="form" onSubmit={onSaveDisplayName} noValidate>
+            {updateProfile.error !== null && (
+              <ErrorNotice message={errorMessage(updateProfile.error)} />
+            )}
+
+            {updateProfile.isSuccess && (
+              <p className="notice" role="status">
+                {strings.settings.displayNameSaved(updateProfile.data.displayName)}
+              </p>
+            )}
+
+            <Field
+              label={strings.settings.displayNameLabel}
+              name="displayName"
+              value={displayNameValue}
+              onChange={(event) => {
+                setDisplayName(event.target.value);
+              }}
+              autoComplete="nickname"
+              optional
+              hint={strings.settings.displayNameHint}
+              error={errors.displayName}
+            />
+
+            <button
+              type="submit"
+              className="button button--primary"
+              disabled={updateProfile.isPending}
+            >
+              {updateProfile.isPending ? strings.common.saving : strings.settings.displayNameSubmit}
+            </button>
+          </form>
         </section>
       )}
 

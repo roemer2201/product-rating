@@ -78,6 +78,9 @@ export const strings = {
     intro: 'Ein Konto entsteht nur mit einem Einladungscode.',
     username: 'Benutzername',
     usernameHint: '3 bis 32 Zeichen: Buchstaben, Ziffern, Punkt, Bindestrich, Unterstrich.',
+    displayName: 'Anzeigename',
+    displayNameHint:
+      'So erscheinst du bei den Bewertungen. Lässt sich jederzeit in den Einstellungen ändern.',
     password: 'Passwort',
     email: 'E-Mail',
     emailHint: 'Wird nur für Hinweise genutzt und kann leer bleiben.',
@@ -108,6 +111,7 @@ export const strings = {
   /** Field names, used in labels and in messages that have to name a field. */
   fields: {
     username: 'Benutzername',
+    displayName: 'Anzeigename',
     password: 'Passwort',
     newPassword: 'Neues Passwort',
     currentPassword: 'Aktuelles Passwort',
@@ -130,6 +134,7 @@ export const strings = {
     fallback: 'Diese Eingabe passt nicht.',
     username:
       'Der Benutzername braucht 3 bis 32 Zeichen: Buchstaben, Ziffern, Punkt, Bindestrich oder Unterstrich.',
+    displayName: 'Der Anzeigename braucht 2 bis 40 Zeichen.',
     password: 'Bitte ein Passwort eingeben.',
     email: 'Bitte eine gültige E-Mail-Adresse eingeben oder das Feld leer lassen.',
     invite: 'Bitte den Einladungscode eingeben, zum Beispiel A1B2-C3D4-E5F6.',
@@ -423,6 +428,19 @@ export const strings = {
     roleAdmin: 'Administrator',
     roleUser: 'Nutzer',
     memberSince: (date: string) => `Dabei seit ${date}`,
+
+    displayNameTitle: 'Anzeigename',
+    displayNameIntro:
+      'Unter diesem Namen sehen dich die anderen im Haushalt bei Bewertungen und Preisen. ' +
+      'Ohne Anzeigename steht dort dein Benutzername.',
+    displayNameLabel: 'Anzeigename',
+    displayNameHint: '2 bis 40 Zeichen, Leerzeichen und Umlaute erlaubt. Leer lassen entfernt ihn.',
+    displayNameSubmit: 'Anzeigename speichern',
+    displayNameSaved: (name: string | null) =>
+      name === null
+        ? 'Der Anzeigename wurde entfernt. Du erscheinst wieder als dein Benutzername.'
+        : `Du erscheinst jetzt als ${name}.`,
+    displayNameNone: 'Nicht gesetzt',
 
     passwordTitle: 'Passwort ändern',
     passwordIntro: 'Nach der Änderung werden alle anderen Sitzungen abgemeldet.',

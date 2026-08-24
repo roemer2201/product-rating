@@ -22,14 +22,25 @@ import type { AppConfig } from '../config/index.js';
 export const PROXY_TARGETS = ['nginx', 'apache', 'caddy', 'traefik'] as const;
 export type ProxyTarget = (typeof PROXY_TARGETS)[number];
 
-/** Other spellings of the same web server, accepted on the command line. */
+/**
+ * Every spelling of a web server accepted on the command line, including the
+ * target names themselves - Apache answers to three of them because the
+ * package, the binary and the project each use a different one.
+ *
+ * The insertion order is the order the names are offered in, so a target and
+ * its other spellings stay next to each other.
+ */
 const TARGET_ALIASES: Record<string, ProxyTarget> = {
+  nginx: 'nginx',
+  apache: 'apache',
   apache2: 'apache',
   httpd: 'apache',
-  nginx: 'nginx',
   caddy: 'caddy',
   traefik: 'traefik',
 };
+
+/** The accepted names, for the help text and for error messages. */
+export const PROXY_TARGET_NAMES = Object.keys(TARGET_ALIASES);
 
 /** Recognises a target name, `undefined` for anything else. */
 export function parseProxyTarget(name: string): ProxyTarget | undefined {

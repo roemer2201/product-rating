@@ -445,6 +445,7 @@ export function listTrash(db: DbHandle): TrashEntry[] {
     .select({
       product: products,
       username: users.username,
+      displayName: users.displayName,
       ratingCount: sql<number>`(
         select count(*) from ${ratings} where ${ratings.productId} = ${products.id}
       )`,
@@ -465,6 +466,7 @@ export function listTrash(db: DbHandle): TrashEntry[] {
     deletedAt: (row.product.deletedAt ?? new Date(0)).toISOString(),
     deletedBy: row.product.deletedBy,
     deletedByUsername: row.username,
+    deletedByDisplayName: row.displayName,
     ratings: row.ratingCount,
     photos: row.photoCount,
   }));

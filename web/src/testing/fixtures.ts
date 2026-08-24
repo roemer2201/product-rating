@@ -21,7 +21,7 @@ export const TEST_EAN = '4260000000011';
 
 /** A rating of somebody else, as the product page lists it. */
 export function makeProductRating(overrides: Partial<ProductRating> = {}): ProductRating {
-  return { ...makeRating(), username: 'anna', ...overrides };
+  return { ...makeRating(), username: 'anna', displayName: null, ...overrides };
 }
 
 export function makeRating(overrides: Partial<Rating> = {}): Rating {
@@ -58,6 +58,7 @@ export function makePrice(overrides: Partial<Price> = {}): Price {
     productId: 'prod-1',
     userId: testUser.id,
     username: 'anna',
+    displayName: null,
     cents: 199,
     currency: 'EUR',
     shop: 'Bioladen',

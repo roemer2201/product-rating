@@ -58,6 +58,7 @@ export function mockFetch(routes: readonly FetchRoute[]): Mock {
 export const testUser = {
   id: 'user-1',
   username: 'anna',
+  displayName: null,
   email: null,
   role: 'user',
   passwordResetRequired: false,

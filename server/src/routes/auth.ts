@@ -5,6 +5,7 @@ import {
   redeemResetSchema,
   registerSchema,
   resetTokenSchema,
+  updateProfileSchema,
   type SessionInfo,
   type User,
 } from '@product-rating/shared';
@@ -32,6 +33,7 @@ import {
   insertUser,
   setPassword,
   updatePasswordHash,
+  updateUser,
 } from '../services/users.js';
 import { consumeInvite, findInvite } from '../services/invites.js';
 
@@ -155,6 +157,24 @@ export function registerAuthRoutes(app: FastifyInstance): void {
     return { user: currentPublicUser(request) satisfies User };
   });
 
+  /**
+   * Changes what the others see: the display name, and nothing else.
+   *
+   * Everybody may name themselves, so this needs no administrator — a name is
+   * neither a role nor a permission, and the username underneath it stays
+   * exactly as it was. `null` gives the name up again; the username stands in
+   * for it from then on.
+   */
+  app.patch('/api/v1/auth/profile', { preHandler: app.requireUser }, async (request) => {
+    const input = updateProfileSchema.parse(request.body);
+    const user = currentUser(request);
+
+    const updated = updateUser(app.db, user.id, { displayName: input.displayName });
+
+    request.log.info({ userId: user.id }, 'display name changed');
+    return { user: updated satisfies User };
+  });
+
   app.post('/api/v1/auth/register', async (request, reply) => {
     const input = registerSchema.parse(request.body);
 
@@ -176,6 +196,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
         username: input.username,
         passwordHash,
         email: input.email ?? null,
+        displayName: input.displayName ?? null,
         role: 'user',
       });
       consumeInvite(tx, input.invite, created.id);

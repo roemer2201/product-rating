@@ -43,7 +43,7 @@ export function AppLayout() {
         <div className="app-header__user">
           {session.data != null && (
             <span className="app-header__username">
-              {strings.session.loggedInAs(session.data.username)}
+              {strings.session.loggedInAs(session.data.displayName ?? session.data.username)}
             </span>
           )}
           <button

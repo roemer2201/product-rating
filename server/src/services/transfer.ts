@@ -59,6 +59,8 @@ const PRIVATE_MODE = 0o700;
 
 const exportedUserSchema = z.object({
   username: z.string().min(1),
+  /** The name the others see; absent in files written before it existed. */
+  displayName: z.string().nullish(),
   email: z.string().nullish(),
   role: z.enum(['admin', 'user']).default('user'),
   createdAt: z.string().optional(),
@@ -167,7 +169,7 @@ export interface ExportResult {
  * The accounts, without anything that could serve as a credential.
  *
  * What travels is what the other side needs in order to attribute a rating and
- * to know who may administer the instance: the name, the role, the e-mail
+ * to know who may administer the instance: both names, the role, the e-mail
  * address and the two dates. The password hash deliberately stays behind.
  */
 function collectUsers(db: DbHandle): ExportedUser[] {
@@ -178,6 +180,7 @@ function collectUsers(db: DbHandle): ExportedUser[] {
     .all()
     .map((row) => ({
       username: row.username,
+      displayName: row.displayName,
       email: row.email,
       role: row.role,
       createdAt: row.createdAt.toISOString(),
@@ -461,12 +464,13 @@ function ratingsCsv(exported: ExportedProduct[]): string {
 
 function usersCsv(accounts: ExportedUser[]): string {
   const rows: (string | number | null)[][] = [
-    ['username', 'role', 'email', 'created_at', 'disabled_at'],
+    ['username', 'display_name', 'role', 'email', 'created_at', 'disabled_at'],
   ];
 
   for (const account of accounts) {
     rows.push([
       account.username,
+      account.displayName ?? null,
       account.role,
       account.email ?? null,
       account.createdAt ?? null,
@@ -679,6 +683,7 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
       if (!dryRun) {
         const created = insertLockedUser(db, {
           username: name,
+          displayName: account.displayName ?? null,
           email: account.email ?? null,
           role: account.role,
           createdAt: momentOf(account.createdAt, now),

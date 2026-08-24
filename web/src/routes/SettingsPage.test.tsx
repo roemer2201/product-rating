@@ -52,6 +52,55 @@ function renderSettings() {
 }
 
 describe('SettingsPage', () => {
+  it('saves a display name and says how the others will see it', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      SESSIONS,
+      {
+        path: '/auth/profile',
+        method: 'PATCH',
+        body: { user: { ...testUser, displayName: 'Anna aus dem Bad' } },
+      },
+    ]);
+
+    renderSettings();
+
+    const field = await screen.findByLabelText(new RegExp(strings.settings.displayNameLabel, 'iu'));
+    await user.type(field, 'Anna aus dem Bad');
+    await user.click(screen.getByRole('button', { name: strings.settings.displayNameSubmit }));
+
+    expect(
+      await screen.findByText(strings.settings.displayNameSaved('Anna aus dem Bad')),
+    ).toBeInTheDocument();
+
+    const request = fetchMock.mock.calls.find(([url]) => String(url).includes('/auth/profile'));
+    expect(JSON.parse(String((request?.[1] as RequestInit).body))).toEqual({
+      displayName: 'Anna aus dem Bad',
+    });
+  });
+
+  it('sends null when the field is emptied, which gives the name up', async () => {
+    const user = userEvent.setup();
+    const named = { ...testUser, displayName: 'Anna aus dem Bad' };
+    const fetchMock = mockFetch([
+      { path: '/auth/me', body: { user: named } },
+      SESSIONS,
+      { path: '/auth/profile', method: 'PATCH', body: { user: testUser } },
+    ]);
+
+    renderSettings();
+
+    const field = await screen.findByDisplayValue('Anna aus dem Bad');
+    await user.clear(field);
+    await user.click(screen.getByRole('button', { name: strings.settings.displayNameSubmit }));
+
+    await waitFor(() => {
+      const request = fetchMock.mock.calls.find(([url]) => String(url).includes('/auth/profile'));
+      expect(JSON.parse(String((request?.[1] as RequestInit).body))).toEqual({ displayName: null });
+    });
+  });
+
   it('lists what was captured offline and transfers it on request', async () => {
     const user = userEvent.setup();
     await enqueueCapture({

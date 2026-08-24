@@ -291,40 +291,54 @@ describe('changing and removing photos', () => {
 });
 
 describe('checking the upload directory', () => {
+  /**
+   * A bucket for the stray file that the product itself cannot live in.
+   *
+   * Photos are bucketed by the first two characters of the product identifier,
+   * and that identifier is a random UUID: a hard coded "ab" collides with it
+   * once in 256 runs, and the bucket then survives the repair because it still
+   * holds a referenced file.
+   */
+  function strayBucket(): string {
+    return productId.startsWith('ab') ? 'cd' : 'ab';
+  }
+
   it('reports files no row claims and rows whose files are gone', async () => {
     const stored = await upload(ANNA.id);
     const row = photoRow();
 
     // A file left over from an interrupted delete, and a lost thumbnail.
-    mkdirSync(join(config.paths.uploads, 'ab'), { recursive: true });
-    writeFileSync(join(config.paths.uploads, 'ab', 'stray.webp'), 'not referenced');
+    const bucket = strayBucket();
+    mkdirSync(join(config.paths.uploads, bucket), { recursive: true });
+    writeFileSync(join(config.paths.uploads, bucket, 'stray.webp'), 'not referenced');
     unlinkSync(photoFilePath(config, row, 'thumb'));
 
     const report = await checkUploads(database.db, config);
 
     expect(report.photos).toBe(1);
-    expect(report.orphanFiles).toEqual(['ab/stray.webp']);
+    expect(report.orphanFiles).toEqual([`${bucket}/stray.webp`]);
     expect(report.missingFiles).toEqual([
       { photoId: stored.photo.id, productId, path: photoRelativePath(row, 'thumb') },
     ]);
     // Reporting alone changes nothing on disk.
     expect(report.removed).toBe(0);
-    expect(existsSync(join(config.paths.uploads, 'ab', 'stray.webp'))).toBe(true);
+    expect(existsSync(join(config.paths.uploads, bucket, 'stray.webp'))).toBe(true);
   });
 
   it('removes orphans only when repairing, never a referenced file', async () => {
     await upload(ANNA.id);
     const row = photoRow();
 
-    mkdirSync(join(config.paths.uploads, 'ab'), { recursive: true });
-    writeFileSync(join(config.paths.uploads, 'ab', 'stray.webp'), 'not referenced');
+    const bucket = strayBucket();
+    mkdirSync(join(config.paths.uploads, bucket), { recursive: true });
+    writeFileSync(join(config.paths.uploads, bucket, 'stray.webp'), 'not referenced');
 
     const report = await checkUploads(database.db, config, { repair: true });
 
     expect(report.removed).toBe(1);
-    expect(existsSync(join(config.paths.uploads, 'ab', 'stray.webp'))).toBe(false);
+    expect(existsSync(join(config.paths.uploads, bucket, 'stray.webp'))).toBe(false);
     // The bucket it lived in is empty now and goes as well.
-    expect(existsSync(join(config.paths.uploads, 'ab'))).toBe(false);
+    expect(existsSync(join(config.paths.uploads, bucket))).toBe(false);
     expect(existsSync(photoFilePath(config, row, 'full'))).toBe(true);
     expect(existsSync(photoFilePath(config, row, 'thumb'))).toBe(true);
   });
