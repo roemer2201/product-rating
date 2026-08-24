@@ -20,7 +20,21 @@ export interface CreateUserOptions {
   username: string;
   password: string;
   email?: string | null;
+  displayName?: string | null;
   role?: UserRole;
+}
+
+/**
+ * Brings a display name into the shape the database stores.
+ *
+ * Everything that is not a name is `null`: an empty field in a form, a string
+ * of spaces, a column that an old row does not have. That way "has no display
+ * name" is one value and not three, and the fallback to the username is a
+ * single `??` everywhere else.
+ */
+export function normaliseDisplayName(value: string | null | undefined): string | null {
+  const trimmed = value?.trim() ?? '';
+  return trimmed.length === 0 ? null : trimmed;
 }
 
 /** Maps a database row to the shape the API hands out. Never the hash. */
@@ -28,6 +42,7 @@ export function toPublicUser(row: UserRow): User {
   return {
     id: row.id,
     username: row.username,
+    displayName: row.displayName,
     email: row.email,
     role: row.role,
     passwordResetRequired: row.passwordResetRequired,
@@ -82,6 +97,8 @@ export interface InsertUserOptions {
   username: string;
   passwordHash: string;
   email?: string | null;
+  /** What the others see; `null` leaves the username standing in for it. */
+  displayName?: string | null;
   role?: UserRole;
   /** Marks the account as waiting for a password; see `insertLockedUser()`. */
   passwordResetRequired?: boolean;
@@ -101,6 +118,7 @@ export function insertUser(db: DbHandle, options: InsertUserOptions): User {
   const row: UserRow = {
     id: randomUUID(),
     username: options.username.trim().toLowerCase(),
+    displayName: normaliseDisplayName(options.displayName),
     email: options.email ?? null,
     passwordHash: options.passwordHash,
     role: options.role ?? 'user',
@@ -124,6 +142,7 @@ export function insertUser(db: DbHandle, options: InsertUserOptions): User {
 export interface InsertLockedUserOptions {
   username: string;
   email?: string | null;
+  displayName?: string | null;
   role?: UserRole;
   createdAt?: Date;
   disabledAt?: Date | null;
@@ -143,6 +162,7 @@ export function insertLockedUser(db: DbHandle, options: InsertLockedUserOptions)
     username: options.username,
     passwordHash: LOCKED_PASSWORD_HASH,
     email: options.email ?? null,
+    displayName: options.displayName ?? null,
     role: options.role ?? 'user',
     passwordResetRequired: true,
     ...(options.createdAt === undefined ? {} : { createdAt: options.createdAt }),
@@ -167,6 +187,7 @@ export async function createUser(
     username,
     passwordHash: await hashPassword(options.password, argon2Parameters(config)),
     email: options.email ?? null,
+    displayName: options.displayName ?? null,
     role: options.role ?? 'user',
   });
 }
@@ -221,12 +242,18 @@ export interface UpdateUserOptions {
   role?: UserRole | undefined;
   disabled?: boolean | undefined;
   email?: string | null | undefined;
+  /** `null` gives the display name up; the username is shown again then. */
+  displayName?: string | null | undefined;
 }
 
 /**
- * Changes role, enabled state or e-mail. The last enabled administrator can
- * neither be demoted nor disabled — otherwise nobody could manage the instance
- * any more.
+ * Changes role, enabled state, e-mail or display name. The last enabled
+ * administrator can neither be demoted nor disabled — otherwise nobody could
+ * manage the instance any more.
+ *
+ * The display name goes through here as well, although an account changes its
+ * own: it is one column of one row either way, and the route decides who is
+ * allowed to name whom.
  */
 export function updateUser(db: DbHandle, userId: string, options: UpdateUserOptions): User {
   const existing = findUserById(db, userId);
@@ -250,6 +277,9 @@ export function updateUser(db: DbHandle, userId: string, options: UpdateUserOpti
   }
   if (options.email !== undefined) {
     changes.email = options.email;
+  }
+  if (options.displayName !== undefined) {
+    changes.displayName = normaliseDisplayName(options.displayName);
   }
 
   db.update(users).set(changes).where(eq(users.id, userId)).run();

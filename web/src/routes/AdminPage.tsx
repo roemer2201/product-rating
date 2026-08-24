@@ -277,7 +277,7 @@ export function AdminPage() {
                 <li className="admin-row" key={entry.id}>
                   <div className="admin-row__body">
                     <span className="admin-row__name">
-                      {entry.username}
+                      {entry.displayName ?? entry.username}
                       {self && <span className="badge">{strings.admin.userSelf}</span>}
                       {entry.disabledAt !== null && (
                         <span className="badge badge--expired">{strings.admin.userDisabled}</span>
@@ -289,6 +289,10 @@ export function AdminPage() {
                       )}
                     </span>
                     <span className="admin-row__meta">
+                      {/* The username stays visible: it is what the CLI, the
+                          logs and a reset link talk about, and a display name
+                          is not unique. */}
+                      {entry.displayName === null ? null : `${entry.username} · `}
                       {entry.role === 'admin'
                         ? strings.settings.roleAdmin
                         : strings.settings.roleUser}{' '}
@@ -455,7 +459,9 @@ export function AdminPage() {
                   <span className="admin-row__meta">
                     {strings.admin.trashDeletedAt(formatDate(entry.deletedAt))}
                     {entry.deletedByUsername !== null &&
-                      ` ${strings.admin.trashDeletedBy(entry.deletedByUsername)}`}{' '}
+                      ` ${strings.admin.trashDeletedBy(
+                        entry.deletedByDisplayName ?? entry.deletedByUsername,
+                      )}`}{' '}
                     · {strings.admin.trashContents(entry.ratings, entry.photos)}
                   </span>
                   <span className="admin-row__note">{entry.product.ean}</span>

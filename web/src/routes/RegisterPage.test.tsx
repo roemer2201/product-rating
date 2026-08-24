@@ -44,11 +44,13 @@ describe('RegisterPage', () => {
     expect(await screen.findByText('Katalog')).toBeInTheDocument();
 
     const request = fetchMock.mock.calls.find(([url]) => String(url).includes('/auth/register'));
-    // An empty e-mail field means "not set", not an empty string.
+    // An empty e-mail or display name field means "not set", not an empty
+    // string.
     expect(JSON.parse(String((request?.[1] as RequestInit).body))).toEqual({
       username: 'anna',
       password: 'ein-gutes-passwort',
       email: null,
+      displayName: null,
       invite: 'A1B2-C3D4-E5F6',
     });
   });

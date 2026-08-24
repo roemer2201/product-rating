@@ -24,6 +24,7 @@ export function RegisterPage() {
   const [searchParams] = useSearchParams();
 
   const [username, setUsername] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [email, setEmail] = useState('');
   const [invite, setInvite] = useState(searchParams.get('invite') ?? '');
@@ -42,6 +43,7 @@ export function RegisterPage() {
       username,
       password,
       email: emptyToNull(email),
+      displayName: emptyToNull(displayName),
       invite,
     });
 
@@ -102,6 +104,17 @@ export function RegisterPage() {
             hint={strings.register.usernameHint}
             error={errorFor('username')}
             required
+          />
+
+          <Field
+            label={strings.register.displayName}
+            name="displayName"
+            value={displayName}
+            onChange={(event) => setDisplayName(event.target.value)}
+            autoComplete="nickname"
+            optional
+            hint={strings.register.displayNameHint}
+            error={errorFor('displayName')}
           />
 
           <Field

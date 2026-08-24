@@ -97,7 +97,7 @@ mindestens 44 Pixel hoch, Ränder über `env(safe-area-inset-*)`.
 | `/products/new?ean=…` | Anlegeformular mit vorbelegter EAN |
 | `/products/:id` | Produkt: Foto, Durchschnitt, eigene Bewertung, Bearbeiten, Löschen |
 | `/ratings` | Eigene Bewertungen |
-| `/settings` | Konto, Passwort, eigene Sitzungen, Abmelden |
+| `/settings` | Konto, Anzeigename, Passwort, eigene Sitzungen, Abmelden |
 | `/admin` | Nutzer und Einladungen (nur Administratoren) |
 | `/login`, `/register` | Anmeldung und Registrierung mit Einladungscode |
 
@@ -280,8 +280,8 @@ Produkte bilden einen **gemeinsamen Katalog** (eine EAN existiert genau einmal),
 Bewertungen und Fotos gehören jeweils einem Nutzer.
 
 ```
-users     (id, username, email, password_hash, role, password_reset_required,
-           created_at, disabled_at)
+users     (id, username, display_name, email, password_hash, role,
+           password_reset_required, created_at, disabled_at)
 sessions  (id, user_id, expires_at, user_agent, created_at, last_seen_at)
 password_resets (id = SHA-256 des Tokens, user_id, created_by, expires_at,
            used_at, created_at)
@@ -505,8 +505,11 @@ beim Katalog über (Sortierwert, ID).
 
 **Fremde Bewertungen.** Die Einzelabfrage eines Produkts liefert unter
 `allRatings` **alle** Bewertungen dieses Produkts – die eigene eingeschlossen,
-jüngstes Urteil zuerst –, jeweils mit Sternen, Kommentar, Datum und dem
-Benutzernamen dahinter. Mehr als der Name verlässt die Kontodaten nicht. Der
+jüngstes Urteil zuerst –, jeweils mit Sternen, Kommentar, Datum und dem Namen
+dahinter. Der Name reist doppelt: als `username` und als `displayName`; die
+Oberfläche zeigt den Anzeigenamen und fällt auf den Benutzernamen zurück, wenn
+das Konto keinen gesetzt hat (5). Mehr als der Name verlässt die Kontodaten
+nicht. Der
 gemeinsame Katalog lebt davon: „Kaufen wir das wieder?“ beantwortet im Haushalt
 selten einer allein, und ein Durchschnitt von 3,5 sagt nichts darüber, ob sich
 zwei einig oder uneins waren. Ändern lässt sich weiterhin nur die eigene
@@ -648,6 +651,13 @@ Let's-Encrypt-Zertifikat (DNS-Challenge funktioniert auch ohne offenen Port 80).
 - Benutzernamen werden klein geschrieben gespeichert; „Anna“ und „anna“ sind
   dasselbe Konto. Erlaubt sind Buchstaben, Ziffern, Punkt, Bindestrich und
   Unterstrich.
+- Daneben steht der **Anzeigename**: der Name, unter dem die anderen im
+  Haushalt ein Konto bei Bewertungen und Preisen sehen. Jedes Konto setzt und
+  ändert ihn selbst (Einstellungen, `PATCH /api/v1/auth/profile` oder
+  `product-rating user display-name`), zwei bis 40 Zeichen mit Leerzeichen und
+  Umlauten. Er ist **bewusst nicht eindeutig** und keine Anmeldekennung –
+  angemeldet wird sich weiterhin mit dem Benutzernamen. Ohne Anzeigename steht
+  überall der Benutzername.
 - Konten werden nie gelöscht, sondern deaktiviert – Bewertungen und Fotos
   behalten damit einen gültigen Eigentümer. Mit dem Deaktivieren verfallen alle
   Sessions des Kontos.
@@ -666,6 +676,7 @@ Let's-Encrypt-Zertifikat (DNS-Challenge funktioniert auch ohne offenen Port 80).
 | `POST /api/v1/auth/logout` | angemeldet | Aktuelle Sitzung widerrufen |
 | `GET /api/v1/auth/me` | angemeldet | Eigenes Konto |
 | `POST /api/v1/auth/register` | – | Konto mit gültigem Einladungscode anlegen |
+| `PATCH /api/v1/auth/profile` | angemeldet | Eigenen Anzeigenamen setzen; `null` entfernt ihn |
 | `POST /api/v1/auth/password` | angemeldet | Passwort ändern, verwirft die übrigen Sitzungen |
 | `GET /api/v1/auth/sessions` | angemeldet | Eigene Sitzungen auflisten |
 | `DELETE /api/v1/auth/sessions/:id` | angemeldet | Eine eigene Sitzung widerrufen |
@@ -675,7 +686,7 @@ Let's-Encrypt-Zertifikat (DNS-Challenge funktioniert auch ohne offenen Port 80).
 | `DELETE /api/v1/invites/:code` | admin | Unbenutzten Code zurückziehen |
 | `GET /api/v1/users` | admin | Konten auflisten |
 | `POST /api/v1/users` | admin | Konto ohne Einladung anlegen |
-| `PATCH /api/v1/users/:id` | admin | Rolle, Zustand oder E-Mail ändern |
+| `PATCH /api/v1/users/:id` | admin | Rolle, Zustand, E-Mail oder Anzeigename ändern |
 | `POST /api/v1/users/:id/password` | admin | Passwort zurücksetzen |
 | `POST /api/v1/users/:id/reset-link` | admin | Passwort-Link erzeugen, einmalig ausgegeben |
 | `POST /api/v1/users/:id/lock` | admin | Passwort entziehen, alle Sitzungen beenden |
@@ -1135,6 +1146,7 @@ Konsole. Im Container liegt derselbe Befehl unter
 | `migrate` | Migrationen anwenden und beenden (idempotent, mit Snapshot vorweg) |
 | `user add\|list\|disable\|enable\|passwd` | Konten anlegen, auflisten, sperren, entsperren, Passwort setzen |
 | `user reset-link\|lock` | Passwort-Link ausgeben; Passwort entziehen (nur noch per Link erreichbar) |
+| `user display-name <name> [text]` | Anzeigenamen setzen; ohne Text wieder entfernen |
 | `invite create\|list\|revoke` | Einladungscodes ausgeben, auflisten, zurückziehen |
 | `backup --to <dir>` | Snapshot aus `VACUUM INTO` plus Fotos, `--keep-days N` als Aufbewahrungsgrenze |
 | `restore --from <dir>` | Snapshot zurückspielen, nach ausdrücklicher Bestätigung (`--yes` überspringt sie) |
@@ -1225,7 +1237,7 @@ product-rating user reset-link anna                # Link je Konto weitergeben
 ```
 
 **Konten reisen mit, ihre Passwörter nicht.** Der Export enthält
-Benutzername, Rolle, E-Mail-Adresse und die beiden Daten – **keine
+Benutzername, Anzeigename, Rolle, E-Mail-Adresse und die beiden Daten – **keine
 Passwort-Hashes**; eine Datei, die welche mitnähme, wäre ein Satz Zugangsdaten
 und keine Datensicherung.
 

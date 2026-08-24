@@ -161,6 +161,30 @@ describe('user', () => {
     expect(listed.out).toContain('active');
   });
 
+  it('sets and clears the display name', async () => {
+    await run(['user', 'add', 'carla'], {
+      secrets: ['correct horse battery', 'correct horse battery'],
+    });
+
+    // The name may contain spaces, quoted or not.
+    const named = await run(['user', 'display-name', 'carla', 'Carla', 'aus', 'der', 'Küche']);
+    expect(named.code).toBe(0);
+    expect(named.out).toContain('shown as "Carla aus der Küche"');
+    expect((await run(['user', 'list'])).out).toContain('Carla aus der Küche');
+
+    const cleared = await run(['user', 'display-name', 'carla']);
+    expect(cleared.code).toBe(0);
+    expect(cleared.out).toContain('by its username again');
+    expect((await run(['user', 'list'])).out).not.toContain('Carla aus der Küche');
+  });
+
+  it('refuses a display name the API would refuse as well', async () => {
+    const result = await run(['user', 'display-name', 'anna', 'x'.repeat(41)]);
+
+    expect(result.code).toBe(2);
+    expect(result.err).toContain('display name');
+  });
+
   it('rejects a password that was typed differently twice', async () => {
     const result = await run(['user', 'add', 'tom'], {
       secrets: ['correct horse battery', 'correct horse batteries'],
@@ -314,7 +338,9 @@ describe('export and import', () => {
     expect(readFileSync(join(target, 'export.json'), 'utf8')).toContain('product-rating-export');
     expect(readFileSync(join(target, 'products.csv'), 'utf8')).toContain('ean,name,variant,brand');
 
-    expect(readFileSync(join(target, 'users.csv'), 'utf8')).toContain('username,role,email');
+    expect(readFileSync(join(target, 'users.csv'), 'utf8')).toContain(
+      'username,display_name,role,email',
+    );
     // Whatever else is in the export, a password hash is not.
     expect(readFileSync(join(target, 'export.json'), 'utf8')).not.toContain('$argon2id$');
 

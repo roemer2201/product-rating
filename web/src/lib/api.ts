@@ -28,6 +28,7 @@ import type {
   SortOrder,
   TrashEntry,
   UpdateProductInput,
+  UpdateProfileInput,
   UpdateUserInput,
   UpsertRatingInput,
   User,
@@ -344,6 +345,10 @@ export const api = {
         method: 'POST',
         json: input,
       }),
+
+    /** Sets or clears the own display name; nothing else about the account. */
+    updateProfile: (input: UpdateProfileInput) =>
+      request<{ user: User }>('/auth/profile', { method: 'PATCH', json: input }),
 
     sessions: () => request<{ sessions: SessionInfo[] }>('/auth/sessions'),
 

@@ -50,7 +50,7 @@ function newInstance(withProducts = true): Instance {
 
   seedDatabase(database.db, {
     users: [
-      { id: ANNA, username: 'anna' },
+      { id: ANNA, username: 'anna', displayName: 'Anna aus dem Bad' },
       { id: BERT, username: 'bert' },
     ],
   });
@@ -345,6 +345,10 @@ describe('importing', () => {
 
     const accounts = listUsers(fresh.database.db);
     expect(accounts.map((user) => user.username).sort()).toEqual(['anna', 'bert']);
+    // The display name travels with the account: without it the ratings would
+    // arrive attributed to somebody the household does not call that.
+    expect(accounts.find((user) => user.username === 'anna')?.displayName).toBe('Anna aus dem Bad');
+    expect(accounts.find((user) => user.username === 'bert')?.displayName).toBeNull();
     // No hash arrived, so nothing can be logged into until a link is handed out.
     expect(accounts.every((user) => user.passwordResetRequired)).toBe(true);
 

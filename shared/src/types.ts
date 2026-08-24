@@ -24,6 +24,11 @@ export const RATING_MAX_STARS = 10;
 export interface User {
   id: string;
   username: string;
+  /**
+   * The name other accounts see, chosen by the account itself. `null` while
+   * none is set; the username stands in for it then.
+   */
+  displayName: string | null;
   email: string | null;
   role: UserRole;
   /**
@@ -125,16 +130,19 @@ export interface Photo {
 }
 
 /**
- * A rating as the product page shows it: the same fields plus the name of the
+ * A rating as the product page shows it: the same fields plus the names of the
  * account it belongs to.
  *
  * The catalogue is shared, so the verdicts of the household are what makes it
  * useful — "should we buy this again" is rarely a question one person answers
- * alone. Only the name travels, never anything else about the account.
+ * alone. Only the names travel, never anything else about the account; what is
+ * shown is `accountName()`, the display name where there is one.
  */
 export interface ProductRating extends Rating {
   /** `null` if the account behind the rating no longer exists. */
   username: string | null;
+  /** Its display name, `null` while the account has not set one. */
+  displayName: string | null;
 }
 
 /**
@@ -151,6 +159,8 @@ export interface Price {
   userId: string;
   /** Name of the account that recorded it; `null` if that account is gone. */
   username: string | null;
+  /** Its display name, `null` while the account has not set one. */
+  displayName: string | null;
   cents: number;
   currency: string;
   shop: string | null;
@@ -209,6 +219,8 @@ export interface TrashEntry {
   deletedBy: string | null;
   /** Name of the account that deleted it; `null` if that account is gone. */
   deletedByUsername: string | null;
+  /** Its display name, `null` while that account has not set one. */
+  deletedByDisplayName: string | null;
   ratings: number;
   photos: number;
 }

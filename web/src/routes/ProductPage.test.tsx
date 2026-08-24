@@ -260,6 +260,42 @@ describe('ProductPage', () => {
     expect(screen.getAllByText(strings.rating.householdYou)).toHaveLength(1);
   });
 
+  it('names the others by their display name, and by username without one', async () => {
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      {
+        path: '/products/prod-1',
+        body: {
+          product: makeProductDetail({
+            ratings: { average: 3.5, count: 2 },
+            allRatings: [
+              makeProductRating({
+                username: 'bert',
+                displayName: 'Bert vom Balkon',
+                userId: 'user-bert',
+                stars: 2,
+              }),
+              makeProductRating({ username: 'carla', userId: 'user-carla', stars: 7 }),
+            ],
+            prices: [makePrice({ username: 'bert', displayName: 'Bert vom Balkon' })],
+          }),
+        },
+      },
+      { path: '/prices/shops', body: { shops: [] } },
+    ]);
+
+    renderProduct();
+
+    expect(await screen.findByText('Bert vom Balkon')).toBeInTheDocument();
+    // Nobody sees the username of an account that has named itself.
+    expect(screen.queryByText('bert')).not.toBeInTheDocument();
+    // Carla has no display name, so hers stands in for it.
+    expect(screen.getByText('carla')).toBeInTheDocument();
+    // The price history follows the same rule.
+    expect(screen.getByText(/erfasst von Bert vom Balkon/u)).toBeInTheDocument();
+  });
+
   it('records a price in cents, whatever separator was typed', async () => {
     const user = userEvent.setup();
     const fetchMock = mockFetch([
