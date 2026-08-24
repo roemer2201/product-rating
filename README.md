@@ -1033,7 +1033,9 @@ Zertifikatspfade und Port von Hand ersetzt werden.
 `product-rating proxy-config --server <name>` schreibt dieselbe Konfiguration
 mit den Werten dieser Instanz – Hostname und Unterpfad aus `server.base_url`,
 Adresse aus `server.host` und `server.port`, Größenlimit aus
-`uploads.max_file_size_mb` plus fünf Megabyte Luft für den Multipart-Rahmen:
+`uploads.max_file_size_mb` plus fünf Megabyte Luft für den Multipart-Rahmen.
+Als `<name>` gelten `nginx`, `apache` (auch `apache2` und `httpd`), `caddy`
+und `traefik`:
 
 ```bash
 # nach stdout, zum Ansehen oder Weiterleiten
@@ -1139,7 +1141,7 @@ Konsole. Im Container liegt derselbe Befehl unter
 | `export --to <dir>` | Katalog als JSON und/oder CSV schreiben; `--with-photos` nimmt die Bilder mit, `--no-users` lässt die Konten weg |
 | `import --from <dir>` | Export einlesen; `--owner`, `--update`, `--skip-users`, `--dry-run` |
 | `fsck --uploads` | Upload-Verzeichnis gegen die Fototabelle prüfen, `--repair` löscht verwaiste Dateien |
-| `proxy-config --server <name>` | Webserver-Konfiguration für diese Instanz schreiben (`nginx`, `apache`, `caddy`, `traefik`); `--cert`/`--key`, `--domain`, `--base-path`, `--out` |
+| `proxy-config --server <name>` | Webserver-Konfiguration für diese Instanz schreiben (`nginx`, `apache`/`apache2`/`httpd`, `caddy`, `traefik`); `--cert`/`--key`, `--domain`, `--base-path`, `--out` |
 | `help [befehl]`, `version` | Hilfe und Version |
 
 Jeder Befehl versteht zusätzlich die Konfigurationsschalter aus 6:

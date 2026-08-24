@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { loadConfig } from '../config/index.js';
 import {
-  PROXY_TARGETS,
+  PROXY_TARGET_NAMES,
   parseProxyTarget,
   renderProxyConfig,
   resolveProxyConfig,
@@ -24,8 +24,8 @@ Without --out the file goes to standard output, so it can be piped or read
 first. Remarks about the result go to standard error and stay out of it.
 
 Options:
-      --server NAME   ${PROXY_TARGETS.join(' | ')} (apache2 and httpd mean
-                      apache). Required.
+      --server NAME   ${PROXY_TARGET_NAMES.join(' | ')}.
+                      Required.
       --domain NAME   Host name the browser uses. Taken from server.base_url
                       when it is missing.
       --base-path PATH
@@ -79,7 +79,7 @@ function readTarget(options: Record<string, string | boolean>): ProxyTarget {
 
   const target = parseProxyTarget(name);
   if (target === undefined) {
-    throw new UsageError(`unknown web server: ${name} (known: ${PROXY_TARGETS.join(', ')})`);
+    throw new UsageError(`unknown web server: ${name} (known: ${PROXY_TARGET_NAMES.join(', ')})`);
   }
 
   return target;

@@ -478,6 +478,25 @@ describe('proxy-config', () => {
     expect(result.err).toContain('server.trust_proxy is false');
   });
 
+  it('accepts every spelling of Apache and names them all in the help', async () => {
+    for (const name of ['apache', 'apache2', 'httpd']) {
+      const result = await run([
+        'proxy-config',
+        '--server',
+        name,
+        '--base-url',
+        'https://produkte.example.org',
+      ]);
+
+      expect(result.code).toBe(0);
+      expect(result.out).toContain('ServerName produkte.example.org');
+    }
+
+    const help = await run(['proxy-config', '--help']);
+    expect(help.code).toBe(0);
+    expect(help.out).toContain('nginx | apache | apache2 | httpd | caddy | traefik');
+  });
+
   it('rejects a web server it does not know and a half given certificate', async () => {
     const unknown = await run(['proxy-config', '--server', 'lighttpd']);
     expect(unknown.code).toBe(2);

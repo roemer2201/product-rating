@@ -5,6 +5,42 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-24 – `proxy-config`: `--server apache` wies den eigenen Namen ab
+
+**Umfang**
+
+- **Fehler behoben**: In `TARGET_ALIASES` (`server/src/services/proxyConfig.ts`)
+  standen `apache2` und `httpd`, aber nicht `apache` selbst. Da die Tabelle der
+  einzige Weg ist, einen Namen aufzulösen, war ausgerechnet der kanonische
+  Name ein Aufruffehler – während die Meldung dazu `apache` als bekannt
+  auflistete und die Beispiele in Hilfe und README ihn benutzten. Der Eintrag
+  fehlt nicht mehr.
+- **Eine Quelle für die Namen**: Neu exportiert wird `PROXY_TARGET_NAMES`, die
+  Schlüssel der Alias-Tabelle in Reihenfolge. Hilfetext und Fehlermeldung
+  bauen darauf auf, statt aus `PROXY_TARGETS` nur die Zielnamen zu nehmen und
+  die übrigen Schreibweisen daneben in Prosa zu erwähnen.
+- **Hilfezeile**: `--server NAME` schreibt jetzt alle sechs akzeptierten Namen
+  aus (`nginx | apache | apache2 | httpd | caddy | traefik`) statt vier davon
+  plus einem Klammerzusatz.
+- **Tests**: `parseProxyTarget('apache')` fehlte in der Prüfung – genau die
+  Lücke, durch die der Fehler kam. Dazu ein Fall, der jeden angebotenen Namen
+  auflöst und jedes Ziel in den angebotenen Namen wiederfindet, sowie ein
+  Aufruf des Befehls mit allen drei Apache-Schreibweisen und eine Prüfung der
+  Hilfezeile.
+- **Dokumentation**: README 7.3 und die Befehlstabelle in 8.1 nennen die
+  akzeptierten Schreibweisen.
+
+**Entscheidungen**
+
+- **Den Alias ergänzen statt die Dokumentation anzupassen.** `apache` ist der
+  Zielname im Typ, steht in `PROXY_TARGETS` und wird in beiden Beispielen
+  verwendet; dass er nicht auflöste, war ein Versehen und keine Festlegung.
+- **Die Liste der Namen aus der Alias-Tabelle ableiten.** Eine zweite,
+  handgepflegte Aufzählung im Hilfetext wäre genau die Art von Duplikat, die
+  hier auseinandergelaufen ist.
+
+---
+
 ## 2026-08-23 – `proxy-config`: Webserver-Konfiguration aus der Instanz erzeugen
 
 **Umfang**
