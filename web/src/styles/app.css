@@ -902,6 +902,13 @@ a {
   align-items: flex-start;
 }
 
+/* Two ways to pick, side by side while there is room for both. */
+.photo-upload__sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 .photo-upload__preview {
   display: flex;
   flex-direction: column;

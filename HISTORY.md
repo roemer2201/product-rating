@@ -5,6 +5,51 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-24 – Zweiter Weg zum Hinzufügen eines Fotos
+
+**Anlass**
+
+Der `PhotoManager` hatte genau einen Weg zum Bild: eine Schaltfläche mit
+`capture="environment"`. Auf dem iPhone ist dieses Attribut keine Voreinstellung,
+die sich im Dialog umgehen ließe – Safari öffnet die Kamera und sonst nichts.
+Ein Foto, das schon existiert (ein früher abfotografiertes Etikett, ein
+zugeschicktes Bild), war damit nicht erreichbar.
+
+**Umfang**
+
+- `web/src/components/PhotoManager.tsx`: neben „Foto aufnehmen“ steht jetzt
+  „Bild auswählen“ ohne `capture`-Attribut, das die Fotomediathek des Geräts
+  öffnet. Beide Wege enden im selben `onPick` – Verkleinern, Vorschau, Upload,
+  Offline-Warteschlange bleiben unverändert, es kommt nur eine zweite Tür in
+  denselben Raum dazu.
+- Die beiden Eingabefelder liegen in einer kleinen lokalen Komponente
+  `PhotoSource`, damit sich die zwölf Zeilen Markup nicht doppeln und der
+  einzige echte Unterschied – das `capture`-Attribut – als Parameter sichtbar
+  ist.
+- Je Quelle ein eigenes `ref`: `clearPick()` leert beide, sonst löst dieselbe
+  Datei beim zweiten Mal kein `change`-Ereignis aus.
+- Die Aufnahme-Schaltfläche trägt jetzt das Kamerasymbol, die Auswahl das
+  Bildsymbol – vorher stand das Bildsymbol an der Kamera.
+- `strings.photo.choose` war seit M8 vorhanden und unbenutzt und bekommt hier
+  seinen Platz; dazu ein Hinweissatz (`sourceHint`), der sagt, welche
+  Schaltfläche wohin führt, weil die Beschriftungen allein den Unterschied
+  zwischen Kamera und Mediathek nicht deutlich genug machen.
+- Test in `web/src/routes/ProductPage.test.tsx`: das Auswahlfeld trägt kein
+  `capture`, das Aufnahmefeld schon, und ein über die Mediathek gewähltes Bild
+  geht denselben Weg bis zur Erfolgsmeldung.
+
+**Entscheidungen**
+
+- Zwei Schaltflächen statt einer Auswahl in einem Menü hinter einer
+  Schaltfläche: die Aktion ist der häufigste Griff auf der Seite, und ein Menü
+  kostet auf dem Telefon einen zusätzlichen Tipp für beide Wege statt für
+  keinen.
+- Kein Feature-Test auf `capture`: das Attribut wird von Browsern, die es nicht
+  kennen, schlicht ignoriert. Am Rechner öffnen beide Schaltflächen denselben
+  Dateidialog, was harmlos ist und keine Sonderbehandlung rechtfertigt.
+
+---
+
 ## 2026-08-24 – `armhf` als unterstützte Architektur aufgenommen
 
 **Anlass**

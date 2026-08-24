@@ -302,6 +302,7 @@ export const strings = {
     title: 'Fotos',
     take: 'Foto aufnehmen',
     choose: 'Bild auswählen',
+    sourceHint: 'Aufnehmen öffnet die Kamera, Auswählen die Fotomediathek des Geräts.',
     preview: 'Vorschau',
     previewAlt: 'Vorschau des ausgewählten Bildes',
     upload: 'Hochladen',

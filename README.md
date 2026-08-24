@@ -148,7 +148,12 @@ ausfällt, hat einen eigenen Satz: fehlendes HTTPS, verweigerte Berechtigung,
 keine Kamera, Kamera belegt. Die Eingabe von Hand steht immer daneben, nicht
 erst hinter einem Fehler.
 
-**Fotos.** Vor dem Upload verkleinert der Browser das Bild auf 2048 Pixel
+**Fotos.** Zwei Schaltflächen führen zum selben Ziel: „Foto aufnehmen“ trägt
+`capture="environment"` und öffnet auf dem Telefon unmittelbar die Kamera,
+„Bild auswählen“ trägt das Attribut nicht und öffnet die Fotomediathek. Die
+zweite ist kein Beiwerk – iOS lässt hinter einem `capture`-Feld nichts anderes
+zu, ein bereits vorhandenes Bild wäre sonst unerreichbar. Vor dem Upload
+verkleinert der Browser das Bild auf 2048 Pixel
 Kantenlänge (`web/src/lib/image.ts`) – ein iPhone-Foto von vier Megabyte über
 eine Mobilverbindung zu schicken, damit der Server neun Zehntel davon wegwirft,
 ist Wartezeit für nichts. Das ist eine Höflichkeit, keine Prüfung: kann der
