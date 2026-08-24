@@ -1,3 +1,16 @@
+product-rating (0.2.1) unstable; urgency=medium
+
+  * A capture put into the offline queue survives the app being killed. On
+    iOS, swiping the app out of the app switcher ends the process at once,
+    and a write that had been reported as done but not yet committed went
+    with it - the interface counted a capture that was nowhere on disk.
+  * The queue now asks to have its storage treated as persistent, so the
+    browser does not discard it when the device runs short of space or the
+    app goes unused for a week.
+  * No change to the installation layout or to the configuration.
+
+ -- roemer2201 <roemer2201@users.noreply.github.com>  Mon, 24 Aug 2026 14:00:00 +0000
+
 product-rating (0.2.0) unstable; urgency=medium
 
   * Accounts carry a display name beside the username: the name the rest of
