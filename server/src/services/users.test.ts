@@ -103,3 +103,51 @@ describe('setPassword', () => {
     );
   });
 });
+
+describe('display names', () => {
+  it('stores it as typed and hands it out beside the username', async () => {
+    const user = await createUser(database.db, config, {
+      username: 'Anna',
+      password: PASSWORD,
+      displayName: '  Anna aus dem Bad  ',
+    });
+
+    // The username is folded to lower case, the display name is not: it is a
+    // label a person chose, not an identifier anything looks up.
+    expect(user.username).toBe('anna');
+    expect(user.displayName).toBe('Anna aus dem Bad');
+  });
+
+  it('treats an empty name as none at all', async () => {
+    const user = await createUser(database.db, config, {
+      username: 'anna',
+      password: PASSWORD,
+      displayName: '   ',
+    });
+
+    expect(user.displayName).toBeNull();
+
+    const named = updateUser(database.db, user.id, { displayName: 'Anna' });
+    expect(named.displayName).toBe('Anna');
+
+    expect(updateUser(database.db, user.id, { displayName: null }).displayName).toBeNull();
+  });
+
+  it('lets two accounts wear the same name', async () => {
+    // Deliberately not unique: a display name is what somebody is called, and
+    // the username underneath keeps the two accounts apart.
+    const first = await createUser(database.db, config, {
+      username: 'anna',
+      password: PASSWORD,
+      displayName: 'Oma',
+    });
+    const second = await createUser(database.db, config, {
+      username: 'bert',
+      password: PASSWORD,
+      displayName: 'Oma',
+    });
+
+    expect(first.displayName).toBe('Oma');
+    expect(second.displayName).toBe('Oma');
+  });
+});

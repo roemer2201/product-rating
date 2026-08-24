@@ -76,22 +76,28 @@ export function ratingSummary(db: DbHandle, productId: string): RatingSummary {
 }
 
 /**
- * Every rating of one product, newest verdict first, with the name of the
+ * Every rating of one product, newest verdict first, with the names of the
  * account behind it.
  *
  * Reading a shared catalogue means reading what the others thought of it. The
- * name is all that is exposed — a household knows its members anyway, and
- * anything more about an account is nobody else's business.
+ * names are all that is exposed — a household knows its members anyway, and
+ * anything more about an account is nobody else's business. Both of them
+ * travel: the client shows the display name and falls back to the username
+ * with `accountName()`, so an account that has not chosen one is still named.
  */
 export function listProductRatings(db: DbHandle, productId: string): ProductRating[] {
   return db
-    .select({ rating: ratings, username: users.username })
+    .select({ rating: ratings, username: users.username, displayName: users.displayName })
     .from(ratings)
     .leftJoin(users, eq(users.id, ratings.userId))
     .where(eq(ratings.productId, productId))
     .orderBy(desc(ratings.updatedAt), asc(ratings.id))
     .all()
-    .map((row) => ({ ...toPublicRating(row.rating), username: row.username }));
+    .map((row) => ({
+      ...toPublicRating(row.rating),
+      username: row.username,
+      displayName: row.displayName,
+    }));
 }
 
 export interface RatingChange {

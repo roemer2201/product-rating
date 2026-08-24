@@ -1,5 +1,11 @@
 import { useId, useState } from 'react';
-import { createPriceSchema, PRICE_LIST_LIMIT, type Price, type User } from '@product-rating/shared';
+import {
+  accountName,
+  createPriceSchema,
+  PRICE_LIST_LIMIT,
+  type Price,
+  type User,
+} from '@product-rating/shared';
 import { ErrorNotice } from '@/components/Feedback';
 import { OfflineCapture } from '@/components/OfflineCapture';
 import { Field } from '@/components/Field';
@@ -133,7 +139,7 @@ export function PriceHistory({ productId, ean, productName, prices, user }: Pric
                   </span>
                   <span className="price__meta">
                     {formatDate(price.purchasedAt)} · {price.shop ?? strings.price.noShop} ·{' '}
-                    {strings.price.recordedBy(price.username ?? strings.price.unknownUser)}
+                    {strings.price.recordedBy(accountName(price) ?? strings.price.unknownUser)}
                   </span>
                   {price.note !== null && <span className="price__note">{price.note}</span>}
                 </div>

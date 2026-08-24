@@ -42,6 +42,7 @@ export function createTestDatabase(): TestDatabase {
 export interface SeedUser {
   id?: string;
   username: string;
+  displayName?: string | null;
   email?: string | null;
   passwordHash?: string;
   role?: 'admin' | 'user';
@@ -89,6 +90,7 @@ export function seedDatabase(db: AppDatabase, data: SeedData): SeedData {
     const row = {
       id: user.id ?? randomUUID(),
       username: user.username.trim().toLowerCase(),
+      displayName: user.displayName ?? null,
       email: user.email ?? null,
       passwordHash: user.passwordHash ?? SEED_PASSWORD_HASH,
       role: user.role ?? ('user' as const),

@@ -32,6 +32,7 @@ import type {
   SessionInfo,
   TrashEntry,
   UpdateProductInput,
+  UpdateProfileInput,
   UpdateUserInput,
   UpsertRatingInput,
   User,
@@ -595,6 +596,28 @@ export function useRevokeSession(): UseMutationResult<void, Error, string> {
     },
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: queryKeys.ownSessions });
+    },
+  });
+}
+
+/**
+ * Sets or clears the own display name.
+ *
+ * The answer is the account as it now stands, so the session cache is written
+ * straight from it: the header greets with the new name on the same render,
+ * without a second request for something the server just said.
+ */
+export function useUpdateProfile(): UseMutationResult<User, Error, UpdateProfileInput> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: UpdateProfileInput) => (await api.auth.updateProfile(input)).user,
+    onSuccess: (user) => {
+      client.setQueryData(queryKeys.session, user);
+      // The name travels with every rating and price of this account, so the
+      // catalogue and the product pages carry the old one until they refetch.
+      void client.invalidateQueries({ queryKey: queryKeys.products.all });
+      void client.invalidateQueries({ queryKey: queryKeys.ratings.all });
     },
   });
 }

@@ -1,8 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { myRatingsQuerySchema, type MyRatingsQuery } from '@product-rating/shared';
+import { eq } from 'drizzle-orm';
+import { accountName, myRatingsQuerySchema, type MyRatingsQuery } from '@product-rating/shared';
+import { users } from '../db/index.js';
 import { createTestDatabase, seedDatabase, type TestDatabase } from '../db/testing.js';
 import { NotFoundError } from './errors.js';
-import { deleteRating, listOwnRatings, ratingSummary, upsertRating } from './ratings.js';
+import {
+  deleteRating,
+  listOwnRatings,
+  listProductRatings,
+  ratingSummary,
+  upsertRating,
+} from './ratings.js';
 
 /**
  * Service level tests for what the route tests cannot reach comfortably: the
@@ -170,5 +178,35 @@ describe('listOwnRatings', () => {
     // The overall average covers everyone, the own rating only the caller.
     expect(page.ratings[0]?.ownRating.stars).toBe(3);
     expect(page.ratings[0]?.ratings).toEqual({ average: 2, count: 2 });
+  });
+});
+
+describe('listProductRatings', () => {
+  it('carries both names, so the client can prefer the display name', () => {
+    const [productId = ''] = seedProducts(1);
+    seedDatabase(database.db, {
+      ratings: [
+        { productId, userId: annaId, stars: 8 },
+        { productId, userId: bertId, stars: 3 },
+      ],
+    });
+
+    // Only one of the two has named herself; the other is shown by username.
+    database.db
+      .update(users)
+      .set({ displayName: 'Anna aus dem Bad' })
+      .where(eq(users.id, annaId))
+      .run();
+
+    const listed = listProductRatings(database.db, productId);
+    const anna = listed.find((entry) => entry.userId === annaId);
+    const bert = listed.find((entry) => entry.userId === bertId);
+
+    expect(anna?.username).toBe('anna');
+    expect(anna?.displayName).toBe('Anna aus dem Bad');
+    expect(accountName(anna ?? { username: null, displayName: null })).toBe('Anna aus dem Bad');
+
+    expect(bert?.displayName).toBeNull();
+    expect(accountName(bert ?? { username: null, displayName: null })).toBe('bert');
   });
 });

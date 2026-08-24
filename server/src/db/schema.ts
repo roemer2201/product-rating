@@ -36,6 +36,13 @@ export const users = sqliteTable(
     id: text('id').primaryKey(),
     /** Stored lower case; the service layer normalises before writing. */
     username: text('username').notNull().unique(),
+    /**
+     * The name the other accounts see, chosen by the account itself. `null`
+     * while none is set, and then the username is shown instead. Deliberately
+     * without a unique index: it is a label, not an identity — nobody logs in
+     * with it, and two people in a household may well go by the same name.
+     */
+    displayName: text('display_name'),
     email: text('email'),
     /** argon2id hash including its parameters, never a plain password. */
     passwordHash: text('password_hash').notNull(),

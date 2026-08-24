@@ -1,4 +1,4 @@
-import type { UserRole } from '@product-rating/shared';
+import { displayNameSchema, type UserRole } from '@product-rating/shared';
 import type { AppConfig } from '../config/index.js';
 import type { DbHandle } from '../db/index.js';
 import { createPasswordReset } from '../services/passwordResets.js';
@@ -36,10 +36,17 @@ Subcommands:
   lock USERNAME       Take the password away: nothing but a reset link gets
                       into the account afterwards. For a lost device, or after
                       an import that brought accounts without passwords.
+  display-name USERNAME [NAME]
+                      Set the name the other accounts see. An empty NAME, or
+                      none at all, gives it up again and the username is shown
+                      instead. Everybody can do this for themselves in the web
+                      interface; this is the way in for a script.
 
 Options:
       --role ROLE     Role of a new account: user (default) or admin.
       --email ADDRESS E-mail address of a new account.
+      --display-name NAME
+                      Name of a new account as the others see it.
       --ttl-hours N   Lifetime of a reset link, overriding
                       auth.password_reset_ttl_hours.
       --password-stdin
@@ -51,11 +58,28 @@ Options:
 Configuration options are accepted as well; "product-rating help" lists them.
 
 Examples:
-  product-rating user add anna --role admin
+  product-rating user add anna --role admin --display-name "Anna"
+  product-rating user display-name anna "Anna aus dem Bad"
   echo "correct horse battery staple" | product-rating user add tom --password-stdin
   product-rating user passwd anna
   product-rating user reset-link anna
   product-rating user disable tom`;
+
+/**
+ * Checks a display name against the same rule the API applies.
+ *
+ * An empty value means "no display name" rather than an error: that is how a
+ * name is given up again, on the command line as well as in a form.
+ */
+function parseDisplayName(value: string | undefined): string | null {
+  if (value === undefined || value.trim().length === 0) return null;
+
+  const parsed = displayNameSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new UsageError(`display name: ${parsed.error.issues[0]?.message ?? 'not a valid name'}`);
+  }
+  return parsed.data;
+}
 
 /** Roles the CLI accepts, matching the ones in the database. */
 const ROLES = ['user', 'admin'] as const;
@@ -101,7 +125,12 @@ async function addUser(
   config: AppConfig,
   io: CliIo,
   username: string,
-  options: { role?: string | undefined; email?: string | undefined; stdin: boolean },
+  options: {
+    role?: string | undefined;
+    email?: string | undefined;
+    displayName?: string | undefined;
+    stdin: boolean;
+  },
 ): Promise<number> {
   const role = options.role ?? 'user';
   if (!isRole(role)) throw new UsageError(`--role has to be one of: ${ROLES.join(', ')}`);
@@ -111,6 +140,7 @@ async function addUser(
     username,
     password,
     email: options.email ?? null,
+    displayName: parseDisplayName(options.displayName),
     role,
   });
 
@@ -120,7 +150,7 @@ async function addUser(
 
 export const userCommand: CliCommand = {
   name: 'user',
-  summary: 'Manage accounts: add, list, disable, enable, passwd, reset-link, lock',
+  summary: 'Manage accounts: add, list, disable, enable, passwd, reset-link, lock, display-name',
   usage: USAGE,
 
   async run({ argv, io }) {
@@ -128,6 +158,7 @@ export const userCommand: CliCommand = {
       help: 'boolean',
       role: 'string',
       email: 'string',
+      'display-name': 'string',
       'ttl-hours': 'string',
       'password-stdin': 'boolean',
     });
@@ -149,6 +180,7 @@ export const userCommand: CliCommand = {
           return addUser(db, config, io, name, {
             role: stringOption(options, 'role'),
             email: stringOption(options, 'email'),
+            displayName: stringOption(options, 'display-name'),
             stdin: fromStdin,
           });
         }
@@ -161,9 +193,10 @@ export const userCommand: CliCommand = {
           }
 
           const table = formatTable([
-            ['USERNAME', 'ROLE', 'STATE', 'CREATED', 'EMAIL'],
+            ['USERNAME', 'DISPLAY NAME', 'ROLE', 'STATE', 'CREATED', 'EMAIL'],
             ...rows.map((user) => [
               user.username,
+              user.displayName ?? '-',
               user.role,
               user.disabledAt !== null
                 ? 'disabled'
@@ -244,6 +277,24 @@ export const userCommand: CliCommand = {
           io.out(
             `password of ${target.username} removed, ${String(revoked)} session(s) ended; ` +
               `issue a link with "product-rating user reset-link ${target.username}"`,
+          );
+          return EXIT_OK;
+        }
+
+        case 'display-name': {
+          if (name === undefined) throw new UsageError('user display-name needs a username');
+          const target = requireUser(db, name);
+
+          // The name may contain spaces, so it is the rest of the line rather
+          // than one word: "user display-name anna Anna aus dem Bad" works
+          // without quotes, and quoting it works just as well.
+          const wanted = parseDisplayName(positionals.slice(2).join(' '));
+          const updated = updateUser(db, target.id, { displayName: wanted });
+
+          io.out(
+            updated.displayName === null
+              ? `${target.username} is shown by its username again`
+              : `${target.username} is shown as "${updated.displayName}"`,
           );
           return EXIT_OK;
         }

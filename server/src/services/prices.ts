@@ -32,12 +32,17 @@ function requireOwnership(row: PriceRow, user: { id: string; role: string }): vo
   }
 }
 
-export function toPublicPrice(row: PriceRow, username: string | null): Price {
+export function toPublicPrice(
+  row: PriceRow,
+  username: string | null,
+  displayName: string | null,
+): Price {
   return {
     id: row.id,
     productId: row.productId,
     userId: row.userId,
     username,
+    displayName,
     cents: row.cents,
     currency: row.currency,
     shop: row.shop,
@@ -56,14 +61,14 @@ export function toPublicPrice(row: PriceRow, username: string | null): Price {
  */
 export function listProductPrices(db: DbHandle, productId: string): Price[] {
   return db
-    .select({ price: prices, username: users.username })
+    .select({ price: prices, username: users.username, displayName: users.displayName })
     .from(prices)
     .leftJoin(users, eq(users.id, prices.userId))
     .where(eq(prices.productId, productId))
     .orderBy(desc(prices.purchasedAt), desc(prices.createdAt))
     .limit(PRICE_LIST_LIMIT)
     .all()
-    .map((row) => toPublicPrice(row.price, row.username));
+    .map((row) => toPublicPrice(row.price, row.username, row.displayName));
 }
 
 /**
@@ -144,11 +149,13 @@ export function createPrice(
 
   db.insert(prices).values(row).run();
 
-  const username =
-    db.select({ username: users.username }).from(users).where(eq(users.id, userId)).get()
-      ?.username ?? null;
+  const account = db
+    .select({ username: users.username, displayName: users.displayName })
+    .from(users)
+    .where(eq(users.id, userId))
+    .get();
 
-  return toPublicPrice(row, username);
+  return toPublicPrice(row, account?.username ?? null, account?.displayName ?? null);
 }
 
 export function findPriceById(db: DbHandle, id: string): PriceRow | undefined {

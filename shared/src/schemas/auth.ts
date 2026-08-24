@@ -12,6 +12,10 @@ import { z } from 'zod';
 export const USERNAME_MIN_LENGTH = 3;
 export const USERNAME_MAX_LENGTH = 32;
 
+/** Bounds the display name, which is longer than a username may be. */
+export const DISPLAY_NAME_MIN_LENGTH = 2;
+export const DISPLAY_NAME_MAX_LENGTH = 40;
+
 /** Upper bound on passwords, so a huge body cannot tie up the hasher. */
 export const PASSWORD_MAX_LENGTH = 200;
 
@@ -23,6 +27,25 @@ export const usernameSchema = z
   .max(USERNAME_MAX_LENGTH)
   .regex(/^[a-zA-Z0-9._-]+$/, 'only letters, digits, dot, dash and underscore are allowed')
   .transform((value) => value.toLowerCase());
+
+/**
+ * The name other accounts see: free text, not an identifier.
+ *
+ * A username is technical — lower case, no spaces, and the thing that is typed
+ * at the login. The display name is what a household calls each other, so it
+ * allows spaces, umlauts and capitals, and it is deliberately not unique: two
+ * people may call themselves "Oma" without one of them losing.
+ *
+ * Control characters are the only thing that is refused. They would let a name
+ * carry line breaks or bidirectional overrides into a list where every other
+ * entry is one line.
+ */
+export const displayNameSchema = z
+  .string()
+  .trim()
+  .min(DISPLAY_NAME_MIN_LENGTH)
+  .max(DISPLAY_NAME_MAX_LENGTH)
+  .regex(/^[^\p{C}]+$/u, 'control characters are not allowed');
 
 export const passwordSchema = z.string().min(1).max(PASSWORD_MAX_LENGTH);
 
@@ -45,6 +68,7 @@ export const registerSchema = z.object({
   username: usernameSchema,
   password: passwordSchema,
   email: emailSchema.nullish(),
+  displayName: displayNameSchema.nullish(),
   invite: inviteCodeSchema,
 });
 
@@ -64,6 +88,7 @@ export const createUserSchema = z.object({
   username: usernameSchema,
   password: passwordSchema,
   email: emailSchema.nullish(),
+  displayName: displayNameSchema.nullish(),
   role: z.enum(['admin', 'user']).default('user'),
 });
 
@@ -72,8 +97,18 @@ export const updateUserSchema = z
     role: z.enum(['admin', 'user']).optional(),
     disabled: z.boolean().optional(),
     email: emailSchema.nullable().optional(),
+    displayName: displayNameSchema.nullable().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, { message: 'no changes given' });
+
+/**
+ * Body of `PATCH /api/v1/auth/profile`: what an account may change about
+ * itself without an administrator. `null` gives the display name up again, and
+ * the username is shown from then on.
+ */
+export const updateProfileSchema = z.object({
+  displayName: displayNameSchema.nullable(),
+});
 
 export const resetPasswordSchema = z.object({
   newPassword: passwordSchema,
@@ -104,6 +139,7 @@ export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type CreateInviteInput = z.infer<typeof createInviteSchema>;
 export type CreateUserInput = z.infer<typeof createUserSchema>;
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type RedeemResetInput = z.infer<typeof redeemResetSchema>;
 export type CreateResetLinkInput = z.infer<typeof createResetLinkSchema>;

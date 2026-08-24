@@ -5,6 +5,62 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-24 – Anzeigename je Konto
+
+**Umfang**
+
+- **Neue Spalte** `users.display_name` (Migration `0008_user_display_name`,
+  `ALTER TABLE … ADD COLUMN`, `null`-bar). Bewusst **ohne** Unique-Index: der
+  Anzeigename ist ein Etikett, keine Kennung – niemand meldet sich damit an,
+  und zwei Personen im Haushalt dürfen sich „Oma“ nennen. `null` heißt „nicht
+  gesetzt“; dann steht überall der Benutzername.
+- **Selbst verwalten**: `PATCH /api/v1/auth/profile` setzt den eigenen Namen,
+  `null` gibt ihn wieder auf. Die Route nimmt bewusst keine Kennung entgegen,
+  spricht also immer „mein Konto“ an – damit ist Umbenennen fremder Konten
+  nicht ausdrückbar statt nachträglich geprüft. Administratoren können den
+  Namen zusätzlich über `PATCH /api/v1/users/:id` und beim Anlegen setzen,
+  ebenso die Registrierung (optionales Feld).
+- **Wo er erscheint**: fremde Bewertungen auf der Produktseite, der
+  Preisverlauf, der Papierkorb in der Verwaltung, die Nutzerliste und die
+  Begrüßung in der Kopfzeile. Die API liefert dafür `username` **und**
+  `displayName`; welcher gezeigt wird, entscheidet `accountName()` in
+  `shared/src/account.ts` an einer Stelle für alle Ansichten.
+- **Regeln**: zwei bis 40 Zeichen, Leerzeichen, Umlaute und Großschreibung
+  erlaubt, Steuerzeichen nicht – die würden Zeilenumbrüche oder
+  Bidi-Overrides in eine Liste tragen, in der jeder andere Eintrag einzeilig
+  ist. Getrimmt wird serverseitig, ein leeres Feld ist kein Fehler, sondern
+  der Weg, den Namen abzulegen (`normaliseDisplayName()`).
+- **Kommandozeile**: `product-rating user display-name <konto> [text]` setzt
+  und entfernt ihn, `user add --display-name` legt ihn gleich mit an,
+  `user list` zeigt ihn in einer eigenen Spalte. Der Text darf ohne
+  Anführungszeichen Leerzeichen enthalten.
+- **Umzug**: Export und Import nehmen den Anzeigenamen mit (`export.json`,
+  neue Spalte `display_name` in `users.csv`). Ältere Dateien ohne das Feld
+  werden weiter gelesen; Konten, die auf der Zielinstanz schon existieren,
+  bleiben wie gehabt unangetastet.
+- **Tests**: fünf für die neue Route, drei für den Dienst, je einer für
+  Bewertungsliste, Umzug, zwei für die CLI und drei für die Oberfläche
+  (Einstellungen, Produktseite). Bestehende Erwartungen an Routentabelle,
+  CSV-Kopfzeile und Registrierungs-Payload nachgezogen.
+- **Dokumentation**: README 2.1, 3, 4.2 (fremde Bewertungen), 5, 5.1, 8.1 und
+  8.3, dazu ein erledigter Punkt im Backlog von TODO.md.
+
+**Entscheidungen**
+
+- **Zwei Namen statt einem.** Der Benutzername bleibt, was er ist: klein
+  geschrieben, eindeutig, das, was Anmeldung, Log, CLI und Passwort-Link
+  meinen. Der Anzeigename liegt darüber und ist frei. Ihn stattdessen
+  änderbar zu machen hätte jede Referenz auf „anna“ zu einem beweglichen Ziel
+  gemacht – bis hin zu `--owner` beim Import.
+- **Beide Namen reisen über die API**, statt serverseitig einen fertigen Namen
+  einzusetzen. So bleibt das Feld ehrlich benannt, und die Verwaltung kann den
+  Benutzernamen weiter danebenschreiben, wo er gebraucht wird.
+- **Kein Zwang und keine Eindeutigkeit.** Ein Haushalt mit fünf Konten braucht
+  keine Namenskollisionsverwaltung; wer keinen Anzeigenamen setzt, erscheint
+  wie bisher.
+
+---
+
 ## 2026-08-23 – `proxy-config`: Webserver-Konfiguration aus der Instanz erzeugen
 
 **Umfang**

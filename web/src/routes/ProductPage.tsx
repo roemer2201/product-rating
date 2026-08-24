@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { updateProductSchema } from '@product-rating/shared';
+import { accountName, updateProductSchema } from '@product-rating/shared';
 import { ErrorNotice, ErrorScreen, SkeletonBlock } from '@/components/Feedback';
 import { PhotoManager } from '@/components/PhotoManager';
 import { PriceHistory } from '@/components/PriceHistory';
@@ -205,7 +205,7 @@ export function ProductPage() {
                 <li className="verdict" key={`${entry.userId}-${entry.updatedAt}`}>
                   <div className="verdict__head">
                     <span className="verdict__name">
-                      {entry.username ?? strings.rating.householdUnknownUser}
+                      {accountName(entry) ?? strings.rating.householdUnknownUser}
                       {entry.userId === user?.id && (
                         <span className="badge">{strings.rating.householdYou}</span>
                       )}

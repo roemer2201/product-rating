@@ -393,6 +393,99 @@ describe('own sessions', () => {
   });
 });
 
+describe('PATCH /api/v1/auth/profile', () => {
+  it('sets the display name of the own account', async () => {
+    await makeUser('anna');
+    const cookie = sessionCookie(await login('anna'));
+
+    const response = await harness.app.inject({
+      method: 'PATCH',
+      url: '/api/v1/auth/profile',
+      headers: writeHeaders(cookie),
+      payload: { displayName: '  Anna aus dem Bad  ' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().user.displayName).toBe('Anna aus dem Bad');
+    // The username underneath it is untouched: it is what a login uses.
+    expect(response.json().user.username).toBe('anna');
+
+    const me = await harness.app.inject({
+      method: 'GET',
+      url: '/api/v1/auth/me',
+      headers: { cookie },
+    });
+    expect(me.json().user.displayName).toBe('Anna aus dem Bad');
+  });
+
+  it('gives the display name up again with null', async () => {
+    await makeUser('anna');
+    const cookie = sessionCookie(await login('anna'));
+
+    await harness.app.inject({
+      method: 'PATCH',
+      url: '/api/v1/auth/profile',
+      headers: writeHeaders(cookie),
+      payload: { displayName: 'Anna' },
+    });
+
+    const response = await harness.app.inject({
+      method: 'PATCH',
+      url: '/api/v1/auth/profile',
+      headers: writeHeaders(cookie),
+      payload: { displayName: null },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().user.displayName).toBeNull();
+  });
+
+  it('refuses a name that is too long or carries control characters', async () => {
+    await makeUser('anna');
+    const cookie = sessionCookie(await login('anna'));
+
+    for (const displayName of ['x'.repeat(41), 'zwei\nZeilen', 'a']) {
+      const response = await harness.app.inject({
+        method: 'PATCH',
+        url: '/api/v1/auth/profile',
+        headers: writeHeaders(cookie),
+        payload: { displayName },
+      });
+
+      expect(response.statusCode).toBe(400);
+    }
+  });
+
+  it('is not a way to rename somebody else', async () => {
+    await makeUser('anna');
+    await makeUser('bert');
+    const cookie = sessionCookie(await login('anna'));
+
+    // The route addresses "my account" and takes no identifier at all, so the
+    // only thing a caller can change is the name they wear themselves.
+    await harness.app.inject({
+      method: 'PATCH',
+      url: '/api/v1/auth/profile',
+      headers: writeHeaders(cookie),
+      payload: { displayName: 'Anna' },
+    });
+
+    const bert = harness.app.db.select().from(users).where(eq(users.username, 'bert')).get();
+    expect(bert?.displayName).toBeNull();
+  });
+
+  it('turns away a caller without a session', async () => {
+    const response = await harness.app.inject({
+      method: 'PATCH',
+      url: '/api/v1/auth/profile',
+      headers: writeHeaders(),
+      payload: { displayName: 'Anna' },
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+});
+
 describe('POST /api/v1/auth/password', () => {
   it('changes the password and drops the other sessions', async () => {
     const id = await makeUser('anna');

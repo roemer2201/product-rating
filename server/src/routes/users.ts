@@ -39,6 +39,7 @@ export function registerUserRoutes(app: FastifyInstance): void {
       username: input.username,
       password: input.password,
       email: input.email ?? null,
+      displayName: input.displayName ?? null,
       role: input.role,
     });
 

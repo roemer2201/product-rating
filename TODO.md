@@ -267,6 +267,10 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [x] Bewertungsskala von 0–5 auf 0–10 Sterne erweitern – halbe Sterne bleiben
       draußen, die feineren Abstufungen stehen stattdessen auf der Skala selbst
 - [ ] Statistiken: Bewertungsverteilung, meistbewertete Marken
+- [x] Anzeigename je Konto, selbst gesetzt und selbst geändert: der Name, unter
+      dem die anderen im Haushalt eine Bewertung, einen Preis oder einen
+      Papierkorb-Eintrag sehen. Bewusst ohne Eindeutigkeit; Anmeldung und
+      Verwaltung laufen weiter über den Benutzernamen
 - [x] Fremde Bewertungen sichtbar machen: wer im Haushalt hat wie viele Sterne vergeben – bisher liefert die API nur Durchschnitt, Anzahl und die eigene Bewertung
 - [x] FTS5-Suche nachrüsten, falls die `LIKE`-Suche mit wachsendem Katalog spürbar langsam wird
 - [ ] TOTP-Zweitfaktor
