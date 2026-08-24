@@ -138,6 +138,12 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [x] **[S]** Adminbereich: Nutzer, Einladungen erzeugen und teilen
 - [ ] **[S]** „Alle anderen Sitzungen abmelden“ auf der Einstellungsseite anbieten – `DELETE /api/v1/auth/sessions` und der Client-Aufruf existieren seit M3, nur die Schaltfläche fehlt
 - [ ] **[S]** Kamerawahl auf dem iPhone prüfen: Safari liefert für die Rückkameras mehrere Einträge mit gleichem Label, eine Unterscheidung nach Brennweite fehlt (mit dem Gerätetest in M9)
+- [ ] **[S]** Zweiten Weg zum Hinzufügen eines Fotos anbieten: `PhotoManager`
+      (`web/src/components/PhotoManager.tsx`) hat aktuell nur den Aufnahme-Button
+      mit `capture="environment"`, der auf dem iPhone direkt die Kamera öffnet.
+      Zusätzlich einen Button ohne `capture`-Attribut ergänzen, der die
+      Fotomediathek des Geräts öffnet, damit sich auch ein vorhandenes Foto
+      auswählen lässt
 - [ ] **[S]** Suchbegriff und Filter des Katalogs beim Zurücknavigieren erhalten – aktuell sind sie Zustand der Ansicht und gehen beim Wechsel auf ein Produkt verloren
 - [ ] **[S]** Ton und Vibration beim Treffer abschaltbar machen, sobald es eine Stelle für persönliche Einstellungen gibt
 
