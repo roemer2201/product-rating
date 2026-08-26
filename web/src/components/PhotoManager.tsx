@@ -26,6 +26,7 @@ import {
   useSetPrimaryPhoto,
   useUploadPhoto,
 } from '@/lib/queries';
+import { scrollToBottomEdge } from '@/lib/scroll';
 import { strings } from '@/lib/strings';
 
 /**
@@ -39,6 +40,12 @@ import { strings } from '@/lib/strings';
  *
  * A failed upload keeps the prepared picture, so retrying is one tap and not
  * another trip to the camera.
+ *
+ * Once the picture is on screen the page moves itself so that "Hochladen" and
+ * "Verwerfen" stand at the lower edge, the picture above them. The preview is
+ * tall enough to push the two buttons out of sight, and the phone is held in
+ * one hand: without this, every single photo costs a scroll before it can be
+ * confirmed.
  *
  * There are two ways to pick, because on iOS the `capture` attribute is not a
  * preference the user can step around: with it, Safari opens the camera and
@@ -97,6 +104,9 @@ export function PhotoManager({ productId, ean, productName, photos, user }: Phot
   // or picking the same file again fires no `change` event.
   const cameraRef = useRef<HTMLInputElement>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
+  // The buttons under the preview; the page is scrolled to them once the
+  // picture is there.
+  const actionsRef = useRef<HTMLDivElement>(null);
 
   const [picked, setPicked] = useState<PreparedPhoto | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -171,6 +181,17 @@ export function PhotoManager({ productId, ean, productName, photos, user }: Phot
         },
       },
     );
+  };
+
+  /**
+   * Waited for the picture, not called with the pick: only a loaded image has
+   * a height, and before that the buttons are not yet where they will end up.
+   * A picture that fails to load leaves a small preview and the same buttons,
+   * so that case is worth the same move.
+   */
+  const revealActions = (): void => {
+    if (actionsRef.current === null) return;
+    scrollToBottomEdge(actionsRef.current);
   };
 
   const mayChange = (photo: Photo): boolean => photo.userId === user.id || user.role === 'admin';
@@ -295,7 +316,13 @@ export function PhotoManager({ productId, ean, productName, photos, user }: Phot
 
         {preview !== null && picked !== null && (
           <div className="photo-upload__preview">
-            <img className="photo-upload__image" src={preview} alt={strings.photo.previewAlt} />
+            <img
+              className="photo-upload__image"
+              src={preview}
+              alt={strings.photo.previewAlt}
+              onLoad={revealActions}
+              onError={revealActions}
+            />
 
             {progress !== null && (
               <progress
@@ -328,7 +355,7 @@ export function PhotoManager({ productId, ean, productName, photos, user }: Phot
               pending={capture.isPending}
             />
 
-            <div className="form__actions">
+            <div className="form__actions" ref={actionsRef}>
               <button
                 type="button"
                 className="button button--primary"

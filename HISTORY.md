@@ -5,6 +5,45 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-26 – Vorschau schiebt Hochladen und Verwerfen an den unteren Rand
+
+**Anlass**
+
+Nach dem Aufnehmen oder Auswählen eines Fotos erschien die Vorschau, die
+Schaltflächen „Hochladen“ und „Verwerfen“ standen aber darunter und damit
+außerhalb des Bildschirms. Jedes einzelne Foto kostete so einen Wisch, bevor es
+bestätigt werden konnte – auf dem Telefon, einhändig, bei der häufigsten
+Handlung der Anwendung.
+
+**Umfang**
+
+- `web/src/lib/scroll.ts` (neu): `scrollToBottomEdge(element, gap)` verschiebt
+  den Seitenausschnitt so weit, dass die Unterkante eines Elements `gap` Pixel
+  über dem verdeckten unteren Bildschirmrand liegt.
+- `web/src/components/PhotoManager.tsx`: Die Schaltflächenzeile der Vorschau
+  trägt ein `ref`, das `onLoad` des Vorschaubilds ruft `scrollToBottomEdge`.
+  Damit stehen die beiden Schaltflächen am unteren Rand und das Bild darüber.
+- Tests: `web/src/lib/scroll.test.ts` (Rechnung mit und ohne Navigation,
+  Rückwärtsbewegung, Nulldistanz, Rückfall auf `innerHeight`, reduzierte
+  Bewegung) und ein Fall in `web/src/routes/ProductPage.test.tsx`, der zeigt,
+  dass erst das geladene Bild die Seite bewegt.
+
+**Entscheidungen**
+
+- Ausgelöst vom `load`-Ereignis des Bildes, nicht vom Auswählen: vor dem Laden
+  hat das Bild keine Höhe, die Schaltflächen stünden noch nicht dort, wo sie
+  landen werden, und der Ausschnitt säße falsch. `onError` löst dasselbe aus,
+  weil auch ein kaputtes Bild dieselben Schaltflächen zeigt.
+- Die Höhe der festen Navigationsleiste wird gemessen statt aus `--nav-height`
+  errechnet: der Safe-Area-Abstand eines iPhones gehört zu ihrer Höhe dazu.
+- `visualViewport` vor `innerHeight`: auf iOS zählt `innerHeight` den Streifen
+  unter der Safari-Leiste mit, die Schaltflächen lägen sonst darunter.
+- Kein `scrollIntoView({ block: 'end' })`: es kennt die feste Navigationsleiste
+  nicht und würde die Schaltflächen hinter ihr parken.
+- Bei `prefers-reduced-motion` wird gesprungen statt geglitten.
+
+---
+
 ## 2026-08-24 – Zweiter Weg zum Hinzufügen eines Fotos
 
 **Anlass**
