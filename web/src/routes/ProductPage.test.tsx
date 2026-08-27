@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router';
 import { ProductPage } from '@/routes/ProductPage';
@@ -231,6 +231,36 @@ describe('ProductPage', () => {
     upload().respond(201, { photo: makePhoto() });
 
     expect(await screen.findByText(strings.photo.uploaded)).toBeInTheDocument();
+  });
+
+  it('brings the buttons of the preview to the lower edge of the screen', async () => {
+    const user = userEvent.setup();
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      { path: '/products/prod-1', body: { product: makeProductDetail() } },
+    ]);
+    const scrollBy = vi.fn();
+    vi.stubGlobal('scrollBy', scrollBy);
+    vi.stubGlobal('visualViewport', { height: 800 });
+
+    renderProduct();
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+
+    await user.upload(
+      screen.getByLabelText(strings.photo.take),
+      new File([new Uint8Array(64)], 'foto.jpg', { type: 'image/jpeg' }),
+    );
+    const image = await screen.findByAltText(strings.photo.previewAlt);
+
+    // Nothing moves while the picture has no height yet.
+    expect(scrollBy).not.toHaveBeenCalled();
+
+    // jsdom loads no pictures and measures nothing; the buttons therefore
+    // report a bottom of 0, which is above the lower edge and pulls the page
+    // upwards. What is checked here is that the load moves the page at all.
+    fireEvent.load(image);
+    expect(scrollBy).toHaveBeenCalledTimes(1);
   });
 
   it('offers a retry when the upload fails and keeps the picture', async () => {
