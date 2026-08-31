@@ -161,6 +161,18 @@ Browser das Format nicht dekodieren (HEIC außerhalb von Safari), geht das
 Original hoch und `sharp` erledigt es. Der Fortschrittsbalken braucht
 `XMLHttpRequest`; `fetch` kann den Fortschritt eines Requestbodys nicht melden.
 
+Dieselben zwei Schaltflächen stehen auf dem Formular für ein neues Produkt
+(`web/src/components/PhotoPicker.tsx` ist der gemeinsame Teil): Wer nach einem
+Scan ein unbekanntes Produkt anlegt, hat es gerade in der Hand, und ein Verweis
+auf eine zweite Ansicht ist genau die Stelle, an der das Bild nicht entsteht.
+Die Reihenfolge gibt der Server vor – ein Foto gehört zu einem Produkt –, also
+wird erst angelegt und unmittelbar danach hochgeladen. Scheitert nur der Upload,
+bleibt die Ansicht stehen und sagt es: das Produkt ist da, das Bild fehlt, und
+daneben stehen „Upload wiederholen“ und der Weg zum Produkt. Ohne Verbindung
+wandert das Bild in die Warteschlange, bei einem gescheiterten Anlegen zusammen
+mit den eingegebenen Feldern, danach allein – der Abgleich findet das Produkt
+über seine EAN wieder.
+
 ### 2.2 PWA: Installation, Offline-Verhalten und Aktualisierung
 
 Manifest und Service Worker erzeugt `vite-plugin-pwa` (Workbox) aus der

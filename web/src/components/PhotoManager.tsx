@@ -1,24 +1,10 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type ReactNode,
-  type RefObject,
-} from 'react';
+import { useRef, useState } from 'react';
 import type { Photo, User } from '@product-rating/shared';
 import { ErrorNotice } from '@/components/Feedback';
 import { OfflineCapture } from '@/components/OfflineCapture';
-import {
-  ArrowDownIcon,
-  ArrowUpIcon,
-  CameraIcon,
-  CheckIcon,
-  PhotoIcon,
-  TrashIcon,
-} from '@/components/icons';
+import { PhotoPreview, PhotoSources, usePhotoPick } from '@/components/PhotoPicker';
+import { ArrowDownIcon, ArrowUpIcon, CheckIcon, TrashIcon } from '@/components/icons';
 import { api, errorMessage } from '@/lib/api';
-import { preparePhoto, type PreparedPhoto } from '@/lib/image';
 import {
   useDeletePhoto,
   useEnqueueCapture,
@@ -47,48 +33,15 @@ import { strings } from '@/lib/strings';
  * one hand: without this, every single photo costs a scroll before it can be
  * confirmed.
  *
- * There are two ways to pick, because on iOS the `capture` attribute is not a
- * preference the user can step around: with it, Safari opens the camera and
- * nothing else. A picture that already exists — a label photographed earlier,
- * something a family member sent — would be unreachable behind that one
- * button, so the library gets a button of its own without the attribute.
+ * Picking itself — the two buttons, the shrinking, the preview — lives in
+ * `PhotoPicker`, because the form for a not-yet-existing product needs the
+ * same thing.
  *
  * The tiles are shown in the order the product carries them, and the first one
  * is the picture on the card. Moving a photo is therefore the same act as
  * promoting it, which is why the arrows and "Als Hauptbild" sit next to each
  * other instead of in two different places.
  */
-
-interface PhotoSourceProps {
-  label: string;
-  icon: ReactNode;
-  /**
-   * Set for the camera only. It is a wish, not a demand: a phone opens the
-   * camera, a desktop browser ignores it and shows its usual file dialogue.
-   * Left off, iOS offers the photo library instead.
-   */
-  capture?: 'environment';
-  inputRef: RefObject<HTMLInputElement | null>;
-  onPick: (event: ChangeEvent<HTMLInputElement>) => void;
-}
-
-/** One way into the picker; both sources end in the same `onPick`. */
-function PhotoSource({ label, icon, capture, inputRef, onPick }: PhotoSourceProps) {
-  return (
-    <label className="button">
-      {icon}
-      {label}
-      <input
-        ref={inputRef}
-        className="visually-hidden"
-        type="file"
-        accept="image/*"
-        capture={capture}
-        onChange={onPick}
-      />
-    </label>
-  );
-}
 
 interface PhotoManagerProps {
   productId: string;
@@ -100,17 +53,10 @@ interface PhotoManagerProps {
 }
 
 export function PhotoManager({ productId, ean, productName, photos, user }: PhotoManagerProps) {
-  // One ref per source: whichever one was used has to be emptied afterwards,
-  // or picking the same file again fires no `change` event.
-  const cameraRef = useRef<HTMLInputElement>(null);
-  const libraryRef = useRef<HTMLInputElement>(null);
   // The buttons under the preview; the page is scrolled to them once the
   // picture is there.
   const actionsRef = useRef<HTMLDivElement>(null);
 
-  const [picked, setPicked] = useState<PreparedPhoto | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [preparing, setPreparing] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
   const [done, setDone] = useState(false);
 
@@ -120,39 +66,21 @@ export function PhotoManager({ productId, ean, productName, photos, user }: Phot
   const move = useMovePhoto();
   const capture = useEnqueueCapture();
 
-  // An object URL is a reference the browser holds until it is told otherwise.
-  useEffect(() => {
-    if (preview === null) return;
-    return () => {
-      URL.revokeObjectURL(preview);
-    };
-  }, [preview]);
+  const pick = usePhotoPick({
+    onStart: () => {
+      setDone(false);
+      upload.reset();
+    },
+  });
+
+  // As constants, because the narrowing below has to survive into the
+  // callbacks under the preview.
+  const { picked, preview } = pick;
 
   const clearPick = (): void => {
-    setPicked(null);
-    setPreview(null);
+    pick.clear();
     setProgress(null);
     upload.reset();
-    for (const ref of [cameraRef, libraryRef]) {
-      if (ref.current !== null) ref.current.value = '';
-    }
-  };
-
-  const onPick = async (event: ChangeEvent<HTMLInputElement>): Promise<void> => {
-    const file = event.target.files?.[0];
-    if (file === undefined) return;
-
-    setDone(false);
-    setPreparing(true);
-    upload.reset();
-
-    try {
-      const prepared = await preparePhoto(file);
-      setPicked(prepared);
-      setPreview(URL.createObjectURL(prepared.blob));
-    } finally {
-      setPreparing(false);
-    }
   };
 
   const startUpload = (): void => {
@@ -292,38 +220,15 @@ export function PhotoManager({ productId, ean, productName, photos, user }: Phot
       {move.error !== null && <ErrorNotice message={errorMessage(move.error)} />}
 
       <div className="photo-upload">
-        <div className="photo-upload__sources">
-          <PhotoSource
-            label={strings.photo.take}
-            icon={<CameraIcon className="button__icon" />}
-            capture="environment"
-            inputRef={cameraRef}
-            onPick={(event) => void onPick(event)}
-          />
-
-          <PhotoSource
-            label={strings.photo.choose}
-            icon={<PhotoIcon className="button__icon" />}
-            inputRef={libraryRef}
-            onPick={(event) => void onPick(event)}
-          />
-        </div>
+        <PhotoSources pick={pick} />
 
         <p className="section__intro">{strings.photo.sourceHint}</p>
 
-        {preparing && <p role="status">{strings.photo.preparing}</p>}
+        {pick.preparing && <p role="status">{strings.photo.preparing}</p>}
         {done && <p role="status">{strings.photo.uploaded}</p>}
 
         {preview !== null && picked !== null && (
-          <div className="photo-upload__preview">
-            <img
-              className="photo-upload__image"
-              src={preview}
-              alt={strings.photo.previewAlt}
-              onLoad={revealActions}
-              onError={revealActions}
-            />
-
+          <PhotoPreview src={preview} onShown={revealActions}>
             {progress !== null && (
               <progress
                 className="photo-upload__progress"
@@ -378,7 +283,7 @@ export function PhotoManager({ productId, ean, productName, photos, user }: Phot
                 {strings.photo.discard}
               </button>
             </div>
-          </div>
+          </PhotoPreview>
         )}
       </div>
     </section>

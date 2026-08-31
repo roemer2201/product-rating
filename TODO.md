@@ -143,6 +143,12 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
       `capture="environment"`, der auf dem iPhone direkt die Kamera öffnet.
       Daneben steht jetzt „Bild auswählen“ ohne `capture`-Attribut, das die
       Fotomediathek des Geräts öffnet
+- [x] **[M]** „Foto aufnehmen“ und „Bild auswählen“ auch auf dem Formular für ein
+      neues Produkt anbieten: Wer nach einem Scan ein unbekanntes Produkt anlegt,
+      hat es gerade in der Hand. Das Bild steht über „Produkt anlegen“, wird
+      unmittelbar nach dem Anlegen hochgeladen und wandert ohne Verbindung mit in
+      die Warteschlange. Der gemeinsame Teil liegt in
+      `web/src/components/PhotoPicker.tsx`
 - [ ] **[S]** Suchbegriff und Filter des Katalogs beim Zurücknavigieren erhalten – aktuell sind sie Zustand der Ansicht und gehen beim Wechsel auf ein Produkt verloren
 - [ ] **[S]** Ton und Vibration beim Treffer abschaltbar machen, sobald es eine Stelle für persönliche Einstellungen gibt
 
