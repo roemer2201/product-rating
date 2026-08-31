@@ -5,6 +5,65 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-08-31 – Foto schon beim erstmaligen Erfassen eines Produkts
+
+**Anlass**
+
+Ein Foto ließ sich bisher nur auf der Produktseite hinzufügen. Der Weg dorthin
+führt nach einem Scan über das Formular „Neues Produkt“ – und genau dort steht
+man mit der Packung in der Hand. Wer erst anlegen, dann die Produktseite
+abwarten und dort noch einmal zur Kamera greifen muss, macht das Foto oft gar
+nicht. Die Schaltflächen „Foto aufnehmen“ und „Bild auswählen“ gehören deshalb
+auch auf das Formular.
+
+**Umfang**
+
+- `web/src/components/PhotoPicker.tsx` (neu): der gemeinsame Teil des Auswählens
+  – `usePhotoPick()` (Auswahl, Verkleinerung, Object-URL samt Freigabe, Leeren
+  der beiden `input`-Felder), `PhotoSources` (die zwei Schaltflächen) und
+  `PhotoPreview` (Vorschaubild, das seinen `load` meldet).
+- `web/src/components/PhotoManager.tsx`: benutzt diese drei Bausteine, statt sie
+  selbst zu halten. Verhalten, Markup und Klassen unverändert.
+- `web/src/components/ProductForm.tsx`: nimmt `children` zwischen Feldern und
+  Schaltflächenzeile sowie ein `actionsRef` auf diese Zeile.
+- `web/src/routes/ProductNewPage.tsx`: Abschnitt „Foto“ im Formular, direkt über
+  „Produkt anlegen“. Das geladene Vorschaubild schiebt die Schaltflächenzeile
+  des Formulars an den unteren Rand – dieselbe Bewegung wie im Katalog, nur ist
+  die entscheidende Schaltfläche hier „Produkt anlegen“. Nach dem Anlegen geht
+  das Bild sofort hoch; scheitert nur der Upload, bleibt die Ansicht mit
+  Hinweis, Fehlermeldung, „Upload wiederholen“ und dem Weg zum angelegten
+  Produkt stehen. Ohne Verbindung nimmt die Warteschlange das Bild auf – beim
+  gescheiterten Anlegen zusammen mit den Feldern, danach allein.
+- `web/src/lib/strings.ts`: `photo.newTitle`, `photo.newHint`,
+  `product.created`, `product.toCreated`.
+- Tests: `web/src/routes/ProductNewPage.test.tsx` (neu, sieben Fälle) – ungültige
+  EAN, Anlegen ohne Bild, Reihenfolge Anlegen → Upload, Bewegung der Seite beim
+  geladenen Bild, gescheiterter Upload mit Wiederholung, beide Wege in die
+  Warteschlange.
+- `README.md` 2.1 und `TODO.md` (M8) nachgezogen.
+
+**Entscheidungen**
+
+- Erst anlegen, dann hochladen: ein Foto gehört serverseitig zu einem Produkt,
+  eine andere Reihenfolge gibt es nicht. Der Zwischenzustand wird gezeigt statt
+  versteckt, denn er kann für sich scheitern – das Produkt ist dann da und nur
+  das Bild fehlt, und das ist etwas anderes als ein fehlgeschlagenes Anlegen.
+- Kein Navigieren bei gescheitertem Upload: das vorbereitete Bild bliebe sonst
+  auf der Strecke, und der Griff zur Kamera wäre umsonst gewesen. Die
+  Wiederholung ist ein Tastendruck, der Weg zum Produkt steht daneben.
+- Die Erfassung nach einem gescheiterten Upload wandert ohne Produktdaten in die
+  Warteschlange: das Produkt liegt bereits auf dem Server, und der Abgleich
+  findet es über die EAN wieder (`resolveProduct` in `web/src/lib/sync.ts`).
+- Das Bild steht unter den Feldern und nicht über ihnen. Die Bewegung an den
+  unteren Rand hat nur dann einen Sinn, wenn dort die Schaltfläche steht, die
+  über das Bild entscheidet – und das ist hier die des Formulars.
+- Gegengeprüft im Browser (Chromium, 390 × 664, doppelte Pixeldichte) gegen einen
+  laufenden Server: Anlegen mit Foto, Landung auf der Produktseite mit
+  gesetztem Hauptbild, Bewegung der Seite nach dem Auswählen und der
+  Zwischenzustand nach einem vom Server abgelehnten Bild.
+
+---
+
 ## 2026-08-26 – Vorschau schiebt Hochladen und Verwerfen an den unteren Rand
 
 **Anlass**

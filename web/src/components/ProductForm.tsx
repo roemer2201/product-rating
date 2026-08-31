@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent, type ReactNode } from 'react';
+import { useId, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import {
   PRODUCT_BRAND_MAX_LENGTH,
   PRODUCT_CATEGORY_MAX_LENGTH,
@@ -28,6 +28,9 @@ import { strings } from '@/lib/strings';
  * dropdown. A household invents its own categories, but it should not invent
  * "Getränke", "getraenke" and "Getränk" — offering what is already there is
  * enough to keep that from happening, while still letting a new one through.
+ *
+ * Between the fields and the buttons there is room for whatever else belongs
+ * to the same save. The screen for a new product puts the photo there.
  */
 
 export interface ProductFormValues {
@@ -50,6 +53,17 @@ interface ProductFormProps {
   errors?: FieldErrors;
   /** Rendered next to the submit button, e.g. a cancel link. */
   secondaryAction?: ReactNode;
+  /**
+   * Rendered between the fields and the buttons. That is where the screen for
+   * a new product puts the photo: it belongs to the same save, and it stands
+   * directly above the button that carries it out.
+   */
+  children?: ReactNode;
+  /**
+   * The button row. A screen that shows a picture above it needs to be able to
+   * scroll it into view once the picture has a height.
+   */
+  actionsRef?: RefObject<HTMLDivElement | null>;
 }
 
 export function ProductForm({
@@ -61,6 +75,8 @@ export function ProductForm({
   error = null,
   errors = {},
   secondaryAction,
+  children,
+  actionsRef,
 }: ProductFormProps) {
   const [name, setName] = useState(initial?.name ?? '');
   const [variant, setVariant] = useState(initial?.variant ?? '');
@@ -148,7 +164,9 @@ export function ProductForm({
         optional
       />
 
-      <div className="form__actions">
+      {children}
+
+      <div className="form__actions" ref={actionsRef}>
         <button type="submit" className="button button--primary" disabled={pending}>
           {pending ? pendingLabel : submitLabel}
         </button>

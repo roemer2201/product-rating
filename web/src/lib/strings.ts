@@ -285,6 +285,8 @@ export const strings = {
     eanLabel: 'EAN',
     existsAlready: 'Zu dieser EAN gibt es schon ein Produkt.',
     toExisting: 'Zum vorhandenen Produkt',
+    created: 'Das Produkt ist angelegt. Jetzt fehlt nur noch das Foto.',
+    toCreated: 'Ohne Foto zum Produkt',
     deleteTitle: 'Produkt löschen',
     deleteWarning:
       'Das Produkt wandert mit allen Bewertungen und Fotos in den Papierkorb. Eine Administratorin oder ein Administrator kann es von dort zurückholen, bis der Papierkorb geleert wird.',
@@ -303,6 +305,10 @@ export const strings = {
     take: 'Foto aufnehmen',
     choose: 'Bild auswählen',
     sourceHint: 'Aufnehmen öffnet die Kamera, Auswählen die Fotomediathek des Geräts.',
+    /** The photo on the form for a product that does not exist yet. */
+    newTitle: 'Foto',
+    newHint:
+      'Optional. Aufnehmen öffnet die Kamera, Auswählen die Fotomediathek – hochgeladen wird das Bild, sobald das Produkt angelegt ist.',
     preview: 'Vorschau',
     previewAlt: 'Vorschau des ausgewählten Bildes',
     upload: 'Hochladen',
