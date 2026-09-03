@@ -179,7 +179,11 @@ Manifest und Service Worker erzeugt `vite-plugin-pwa` (Workbox) aus der
 Konfiguration in `web/vite.config.ts`. Die App meldet sich als
 `display: standalone`, deutschsprachig, im Hochformat.
 
-**Icons.** Handgepflegt sind nur zwei SVG-Dateien in `web/public/`: `icon.svg`
+**Icons.** Das Zeichen ist ein Barcode über einer Reihe von fünf Sternen auf
+grünem Grund (`#16a34a`, Sterne `#ffc93c`) – Scannen und Bewerten, die beiden
+Dinge, um die es in der App geht. Gezeichnet ist es auf dem 360er-Raster der
+Vorlage: Balkenbreiten im Verhältnis 1:2:3, Sterne im Abstand von 50 Einheiten.
+Handgepflegt sind nur zwei SVG-Dateien in `web/public/`: `icon.svg`
 mit abgerundeten Ecken für alles, was das Symbol unverändert anzeigt, und
 `icon-maskable.svg` randlos und kleiner gezeichnet, weil Android und iOS ihre
 eigene Form daraus schneiden – sichtbar bleibt garantiert nur der innere Kreis

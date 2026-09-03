@@ -1,3 +1,15 @@
+product-rating (0.2.2) unstable; urgency=medium
+
+  * New app mark: a barcode above a row of five stars on a green ground. It
+    replaces the blue star and barcode symbol in the browser tab, in the web
+    app manifest and on the iOS home screen.
+  * Icons already on a home screen are only picked up when the app is added
+    again; the browser tab shows the new one after the next reload.
+  * No change to the installation layout, to the configuration or to the
+    database.
+
+ -- roemer2201 <roemer2201@users.noreply.github.com>  Thu, 03 Sep 2026 00:00:00 +0000
+
 product-rating (0.2.1) unstable; urgency=medium
 
   * A capture put into the offline queue survives the app being killed. On
