@@ -5,6 +5,51 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-09-03 – Neues App-Zeichen, Version 0.2.2
+
+**Anlass**
+
+Das bisherige Zeichen – ein Stern über einem Barcode auf Blau – war ein
+Platzhalter aus M9. Der Projektinhaber hat eine Vorlage geliefert: Barcode über
+einer Reihe von fünf Sternen auf Grün. Sie ist das Logo der App und ersetzt den
+Platzhalter überall dort, wo das Symbol auftaucht.
+
+**Umfang**
+
+- `web/public/icon.svg` und `web/public/icon-maskable.svg` neu gezeichnet:
+  Grund `#16a34a`, 22 weiße Balken auf einem 3er-Raster in den Breiten 3, 6 und
+  9, darunter fünf Sterne in `#ffc93c` im Abstand von 50 Einheiten. Der
+  Unterschied zwischen den beiden Dateien bleibt wie gehabt – abgerundete Ecken
+  hier, randlos und auf 85 % verkleinert dort.
+- Die fünf PNG-Dateien in `web/public/` mit `npm run icons` daraus neu erzeugt
+  (192 und 512 je Variante, `apple-touch-icon` mit 180).
+- Version im ganzen Repository auf 0.2.2 gehoben (vier `package.json` und
+  `packaging/debian/changelog`).
+- `README.md` 2.2: Beschreibung des Zeichens ergänzt.
+
+**Entscheidungen**
+
+- Der viewBox-Bereich wechselt von 512 auf 360 Einheiten – das Raster der
+  Vorlage. Damit bleiben alle Balken ganzzahlig und die Breiten exakt im
+  Verhältnis 1:2:3, statt bei der Umrechnung auf 512 krumm zu werden. Die
+  Rasterung interessiert die viewBox nicht, `generate-icons.ts` bleibt
+  unverändert.
+- Die abgerundeten Ecken der Vorlage-losen Variante bleiben erhalten, obwohl die
+  Vorlage ein volles Quadrat ist: `icon.svg` wird auch dort angezeigt, wo
+  niemand eine Form ausschneidet (Browser-Tab, Launcher ohne Maske), und ein
+  scharfkantiges Quadrat fällt dort aus dem Rahmen. Nachgemessen gegen die
+  Vorlage weicht die Rasterung nur an den vier Ecken und um eine Zeile an den
+  Sternspitzen ab.
+- Die Akzentfarbe der Oberfläche bleibt Blau (`--color-accent: #2f5fd0`).
+  Abgestimmt: das Zeichen wechselt die Farbe, das Farbschema der App nicht –
+  das wäre eine eigene Arbeit samt Kontrastprüfung im Dunkelmodus.
+- Patch-Version statt Minor: es ändert sich nur ein Bild, kein Verhalten, kein
+  Schema, keine Konfiguration.
+- Ein Symbol, das schon auf dem Home-Bildschirm liegt, tauscht iOS nicht aus;
+  das steht so im Changelog des Pakets.
+
+---
+
 ## 2026-08-31 – Foto schon beim erstmaligen Erfassen eines Produkts
 
 **Anlass**
