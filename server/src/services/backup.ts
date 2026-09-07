@@ -1,7 +1,9 @@
 import Database from 'better-sqlite3';
-import { constants } from 'node:fs';
+import { constants, type Stats } from 'node:fs';
 import {
   access,
+  chmod,
+  chown,
   copyFile,
   cp,
   mkdtemp,
@@ -55,6 +57,16 @@ const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 /** Owner only, for both snapshots and their directories: this is personal data. */
 const PRIVATE_MODE = 0o700;
 
+/**
+ * Mode a restored upload directory gets when there was none before. The same
+ * value `ensureRuntimeDirectories()` creates it with, so a first restore into
+ * an empty installation leaves the directory the service expects.
+ */
+const UPLOADS_MODE = 0o750;
+
+/** The same, for a database file that has no predecessor to copy from. */
+const DATABASE_MODE = 0o640;
+
 export interface BackupOptions {
   config: AppConfig;
   /** Directory the snapshot is created in; created if missing. */
@@ -95,7 +107,10 @@ export interface RestoreResult {
   previousUploads: string | null;
   /** Photos written into the upload directory. */
   files: number;
-  /** Photos removed because the snapshot does not have them. */
+  /**
+   * Photos the snapshot does not have. They are not deleted: the whole upload
+   * directory moves aside to `previousUploads`, so these files stay there.
+   */
   removedFiles: number;
 }
 
@@ -413,6 +428,29 @@ export async function countSnapshotFiles(source: string): Promise<number> {
 }
 
 /**
+ * Gives a staged file or directory the permissions of the one it replaces.
+ *
+ * The restore swaps whole files and directories into place instead of writing
+ * into the existing ones, so without this step the service would be locked out
+ * of its own data: a staged directory is created with `0700` and belongs to
+ * whoever ran the restore — usually root, while the service runs under its own
+ * account. `mode` falls back to `fallbackMode` when there is nothing to copy
+ * from, which is the case for a first restore into an empty installation.
+ *
+ * Changing the owner needs root; when the restore runs as the service user
+ * itself the owner is already right, so a refusal is not an error.
+ */
+async function adoptPermissions(
+  target: string,
+  previous: Stats | null,
+  fallbackMode: number,
+): Promise<void> {
+  await chmod(target, previous === null ? fallbackMode : previous.mode & 0o7777);
+  if (previous === null) return;
+  await chown(target, previous.uid, previous.gid).catch(() => undefined);
+}
+
+/**
  * Puts a snapshot back in place: database first, then the photos.
  *
  * The service has to be stopped for this — the caller is responsible for
@@ -440,6 +478,10 @@ export async function restoreBackup(options: RestoreOptions): Promise<RestoreRes
   let databaseReplaced = false;
   const wanted = await walkFiles(join(source, BACKUP_UPLOADS_DIR));
   const present = await walkFiles(config.paths.uploads);
+  // Read before anything moves: what goes into place has to keep the owner and
+  // the mode of what it replaces, or the service cannot read its own files.
+  const uploadsBefore = await stat(config.paths.uploads).catch(() => null);
+  const databaseBefore = await stat(config.paths.database).catch(() => null);
   try {
     await cp(join(source, BACKUP_UPLOADS_DIR), staged, {
       recursive: true,
@@ -461,11 +503,13 @@ export async function restoreBackup(options: RestoreOptions): Promise<RestoreRes
       await rename(config.paths.uploads, previousUploads);
       uploadsMoved = true;
     }
+    await adoptPermissions(incoming, databaseBefore, DATABASE_MODE);
     await rename(incoming, config.paths.database);
     databaseReplaced = true;
     for (const suffix of ['-wal', '-shm']) {
       await rm(`${config.paths.database}${suffix}`, { force: true });
     }
+    await adoptPermissions(staged, uploadsBefore, UPLOADS_MODE);
     await rename(staged, config.paths.uploads);
   } catch (error) {
     if (databaseReplaced) {
@@ -485,10 +529,11 @@ export async function restoreBackup(options: RestoreOptions): Promise<RestoreRes
   onProgress?.(
     `database and photos restored; recovery copies: ${previousDatabase ?? 'none'}, ${previousUploads ?? 'none'}`,
   );
+  const restored = new Set(wanted);
   return {
     previousDatabase,
     previousUploads,
     files: wanted.length,
-    removedFiles: present.filter((name) => !wanted.includes(name)).length,
+    removedFiles: present.filter((name) => !restored.has(name)).length,
   };
 }

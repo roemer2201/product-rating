@@ -1239,7 +1239,11 @@ Wiederherstellung des vorherigen Zustands zusammen; erst nach Prüfung des
 Restores löschen. Vor Änderungen prüft `restore` das Upload-Verzeichnis und
 alle in der Snapshot-Datenbank referenzierten Originale und Thumbnails und
 bereitet die eingehenden Dateien vor. Ein unvollständiger Snapshot wird abgelehnt.
-Das gilt gleichermaßen im Docker- und Debian-Betrieb.
+Solange diese Vorbereitung läuft, liegen die Fotos zweimal auf der Platte;
+entsprechend viel Platz muss frei sein. Datenbankdatei und Upload-Verzeichnis
+werden vollständig ausgetauscht, behalten dabei aber Eigentümer und Rechte des
+Bestands – ein `restore` als `root` sperrt den Dienst also nicht aus seinen
+eigenen Dateien aus. Das gilt gleichermaßen im Docker- und Debian-Betrieb.
 
 Offline-Erfassungen sind an das ursprünglich bestätigte Konto gebunden. Diese
 Zuordnung bleibt für Offline-Kaltstarts gespeichert und wird beim Abmelden

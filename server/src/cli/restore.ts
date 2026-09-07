@@ -14,10 +14,17 @@ keep writing into the file that is being replaced:
 
   systemctl stop product-rating      # or: docker compose stop
 
+The snapshot is checked and staged in full before anything in place changes:
+an incomplete snapshot - no upload directory, or a photo the snapshot database
+refers to that is not there - is refused without a single file being touched.
+Staging needs room for a second copy of the photos while it runs.
+
 What is in place beforehand is not thrown away: the current database is copied
-to pre-restore-<timestamp>.db next to it, so a restore from the wrong
-directory can be undone. Photos the snapshot does not have are removed,
-because nothing in the restored database refers to them any more.
+to pre-restore-<timestamp>.db next to it and the current upload directory is
+moved to <uploads>.pre-restore-<timestamp>, so a restore from the wrong
+directory can be undone. Photos the snapshot does not have stay in that
+directory; nothing in the restored database refers to them any more. Both
+belong together - delete them only once the restore has been checked.
 
 Options:
       --from DIR      Snapshot directory to read. Required.
@@ -85,10 +92,13 @@ export const restoreCommand: CliCommand = {
       `restored ${String(result.files)} photo file(s)` +
         (result.removedFiles === 0
           ? ''
-          : `, removed ${String(result.removedFiles)} that the snapshot does not have`),
+          : `, ${String(result.removedFiles)} that the snapshot does not have stayed behind`),
     );
     if (result.previousDatabase !== null) {
       io.err(`the database as it was is kept in ${result.previousDatabase}`);
+    }
+    if (result.previousUploads !== null) {
+      io.err(`the photos as they were are kept in ${result.previousUploads}`);
     }
 
     return EXIT_OK;

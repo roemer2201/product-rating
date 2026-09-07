@@ -186,6 +186,7 @@ export const strings = {
 
   /** The offline queue: capturing at the shelf, and getting it up later. */
   offlineCapture: {
+    unassignedTitle: 'Ohne Kontozuordnung',
     unassigned:
       'Diese Erfassungen haben noch kein zugeordnetes Konto. Übernimm nur deine eigenen Erfassungen; sie werden danach mit deinem angemeldeten Konto übertragen.',
     assign: 'Das ist meine Erfassung – meinem Konto zuordnen',

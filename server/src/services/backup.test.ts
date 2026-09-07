@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { statSync } from 'node:fs';
@@ -206,5 +206,30 @@ describe('review regressions: incomplete snapshots', () => {
     expect(result.files).toBe(0);
     expect(result.removedFiles).toBe(1);
     expect(readFileSync(join(result.previousUploads!, 'old.webp'), 'utf8')).toBe('recover me');
+  });
+
+  // The restore swaps whole files in, so it has to hand the replacement the
+  // permissions of what it replaced. Without that the service user is locked
+  // out of the upload directory and the next start fails its own path check.
+  it('gives the restored database and upload directory the permissions they had', async () => {
+    chmodSync(config.paths.uploads, 0o750);
+    chmodSync(config.paths.database, 0o640);
+    const snapshot = await createBackup({ config, target });
+    database.sqlite.close();
+
+    await restoreBackup({ config, source: snapshot.directory });
+
+    expect(statSync(config.paths.uploads).mode & 0o7777).toBe(0o750);
+    expect(statSync(config.paths.database).mode & 0o7777).toBe(0o640);
+  });
+
+  it('creates a first upload directory the service can use', async () => {
+    const snapshot = await createBackup({ config, target });
+    rmSync(config.paths.uploads, { recursive: true });
+    database.sqlite.close();
+
+    await restoreBackup({ config, source: snapshot.directory });
+
+    expect(statSync(config.paths.uploads).mode & 0o7777).toBe(0o750);
   });
 });
