@@ -1,3 +1,4 @@
+import { createPasswordReset, resolvePasswordReset } from './passwordResets.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parseConfig } from '../config/index.js';
 import { createTestDatabase, type TestDatabase } from '../db/testing.js';
@@ -150,4 +151,11 @@ describe('display names', () => {
     expect(first.displayName).toBe('Oma');
     expect(second.displayName).toBe('Oma');
   });
+});
+
+it('revokes reset links through setPassword, also used by the CLI', async () => {
+  const user = await createUser(database.db, config, { username: 'anna', password: PASSWORD });
+  const link = createPasswordReset(database.db, config, { userId: user.id });
+  await setPassword(database.db, config, user.id, 'a-replacement-password');
+  expect(() => resolvePasswordReset(database.db, link.token)).toThrow(ValidationError);
 });

@@ -175,7 +175,11 @@ export function buildQuery(params: Record<string, QueryValue>): string {
   return query === '' ? '' : `?${query}`;
 }
 
-interface RequestOptions {
+export interface CaptureRequestOptions {
+  expectedUserId?: string;
+}
+
+interface RequestOptions extends CaptureRequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   /** Sent as a JSON body; mutually exclusive with `body`. */
   json?: unknown;
@@ -188,6 +192,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const { method = 'GET', json, body, signal } = options;
 
   const headers: Record<string, string> = { accept: 'application/json' };
+  if (options.expectedUserId !== undefined) headers['x-capture-owner'] = options.expectedUserId;
   let payload = body;
 
   if (json !== undefined) {
@@ -222,7 +227,7 @@ const path = (...segments: string[]): string =>
   segments.map((segment) => encodeURIComponent(segment)).join('/');
 
 /** What an upload reports back while it is running. */
-export interface UploadOptions {
+export interface UploadOptions extends CaptureRequestOptions {
   /** Name of the upload part; the server generates the name on disk itself. */
   filename?: string | undefined;
   /** Share of the body that has left the device, between 0 and 1. */
@@ -247,6 +252,8 @@ function uploadRequest<T>(path: string, body: FormData, options: UploadOptions =
     xhr.open('POST', `${API_BASE}${path}`);
     xhr.responseType = 'text';
     xhr.setRequestHeader('accept', 'application/json');
+    if (options.expectedUserId !== undefined)
+      xhr.setRequestHeader('x-capture-owner', options.expectedUserId);
 
     const abort = (): void => {
       xhr.abort();
@@ -377,14 +384,15 @@ export const api = {
     /** Categories already in use, for the suggestion list of the product form. */
     categories: () => request<{ categories: string[] }>('/products/categories'),
 
-    get: (id: string) => request<{ product: ProductDetail }>(`/${path('products', id)}`),
+    get: (id: string, options: CaptureRequestOptions = {}) =>
+      request<{ product: ProductDetail }>(`/${path('products', id)}`, options),
 
     /** Lookup after a scan; answers `404` for an EAN nobody has entered yet. */
-    byEan: (ean: string) =>
-      request<{ product: ProductDetail }>(`/${path('products', 'by-ean', ean)}`),
+    byEan: (ean: string, options: CaptureRequestOptions = {}) =>
+      request<{ product: ProductDetail }>(`/${path('products', 'by-ean', ean)}`, options),
 
-    create: (input: CreateProductInput) =>
-      request<{ product: Product }>('/products', { method: 'POST', json: input }),
+    create: (input: CreateProductInput, options: CaptureRequestOptions = {}) =>
+      request<{ product: Product }>('/products', { method: 'POST', json: input, ...options }),
 
     update: (id: string, input: UpdateProductInput) =>
       request<{ product: Product }>(`/${path('products', id)}`, { method: 'PATCH', json: input }),
@@ -416,10 +424,10 @@ export const api = {
 
   ratings: {
     /** Creates or replaces the caller's own rating of a product. */
-    upsert: (productId: string, input: UpsertRatingInput) =>
+    upsert: (productId: string, input: UpsertRatingInput, options: CaptureRequestOptions = {}) =>
       request<{ rating: Rating; ratings: RatingSummary }>(
         `/${path('products', productId, 'rating')}`,
-        { method: 'PUT', json: input },
+        { method: 'PUT', json: input, ...options },
       ),
 
     remove: (productId: string) =>
@@ -475,10 +483,11 @@ export const api = {
     /** Shops that have been entered before, for the suggestion list. */
     shops: () => request<{ shops: string[] }>('/prices/shops'),
 
-    add: (productId: string, input: CreatePriceInput) =>
+    add: (productId: string, input: CreatePriceInput, options: CaptureRequestOptions = {}) =>
       request<{ price: Price }>(`/${path('products', productId, 'prices')}`, {
         method: 'POST',
         json: input,
+        ...options,
       }),
 
     remove: (id: string) => request<{ ok: true }>(`/${path('prices', id)}`, { method: 'DELETE' }),

@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { eq, isNotNull, lt, or } from 'drizzle-orm';
+import { and, eq, gt, isNull, isNotNull, lt, or } from 'drizzle-orm';
 import type { PasswordResetLink } from '@product-rating/shared';
 import type { AppConfig } from '../config/index.js';
 import type { DbHandle } from '../db/index.js';
@@ -133,7 +133,19 @@ export function resolvePasswordReset(
 
 /** Marks a link as spent. Called in the same transaction as the new password. */
 export function consumePasswordReset(db: DbHandle, id: string, now: Date = new Date()): void {
-  db.update(passwordResets).set({ usedAt: now }).where(eq(passwordResets.id, id)).run();
+  const result = db
+    .update(passwordResets)
+    .set({ usedAt: now })
+    .where(
+      and(
+        eq(passwordResets.id, id),
+        isNull(passwordResets.usedAt),
+        gt(passwordResets.expiresAt, now),
+      ),
+    )
+    .run();
+  if (result.changes !== 1)
+    throw new ValidationError('this link is not valid any more', { field: 'token' });
 }
 
 /**

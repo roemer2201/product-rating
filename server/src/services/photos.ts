@@ -68,7 +68,7 @@ const INPUT_MIME_BY_FORMAT: Record<string, string[]> = {
  * product can be removed in a single step. The name is generated from the photo
  * identifier — what the client called its file never reaches the disk.
  */
-export function photoRelativePath(row: PhotoRow, size: PhotoSize): string {
+export function photoRelativePath(row: Pick<PhotoRow, 'filename'>, size: PhotoSize): string {
   return size === 'full' ? row.filename : thumbnailOf(row.filename);
 }
 

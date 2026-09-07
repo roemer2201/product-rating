@@ -269,3 +269,47 @@ describe('a password link', () => {
     expect(response.statusCode).toBe(403);
   });
 });
+
+describe('review regressions: reset permissions', () => {
+  it('accepts exactly one concurrent redemption and keeps only its session/password', async () => {
+    const link = await issueLink();
+    const passwords = ['first-concurrent-password', 'second-concurrent-password'];
+    const responses = await Promise.all(passwords.map((password) => redeem(link.token, password)));
+    expect(responses.map((response) => response.statusCode).sort()).toEqual([200, 400]);
+    const winner = responses.findIndex((response) => response.statusCode === 200);
+    const loser = 1 - winner;
+    expect(responses[loser]?.headers['set-cookie']).toBeUndefined();
+    expect((await loginAs('anna', passwords[winner])).statusCode).toBe(200);
+    expect((await loginAs('anna', passwords[loser])).statusCode).toBe(401);
+    const me = await harness.app.inject({
+      url: '/api/v1/auth/me',
+      headers: { cookie: sessionCookie(responses[winner]!) },
+    });
+    expect(me.statusCode).toBe(200);
+  });
+
+  it('revokes a link after a regular password change', async () => {
+    const cookie = sessionCookie(await loginAs('anna'));
+    const link = await issueLink();
+    const changed = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/password',
+      headers: writeHeaders(cookie),
+      payload: { currentPassword: PASSWORD, newPassword: NEW_PASSWORD },
+    });
+    expect(changed.statusCode).toBe(200);
+    expect((await redeem(link.token)).statusCode).toBe(400);
+  });
+
+  it('revokes a link after an administrator sets the password', async () => {
+    const link = await issueLink();
+    const changed = await harness.app.inject({
+      method: 'POST',
+      url: `/api/v1/users/${annaId}/password`,
+      headers: writeHeaders(adminCookie),
+      payload: { newPassword: NEW_PASSWORD },
+    });
+    expect(changed.statusCode).toBe(200);
+    expect((await redeem(link.token)).statusCode).toBe(400);
+  });
+});

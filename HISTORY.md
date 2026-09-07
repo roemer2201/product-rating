@@ -5,6 +5,28 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-09-07 – Fehler aus CODEX-REVIEW.md behoben
+
+- R1: Restore prüft Upload-Verzeichnis sowie referenzierte Originale und
+  Thumbnails, bereitet Dateien vor und erhält Datenbank und Uploads zur
+  Wiederherstellung. Bei Fehlern während des Austauschs wird zurückgerollt.
+- R2: Offline-Erfassungen tragen eine Konto-ID. Warteschlangen und Query-Cache
+  sind nach Konto getrennt; unzugeordnete Altbestände erfordern eine ausdrückliche
+  Übernahme. Jeder Sync-Request wird zusätzlich serverseitig gegen die ursprüngliche
+  Konto-ID geprüft. Die letzte bestätigte ID bleibt für Offline-Kaltstarts erhalten.
+- R3/R4: Passwort-Reset prüft und verbraucht den Link nach dem Hashing atomar;
+  jeder Passwortwechsel widerruft alle bisherigen Links in derselben Transaktion.
+- R5/R6: Sync-Fehler erhalten bestätigten Fortschritt. Automatische Versuche sind
+  an neue Auslöser gebunden; laufende Versuche werden zentral zusammengeführt,
+  mit Web Locks auch über Tabs hinweg, sofern der Browser sie unterstützt.
+- Dauerhafte Regressionstests für die sechs Funde ergänzt. Keine Änderungen an
+  Konfiguration, Datenbankschema oder den beiden Deployment-Verfahren erforderlich.
+- Validierung unter Node.js 24.19.0: Lint und Typecheck erfolgreich; vollständiger
+  Testlauf mit 650 erfolgreichen Tests, anschließend der zusätzliche UI-Test zum
+  Kontowechsel erfolgreich (insgesamt 651). Kein realer iOS-, Docker- oder Debian-Build-Test.
+
+---
+
 ## 2026-09-03 – Neues App-Zeichen, Version 0.2.2
 
 **Anlass**

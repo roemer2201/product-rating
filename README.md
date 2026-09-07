@@ -1233,7 +1233,21 @@ systemctl start product-rating
 `restore` überschreibt den laufenden Zustand, deshalb erst den Dienst anhalten:
 Ein laufender Server hält die Datenbank offen und schriebe in die Datei, die
 gerade ersetzt wird. Die vorhandene Datenbank wird vorher als
-`pre-restore-<zeitstempel>.db` daneben abgelegt.
+`pre-restore-<zeitstempel>.db` daneben abgelegt. Die bisherigen Uploads bleiben
+als `<uploads-pfad>.pre-restore-<zeitstempel>` erhalten. Beide gehören für eine
+Wiederherstellung des vorherigen Zustands zusammen; erst nach Prüfung des
+Restores löschen. Vor Änderungen prüft `restore` das Upload-Verzeichnis und
+alle in der Snapshot-Datenbank referenzierten Originale und Thumbnails und
+bereitet die eingehenden Dateien vor. Ein unvollständiger Snapshot wird abgelehnt.
+Das gilt gleichermaßen im Docker- und Debian-Betrieb.
+
+Offline-Erfassungen sind an das ursprünglich bestätigte Konto gebunden. Diese
+Zuordnung bleibt für Offline-Kaltstarts gespeichert und wird beim Abmelden
+entfernt. Ein anderes Konto sieht und synchronisiert dessen Warteschlange nicht.
+Ältere Erfassungen ohne Kontozuordnung müssen unter Einstellungen ausdrücklich
+als eigene Erfassung übernommen werden, bevor sie übertragen werden. Nach einem
+vorübergehenden Sync-Fehler erfolgt kein sofortiger automatischer Wiederholungsversuch;
+eine neue Online-Verbindung oder der manuelle Sync startet den nächsten Versuch.
 
 ### 8.2 Logging
 

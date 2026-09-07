@@ -4,7 +4,7 @@ import { EmptyState, ErrorNotice } from '@/components/Feedback';
 import { errorMessage } from '@/lib/api';
 import { formatDateTime } from '@/lib/format';
 import { formatAmount } from '@/lib/money';
-import { useCaptures, useResolveCapture, useSyncCaptures } from '@/lib/queries';
+import { useAssignCapture, useCaptures, useResolveCapture, useSyncCaptures } from '@/lib/queries';
 import { strings } from '@/lib/strings';
 
 /**
@@ -45,6 +45,8 @@ function contentsOf(capture: Capture): string[] {
 
 export function CaptureQueue() {
   const captures = useCaptures();
+  const unassigned = useCaptures(true);
+  const assign = useAssignCapture();
   const sync = useSyncCaptures();
   const resolve = useResolveCapture();
 
@@ -61,6 +63,28 @@ export function CaptureQueue() {
       {captures.error !== null && <ErrorNotice message={errorMessage(captures.error)} />}
       {sync.error !== null && <ErrorNotice message={errorMessage(sync.error)} />}
       {resolve.error !== null && <ErrorNotice message={errorMessage(resolve.error)} />}
+
+      {assign.error !== null && <ErrorNotice message={errorMessage(assign.error)} />}
+      {(unassigned.data ?? []).length > 0 && (
+        <div>
+          <p>{strings.offlineCapture.unassigned}</p>
+          {(unassigned.data ?? []).map((capture) => (
+            <p key={capture.id}>
+              {capture.label} ({capture.ean}){' '}
+              <button
+                type="button"
+                className="button button--quiet"
+                disabled={assign.isPending}
+                onClick={() => {
+                  assign.mutate(capture.id);
+                }}
+              >
+                {strings.offlineCapture.assign}
+              </button>
+            </p>
+          ))}
+        </div>
+      )}
 
       {entries.length === 0 ? (
         <EmptyState text={strings.offlineCapture.empty} />

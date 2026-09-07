@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { asc, eq, sql } from 'drizzle-orm';
 import type { User, UserRole } from '@product-rating/shared';
 import type { DbHandle } from '../db/index.js';
-import { users, type UserRow } from '../db/index.js';
+import { users, passwordResets, type UserRow } from '../db/index.js';
 import { ConflictError, NotFoundError, ValidationError } from './errors.js';
 import { argon2Parameters, hashPassword, LOCKED_PASSWORD_HASH } from './passwords.js';
 import type { AppConfig } from '../config/index.js';
@@ -202,15 +202,20 @@ export async function setPassword(
   assertPasswordPolicy(password, config);
 
   const hashed = await hashPassword(password, argon2Parameters(config));
-  // Setting a password is what ends the locked state — every way of doing it
-  // goes through here, so no caller can forget to clear the flag.
-  const result = db
-    .update(users)
-    .set({ passwordHash: hashed, passwordResetRequired: false })
-    .where(eq(users.id, userId))
-    .run();
+  replacePasswordHash(db, userId, hashed);
+}
 
-  if (result.changes === 0) throw new NotFoundError('user not found');
+/** Password changes revoke every outstanding reset permission atomically. */
+export function replacePasswordHash(db: DbHandle, userId: string, hashed: string): void {
+  db.transaction((tx) => {
+    const result = tx
+      .update(users)
+      .set({ passwordHash: hashed, passwordResetRequired: false })
+      .where(eq(users.id, userId))
+      .run();
+    if (result.changes === 0) throw new NotFoundError('user not found');
+    tx.delete(passwordResets).where(eq(passwordResets.userId, userId)).run();
+  });
 }
 
 /**
