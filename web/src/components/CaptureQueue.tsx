@@ -4,7 +4,7 @@ import { EmptyState, ErrorNotice } from '@/components/Feedback';
 import { errorMessage } from '@/lib/api';
 import { formatDateTime } from '@/lib/format';
 import { formatAmount } from '@/lib/money';
-import { useCaptures, useResolveCapture, useSyncCaptures } from '@/lib/queries';
+import { useAssignCapture, useCaptures, useResolveCapture, useSyncCaptures } from '@/lib/queries';
 import { strings } from '@/lib/strings';
 
 /**
@@ -45,6 +45,8 @@ function contentsOf(capture: Capture): string[] {
 
 export function CaptureQueue() {
   const captures = useCaptures();
+  const unassigned = useCaptures(true);
+  const assign = useAssignCapture();
   const sync = useSyncCaptures();
   const resolve = useResolveCapture();
 
@@ -52,6 +54,8 @@ export function CaptureQueue() {
   const [discarding, setDiscarding] = useState<string | null>(null);
 
   const entries = captures.data ?? [];
+  /** Captures from before the queue knew accounts; adopted one by one. */
+  const orphans = unassigned.data ?? [];
 
   return (
     <section className="section">
@@ -62,8 +66,47 @@ export function CaptureQueue() {
       {sync.error !== null && <ErrorNotice message={errorMessage(sync.error)} />}
       {resolve.error !== null && <ErrorNotice message={errorMessage(resolve.error)} />}
 
+      {assign.error !== null && <ErrorNotice message={errorMessage(assign.error)} />}
+      {orphans.length > 0 && (
+        <div className="notice" role="note">
+          <p>
+            <strong>{strings.offlineCapture.unassignedTitle}</strong>
+          </p>
+          <p>{strings.offlineCapture.unassigned}</p>
+          <ul className="admin-list">
+            {orphans.map((capture) => (
+              <li className="admin-row" key={capture.id}>
+                <div className="admin-row__body">
+                  <span className="admin-row__name">{capture.label}</span>
+                  <span className="admin-row__meta">
+                    {strings.offlineCapture.capturedAt(
+                      formatDateTime(new Date(capture.createdAt).toISOString()),
+                    )}
+                  </span>
+                  <span className="admin-row__note admin-row__code">{capture.ean}</span>
+                </div>
+                <div className="admin-row__actions">
+                  <button
+                    type="button"
+                    className="button button--quiet"
+                    disabled={assign.isPending}
+                    onClick={() => {
+                      assign.mutate(capture.id);
+                    }}
+                  >
+                    {strings.offlineCapture.assign}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {entries.length === 0 ? (
-        <EmptyState text={strings.offlineCapture.empty} />
+        // "Nothing open" would contradict the block above, so it only shows
+        // once there is nothing left to adopt either.
+        orphans.length === 0 && <EmptyState text={strings.offlineCapture.empty} />
       ) : (
         <>
           <div className="form__actions">

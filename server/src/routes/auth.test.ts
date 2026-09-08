@@ -536,3 +536,18 @@ describe('POST /api/v1/auth/password', () => {
     expect(response.statusCode).toBe(400);
   });
 });
+
+it('rejects an offline write when another account owns the session cookie', async () => {
+  const owner = await makeUser('anna');
+  await makeUser('bert');
+  const cookie = sessionCookie(await login('bert'));
+  const response = await harness.app.inject({
+    method: 'POST',
+    url: '/api/v1/products',
+    headers: { ...writeHeaders(cookie), 'x-capture-owner': owner },
+    payload: { ean: '4260000000011', name: 'Must not be created' },
+  });
+  expect(response.statusCode).toBe(401);
+  const list = await harness.app.inject({ url: '/api/v1/products', headers: { cookie } });
+  expect(list.json().products).toEqual([]);
+});

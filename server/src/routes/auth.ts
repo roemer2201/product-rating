@@ -32,6 +32,7 @@ import {
   findUserByUsername,
   insertUser,
   setPassword,
+  replacePasswordHash,
   updatePasswordHash,
   updateUser,
 } from '../services/users.js';
@@ -248,10 +249,14 @@ export function registerAuthRoutes(app: FastifyInstance): void {
     }
 
     assertPasswordPolicy(input.newPassword, app.config);
-    await setPassword(app.db, app.config, resolved.row.userId, input.newPassword);
-    consumePasswordReset(app.db, resolved.row.id);
-
-    const revoked = revokeAllSessions(app.db, resolved.row.userId);
+    const hashed = await hashPassword(input.newPassword, argon2Parameters(app.config));
+    const revoked = app.db.transaction((tx) => {
+      // Recheck after hashing: another request may have spent/replaced the link.
+      resolved = resolvePasswordReset(tx, input.token);
+      consumePasswordReset(tx, resolved.row.id);
+      replacePasswordHash(tx, resolved.row.userId, hashed);
+      return revokeAllSessions(tx, resolved.row.userId);
+    });
     app.loginLimiter.reset(key);
 
     request.log.info(

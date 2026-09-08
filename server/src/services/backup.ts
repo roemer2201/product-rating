@@ -1,20 +1,25 @@
 import Database from 'better-sqlite3';
-import { constants } from 'node:fs';
+import { constants, type Stats } from 'node:fs';
 import {
+  access,
+  chmod,
+  chown,
   copyFile,
+  cp,
+  mkdtemp,
   link,
   mkdir,
   readdir,
   readlink,
   rename,
   rm,
-  rmdir,
   stat,
   symlink,
   unlink,
   utimes,
 } from 'node:fs/promises';
 import { dirname, join, posix, relative, sep } from 'node:path';
+import { photoRelativePath } from './photos.js';
 import type { AppConfig } from '../config/index.js';
 
 /**
@@ -52,6 +57,16 @@ const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 /** Owner only, for both snapshots and their directories: this is personal data. */
 const PRIVATE_MODE = 0o700;
 
+/**
+ * Mode a restored upload directory gets when there was none before. The same
+ * value `ensureRuntimeDirectories()` creates it with, so a first restore into
+ * an empty installation leaves the directory the service expects.
+ */
+const UPLOADS_MODE = 0o750;
+
+/** The same, for a database file that has no predecessor to copy from. */
+const DATABASE_MODE = 0o640;
+
 export interface BackupOptions {
   config: AppConfig;
   /** Directory the snapshot is created in; created if missing. */
@@ -88,9 +103,14 @@ export interface RestoreOptions {
 export interface RestoreResult {
   /** Copy of the database as it was before the restore, or `null`. */
   previousDatabase: string | null;
+  /** Uploads retained alongside the previous database for recovery. */
+  previousUploads: string | null;
   /** Photos written into the upload directory. */
   files: number;
-  /** Photos removed because the snapshot does not have them. */
+  /**
+   * Photos the snapshot does not have. They are not deleted: the whole upload
+   * directory moves aside to `previousUploads`, so these files stay there.
+   */
   removedFiles: number;
 }
 
@@ -381,7 +401,22 @@ export async function inspectSnapshot(source: string): Promise<string | null> {
   try {
     const rows = handle.pragma('integrity_check') as { integrity_check: string }[];
     const verdict = rows[0]?.integrity_check ?? 'unknown';
-    return verdict === 'ok' ? null : `${database} is damaged: ${verdict}`;
+    if (verdict !== 'ok') return `${database} is damaged: ${verdict}`;
+    const uploads = join(source, BACKUP_UPLOADS_DIR);
+    if (!(await stat(uploads)).isDirectory()) return `${uploads} is not a directory`;
+    await access(uploads, constants.R_OK | constants.X_OK);
+    const files = new Set(await walkFiles(uploads));
+    const photos = handle.prepare('select filename from photos').all() as { filename: string }[];
+    for (const photo of photos) {
+      for (const size of ['full', 'thumb'] as const) {
+        const name = photoRelativePath(photo, size);
+        if (!files.has(name)) return `snapshot is missing referenced photo: ${name}`;
+        await access(toLocalPath(uploads, name), constants.R_OK);
+      }
+    }
+    return null;
+  } catch (error) {
+    return `snapshot is incomplete or unreadable: ${error instanceof Error ? error.message : String(error)}`;
   } finally {
     handle.close();
   }
@@ -392,21 +427,27 @@ export async function countSnapshotFiles(source: string): Promise<number> {
   return (await walkFiles(join(source, BACKUP_UPLOADS_DIR))).length;
 }
 
-/** Removes directories that the restore left empty, deepest first. */
-async function pruneEmptyDirectories(root: string): Promise<void> {
-  let entries;
-  try {
-    entries = await readdir(root, { withFileTypes: true });
-  } catch {
-    return;
-  }
-
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    const child = join(root, entry.name);
-    await pruneEmptyDirectories(child);
-    await rmdir(child).catch(() => undefined);
-  }
+/**
+ * Gives a staged file or directory the permissions of the one it replaces.
+ *
+ * The restore swaps whole files and directories into place instead of writing
+ * into the existing ones, so without this step the service would be locked out
+ * of its own data: a staged directory is created with `0700` and belongs to
+ * whoever ran the restore — usually root, while the service runs under its own
+ * account. `mode` falls back to `fallbackMode` when there is nothing to copy
+ * from, which is the case for a first restore into an empty installation.
+ *
+ * Changing the owner needs root; when the restore runs as the service user
+ * itself the owner is already right, so a refusal is not an error.
+ */
+async function adoptPermissions(
+  target: string,
+  previous: Stats | null,
+  fallbackMode: number,
+): Promise<void> {
+  await chmod(target, previous === null ? fallbackMode : previous.mode & 0o7777);
+  if (previous === null) return;
+  await chown(target, previous.uid, previous.gid).catch(() => undefined);
 }
 
 /**
@@ -427,53 +468,72 @@ export async function restoreBackup(options: RestoreOptions): Promise<RestoreRes
   const problem = await inspectSnapshot(source);
   if (problem !== null) throw new Error(problem);
 
-  // --- Database ---------------------------------------------------------
-  // Existence is checked on its own, so a failing copy stays a failing copy
-  // instead of being taken for a database that was not there in the first
-  // place. A first restore into an empty installation has nothing to keep.
-  let previousDatabase: string | null = null;
-  if (await exists(config.paths.database)) {
-    previousDatabase = join(dirname(config.paths.database), `pre-restore-${snapshotName(now)}.db`);
-    onProgress?.(`keeping the current database as ${previousDatabase}`);
-    copyDatabase(config.paths.database, previousDatabase);
-  }
-
+  // Stage every incoming byte before changing the live database or uploads.
+  await mkdir(dirname(config.paths.uploads), { recursive: true });
+  const staged = await mkdtemp(`${config.paths.uploads}.restore-`);
   const incoming = `${config.paths.database}.restore`;
-  await mkdir(dirname(config.paths.database), { recursive: true });
-  await copyFile(join(source, BACKUP_DATABASE_FILE), incoming, constants.COPYFILE_FICLONE);
-  await rename(incoming, config.paths.database);
-
-  // The write-ahead log and the shared memory file belong to the database
-  // that has just been replaced; leaving them behind would mix two databases.
-  for (const suffix of ['-wal', '-shm']) {
-    await rm(`${config.paths.database}${suffix}`, { force: true });
+  let previousDatabase: string | null = null;
+  let previousUploads: string | null = null;
+  let uploadsMoved = false;
+  let databaseReplaced = false;
+  const wanted = await walkFiles(join(source, BACKUP_UPLOADS_DIR));
+  const present = await walkFiles(config.paths.uploads);
+  // Read before anything moves: what goes into place has to keep the owner and
+  // the mode of what it replaces, or the service cannot read its own files.
+  const uploadsBefore = await stat(config.paths.uploads).catch(() => null);
+  const databaseBefore = await stat(config.paths.database).catch(() => null);
+  try {
+    await cp(join(source, BACKUP_UPLOADS_DIR), staged, {
+      recursive: true,
+      preserveTimestamps: true,
+    });
+    await mkdir(dirname(config.paths.database), { recursive: true });
+    await copyFile(join(source, BACKUP_DATABASE_FILE), incoming, constants.COPYFILE_FICLONE);
+    if (await exists(config.paths.database)) {
+      previousDatabase = join(
+        dirname(config.paths.database),
+        `pre-restore-${snapshotName(now)}.db`,
+      );
+      copyDatabase(config.paths.database, previousDatabase);
+    }
+    if (await exists(config.paths.uploads)) {
+      previousUploads = `${config.paths.uploads}.pre-restore-${snapshotName(now)}`;
+      if (await exists(previousUploads))
+        throw new Error(`recovery directory already exists: ${previousUploads}`);
+      await rename(config.paths.uploads, previousUploads);
+      uploadsMoved = true;
+    }
+    await adoptPermissions(incoming, databaseBefore, DATABASE_MODE);
+    await rename(incoming, config.paths.database);
+    databaseReplaced = true;
+    for (const suffix of ['-wal', '-shm']) {
+      await rm(`${config.paths.database}${suffix}`, { force: true });
+    }
+    await adoptPermissions(staged, uploadsBefore, UPLOADS_MODE);
+    await rename(staged, config.paths.uploads);
+  } catch (error) {
+    if (databaseReplaced) {
+      for (const suffix of ['-wal', '-shm'])
+        await rm(`${config.paths.database}${suffix}`, { force: true });
+      if (previousDatabase !== null) await copyFile(previousDatabase, config.paths.database);
+      else await rm(config.paths.database, { force: true });
+    }
+    if (uploadsMoved && previousUploads !== null) {
+      await rename(previousUploads, config.paths.uploads);
+    }
+    throw error;
+  } finally {
+    await rm(staged, { recursive: true, force: true });
+    await rm(incoming, { force: true });
   }
-  onProgress?.(`database restored into ${config.paths.database}`);
-
-  // --- Photos -----------------------------------------------------------
-  const from = join(source, BACKUP_UPLOADS_DIR);
-  const wanted = await walkFiles(from);
-  const present = new Set(await walkFiles(config.paths.uploads));
-
-  await mkdir(config.paths.uploads, { recursive: true });
-
-  for (const photo of wanted) {
-    const to = toLocalPath(config.paths.uploads, photo);
-    await mkdir(dirname(to), { recursive: true });
-    await copyPreservingTime(toLocalPath(from, photo), to);
-    present.delete(photo);
-  }
-
-  // What is left over belongs to the state that has just been replaced. The
-  // database no longer knows these files, so they would only take up space.
-  let removedFiles = 0;
-  for (const photo of present) {
-    await rm(toLocalPath(config.paths.uploads, photo), { force: true });
-    removedFiles += 1;
-  }
-  await pruneEmptyDirectories(config.paths.uploads);
-
-  onProgress?.(`photos restored into ${config.paths.uploads}`);
-
-  return { previousDatabase, files: wanted.length, removedFiles };
+  onProgress?.(
+    `database and photos restored; recovery copies: ${previousDatabase ?? 'none'}, ${previousUploads ?? 'none'}`,
+  );
+  const restored = new Set(wanted);
+  return {
+    previousDatabase,
+    previousUploads,
+    files: wanted.length,
+    removedFiles: present.filter((name) => !restored.has(name)).length,
+  };
 }

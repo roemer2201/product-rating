@@ -5,6 +5,84 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-09-07 – Nachprüfung der Review-Korrekturen
+
+**Anlass**
+
+Die Korrekturen zu CODEX-REVIEW.md (Eintrag unten) wurden gegengelesen. Lint,
+Typecheck, `format:check` und die vollständige Testsuite liefen unter
+Node.js 22.22.2 durch – der Zielversion, unter der die Review selbst nicht
+geprüft hatte – zunächst mit 651, nach den Ergänzungen mit 654 Tests in
+61 Dateien. R2 bis R6 sind wie beschrieben umgesetzt; an R1 und an der
+Oberfläche zur Übernahme blieb etwas offen.
+
+**Gefunden und behoben**
+
+- Der neue Restore tauscht das Upload-Verzeichnis vollständig aus, statt in das
+  vorhandene zu schreiben. Das Zielverzeichnis entstand über `mkdtemp()` und
+  damit mit Modus `0700` und dem Eigentümer, der `restore` aufruft – in der
+  Regel `root`. Der Dienst läuft aber unter `product-rating` (Debian) bzw.
+  `node` (Docker) und kam danach nicht mehr an seine Fotos: `checkDirectory()`
+  bricht den Start mit „directory … is not writable by this process“ ab.
+  `restoreBackup()` überträgt jetzt Modus und Eigentümer des ersetzten
+  Verzeichnisses – und derselben Überlegung folgend auch die der ersetzten
+  Datenbankdatei – auf das, was an seine Stelle tritt. Ohne Vorgänger gilt
+  `0750`, derselbe Wert, den `ensureRuntimeDirectories()` verwendet. Zwei
+  Regressionstests halten das fest.
+- `restore --help` und die Abschlussmeldung sprachen weiter davon, überzählige
+  Fotos zu löschen. Gelöscht wird nichts mehr: das bisherige Upload-Verzeichnis
+  wandert als Ganzes nach `<uploads>.pre-restore-<zeitstempel>`. Hilfetext und
+  Meldung sagen das jetzt und nennen das Verzeichnis, damit es nicht unbemerkt
+  Platz belegt. README 8.1 nennt zusätzlich den Platzbedarf während der
+  Vorbereitung und das Verhalten bei Rechten.
+- `removedFiles` verglich zwei Dateilisten mit `Array.includes()`, also
+  quadratisch. Bei der angepeilten Kataloggröße ist das die falsche Reihenfolge;
+  jetzt läuft der Vergleich über ein `Set`.
+- Die Übernahme unzugeordneter Alt-Erfassungen stand als unformatierter Block
+  über der Liste, ohne die Klassen, die der Rest der Ansicht verwendet, und der
+  Leerzustand „Nichts offen – alles ist übertragen“ erschien daneben, obwohl
+  noch etwas wartete. Der Block trägt jetzt dieselbe `admin-row`-Struktur wie
+  die übrige Warteschlange, hat eine eigene Überschrift, und der Leerzustand
+  zeigt sich erst, wenn auch nichts mehr zu übernehmen ist. Ein Test deckt die
+  Übernahme samt Identitätsprüfung ab.
+
+**Entscheidungen**
+
+- Die Eigentümerübertragung per `chown()` schlägt fehl, wenn `restore` nicht als
+  `root` läuft. Das ist kein Fehler, sondern der Normalfall, wenn der Dienstnutzer
+  selbst wiederherstellt – dort stimmt der Eigentümer bereits. Der Aufruf bleibt
+  deshalb bewusst folgenlos.
+- Die Dateien im wiederhergestellten Upload-Verzeichnis gehören weiterhin dem
+  aufrufenden Konto. Das war vor der Korrektur ebenso und wird über die Rechte
+  des Verzeichnisses abgedeckt; ein `chown -R` über sechsstellig viele Dateien
+  wäre der teurere Weg für denselben Effekt.
+- CODEX-REVIEW.md bleibt unverändert stehen: der Bericht beschreibt einen Stand,
+  kein Arbeitsblatt.
+
+---
+
+## 2026-09-07 – Fehler aus CODEX-REVIEW.md behoben
+
+- R1: Restore prüft Upload-Verzeichnis sowie referenzierte Originale und
+  Thumbnails, bereitet Dateien vor und erhält Datenbank und Uploads zur
+  Wiederherstellung. Bei Fehlern während des Austauschs wird zurückgerollt.
+- R2: Offline-Erfassungen tragen eine Konto-ID. Warteschlangen und Query-Cache
+  sind nach Konto getrennt; unzugeordnete Altbestände erfordern eine ausdrückliche
+  Übernahme. Jeder Sync-Request wird zusätzlich serverseitig gegen die ursprüngliche
+  Konto-ID geprüft. Die letzte bestätigte ID bleibt für Offline-Kaltstarts erhalten.
+- R3/R4: Passwort-Reset prüft und verbraucht den Link nach dem Hashing atomar;
+  jeder Passwortwechsel widerruft alle bisherigen Links in derselben Transaktion.
+- R5/R6: Sync-Fehler erhalten bestätigten Fortschritt. Automatische Versuche sind
+  an neue Auslöser gebunden; laufende Versuche werden zentral zusammengeführt,
+  mit Web Locks auch über Tabs hinweg, sofern der Browser sie unterstützt.
+- Dauerhafte Regressionstests für die sechs Funde ergänzt. Keine Änderungen an
+  Konfiguration, Datenbankschema oder den beiden Deployment-Verfahren erforderlich.
+- Validierung unter Node.js 24.19.0: Lint und Typecheck erfolgreich; vollständiger
+  Testlauf mit 650 erfolgreichen Tests, anschließend der zusätzliche UI-Test zum
+  Kontowechsel erfolgreich (insgesamt 651). Kein realer iOS-, Docker- oder Debian-Build-Test.
+
+---
+
 ## 2026-09-03 – Neues App-Zeichen, Version 0.2.2
 
 **Anlass**

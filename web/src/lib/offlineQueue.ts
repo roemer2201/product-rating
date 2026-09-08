@@ -1,3 +1,5 @@
+import { captureOwner } from '@/lib/captureIdentity';
+
 /**
  * What was recorded while the phone had no connection, until it reaches the
  * server.
@@ -84,6 +86,8 @@ export interface CaptureProgress {
 }
 
 export interface Capture {
+  /** Missing on legacy captures; never inferred when syncing. */
+  ownerId?: string | null;
   id: string;
   /** Normalised EAN-13 — the one thing every capture has. */
   ean: string;
@@ -253,6 +257,7 @@ export async function enqueueCapture(input: NewCapture): Promise<Capture> {
 
   const capture: Capture = {
     id: crypto.randomUUID(),
+    ownerId: captureOwner(),
     ean: input.ean,
     label: input.label,
     createdAt: now,
@@ -278,12 +283,14 @@ export async function enqueueCapture(input: NewCapture): Promise<Capture> {
 }
 
 /** Everything in the queue, oldest capture first. */
-export async function listCaptures(): Promise<Capture[]> {
+export async function listCaptures(ownerId: string | null = captureOwner()): Promise<Capture[]> {
   const all = await withStore<Capture[]>(
     'readonly',
     (store) => store.getAll() as IDBRequest<Capture[]>,
   );
-  return all.sort((left, right) => left.createdAt - right.createdAt);
+  return all
+    .filter((capture) => (capture.ownerId ?? null) === ownerId)
+    .sort((left, right) => left.createdAt - right.createdAt);
 }
 
 export async function getCapture(id: string): Promise<Capture | undefined> {
@@ -306,10 +313,26 @@ export async function removeCapture(id: string): Promise<void> {
 
 /** Number of captures waiting, for the badge in the interface. */
 export async function countCaptures(): Promise<number> {
-  return withStore<number>('readonly', (store) => store.count());
+  return (await listCaptures()).length;
 }
 
 /** Only used by the tests, which want a store with nothing in it. */
 export async function clearCaptures(): Promise<void> {
   await withStore('readwrite', (store) => store.clear());
+}
+
+/** Explicitly adopts a legacy/unassigned capture after the user confirms it. */
+export async function assignCapture(id: string, ownerId: string): Promise<void> {
+  const db = await openDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite', { durability: 'strict' });
+    const store = tx.objectStore(STORE);
+    const request = store.get(id) as IDBRequest<Capture | undefined>;
+    request.onsuccess = () => {
+      const capture = request.result;
+      if (capture !== undefined && capture.ownerId == null) store.put({ ...capture, ownerId });
+    };
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => reject(tx.error);
+  });
 }

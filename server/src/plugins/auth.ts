@@ -144,6 +144,15 @@ export function registerAuth(app: FastifyInstance): void {
     request.session = touched;
   });
 
+  // Bind queued requests to their original owner even if another tab changed
+  // the shared session cookie between the client's check and this request.
+  app.addHook('onRequest', async (request) => {
+    const expected = request.headers['x-capture-owner'];
+    if (expected !== undefined && expected !== request.user?.id) {
+      throw new UnauthorizedError('capture belongs to another account');
+    }
+  });
+
   app.decorate('requireUser', async (request: FastifyRequest) => {
     if (request.user === null) throw new UnauthorizedError();
     if (request.user.disabledAt !== null) throw new ForbiddenError('account is disabled');

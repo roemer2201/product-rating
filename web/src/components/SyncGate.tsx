@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useCaptureOwner } from '@/lib/captureIdentity';
 import { Link } from 'react-router';
 import { useCaptures, useSyncCaptures } from '@/lib/queries';
 import { useOnlineStatus } from '@/lib/online';
@@ -20,6 +21,7 @@ import { strings } from '@/lib/strings';
  */
 export function SyncGate() {
   const online = useOnlineStatus();
+  const owner = useCaptureOwner();
   const captures = useCaptures();
   const sync = useSyncCaptures();
 
@@ -34,12 +36,22 @@ export function SyncGate() {
   const start = useRef(sync.mutate);
   start.current = sync.mutate;
 
-  const running = sync.isPending;
-
+  // A settled mutation is not a trigger. Only a new pending capture, a new
+  // account or a new online transition earns another automatic attempt.
+  const trigger = `${owner ?? ''}:${waiting
+    .filter((capture) => capture.state === 'pending')
+    .map((capture) => capture.id)
+    .join(',')}`;
+  const attempted = useRef<string | null>(null);
   useEffect(() => {
-    if (!online || pending === 0 || running) return;
+    if (!online) {
+      attempted.current = null;
+      return;
+    }
+    if (owner === null || pending === 0 || attempted.current === trigger) return;
+    attempted.current = trigger;
     start.current();
-  }, [online, pending, running]);
+  }, [online, owner, pending, trigger]);
 
   if (waiting.length === 0) return null;
 

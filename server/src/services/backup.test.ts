@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { statSync } from 'node:fs';
@@ -155,5 +155,81 @@ describe('restoreBackup', () => {
 
   it('refuses a directory without a database in it', async () => {
     await expect(restoreBackup({ config, source: target })).rejects.toThrow(/app\.db/);
+  });
+});
+
+describe('review regressions: incomplete snapshots', () => {
+  it.each(['directory', 'full', 'thumb'])(
+    'rejects missing %s before changing live files',
+    async (missing) => {
+      const userId = (database.sqlite.prepare('select id from users').get() as { id: string }).id;
+      seedDatabase(database.db, {
+        products: [{ id: 'product', ean: '4260000000011', name: 'Test', createdBy: userId }],
+      });
+      database.sqlite
+        .prepare(
+          'insert into photos (id, product_id, user_id, filename, mime, width, height, created_at) values (?, ?, ?, ?, ?, ?, ?, ?)',
+        )
+        .run('photo', 'product', userId, 'ab/photo.webp', 'image/webp', 1, 1, Date.now());
+      writePhoto('ab/photo.webp', 'original');
+      writePhoto('ab/photo.thumb.webp', 'thumbnail');
+      const snapshot = await createBackup({ config, target });
+      const missingPath =
+        missing === 'directory'
+          ? join(snapshot.directory, 'uploads')
+          : join(
+              snapshot.directory,
+              'uploads',
+              'ab',
+              missing === 'full' ? 'photo.webp' : 'photo.thumb.webp',
+            );
+      rmSync(missingPath, { recursive: true });
+      database.sqlite.close();
+      const before = readFileSync(config.paths.database);
+      expect(await inspectSnapshot(snapshot.directory)).not.toBeNull();
+      await expect(restoreBackup({ config, source: snapshot.directory })).rejects.toThrow();
+      expect(readFileSync(config.paths.database)).toEqual(before);
+      expect(readFileSync(join(config.paths.uploads, 'ab/photo.webp'), 'utf8')).toBe('original');
+      expect(readFileSync(join(config.paths.uploads, 'ab/photo.thumb.webp'), 'utf8')).toBe(
+        'thumbnail',
+      );
+    },
+  );
+
+  it('accepts a legitimately empty upload directory and retains previous photos', async () => {
+    rmSync(config.paths.uploads, { recursive: true });
+    mkdirSync(config.paths.uploads);
+    const snapshot = await createBackup({ config, target });
+    writePhoto('old.webp', 'recover me');
+    database.sqlite.close();
+    const result = await restoreBackup({ config, source: snapshot.directory });
+    expect(result.files).toBe(0);
+    expect(result.removedFiles).toBe(1);
+    expect(readFileSync(join(result.previousUploads!, 'old.webp'), 'utf8')).toBe('recover me');
+  });
+
+  // The restore swaps whole files in, so it has to hand the replacement the
+  // permissions of what it replaced. Without that the service user is locked
+  // out of the upload directory and the next start fails its own path check.
+  it('gives the restored database and upload directory the permissions they had', async () => {
+    chmodSync(config.paths.uploads, 0o750);
+    chmodSync(config.paths.database, 0o640);
+    const snapshot = await createBackup({ config, target });
+    database.sqlite.close();
+
+    await restoreBackup({ config, source: snapshot.directory });
+
+    expect(statSync(config.paths.uploads).mode & 0o7777).toBe(0o750);
+    expect(statSync(config.paths.database).mode & 0o7777).toBe(0o640);
+  });
+
+  it('creates a first upload directory the service can use', async () => {
+    const snapshot = await createBackup({ config, target });
+    rmSync(config.paths.uploads, { recursive: true });
+    database.sqlite.close();
+
+    await restoreBackup({ config, source: snapshot.directory });
+
+    expect(statSync(config.paths.uploads).mode & 0o7777).toBe(0o750);
   });
 });

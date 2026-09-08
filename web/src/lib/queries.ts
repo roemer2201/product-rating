@@ -1,3 +1,4 @@
+import { captureOwner, confirmCaptureOwner, useCaptureOwner } from '@/lib/captureIdentity';
 import {
   MutationCache,
   QueryCache,
@@ -47,6 +48,7 @@ import {
 import {
   enqueueCapture,
   listCaptures,
+  assignCapture,
   removeCapture,
   type Capture,
   type NewCapture,
@@ -174,9 +176,13 @@ export function useSession(): UseQueryResult<User | null, Error> {
     queryFn: async ({ signal }) => {
       try {
         const { user } = await api.auth.me(signal);
+        if (!signal.aborted) confirmCaptureOwner(user.id);
         return user;
       } catch (error) {
-        if (error instanceof ApiError && error.isUnauthorized) return null;
+        if (error instanceof ApiError && error.isUnauthorized) {
+          if (!signal.aborted) confirmCaptureOwner(null);
+          return null;
+        }
         throw error;
       }
     },
@@ -190,8 +196,13 @@ export function useLogin(): UseMutationResult<User, Error, LoginInput> {
   const client = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: LoginInput) => (await api.auth.login(input)).user,
+    mutationFn: async (input: LoginInput) => {
+      await client.cancelQueries({ queryKey: queryKeys.session });
+      confirmCaptureOwner(null);
+      return (await api.auth.login(input)).user;
+    },
     onSuccess: (user) => {
+      confirmCaptureOwner(user.id);
       // Whatever is cached belongs to whoever was logged in before.
       client.clear();
       client.setQueryData(queryKeys.session, user);
@@ -203,8 +214,13 @@ export function useRegister(): UseMutationResult<User, Error, RegisterInput> {
   const client = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: RegisterInput) => (await api.auth.register(input)).user,
+    mutationFn: async (input: RegisterInput) => {
+      await client.cancelQueries({ queryKey: queryKeys.session });
+      confirmCaptureOwner(null);
+      return (await api.auth.register(input)).user;
+    },
     onSuccess: (user) => {
+      confirmCaptureOwner(user.id);
       client.clear();
       client.setQueryData(queryKeys.session, user);
     },
@@ -216,6 +232,8 @@ export function useLogout(): UseMutationResult<void, Error, void> {
 
   return useMutation({
     mutationFn: async () => {
+      await client.cancelQueries({ queryKey: queryKeys.session });
+      confirmCaptureOwner(null);
       await api.auth.logout();
     },
     // Even a failed logout ends the session locally: the cookie may already be
@@ -648,13 +666,31 @@ export function useChangePassword(): UseMutationResult<
  * navigation and the sync itself all have to see the same list, and every
  * mutation that queues something invalidates it.
  */
-export function useCaptures(): UseQueryResult<Capture[], Error> {
+export function useCaptures(unassigned = false): UseQueryResult<Capture[], Error> {
+  const owner = useCaptureOwner();
   return useQuery({
-    queryKey: queryKeys.captures,
-    queryFn: () => listCaptures(),
+    queryKey: [...queryKeys.captures, unassigned ? 'unassigned' : 'owned', owner],
+    queryFn: () => (owner === null && !unassigned ? [] : listCaptures(unassigned ? null : owner)),
     // The queue only changes through this app, and every change invalidates.
     staleTime: Number.POSITIVE_INFINITY,
     retry: false,
+  });
+}
+
+/** Legacy captures require an explicit decision and a live identity check. */
+export function useAssignCapture(): UseMutationResult<void, Error, string> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const owner = captureOwner();
+      const { user } = await api.auth.me();
+      if (owner === null || owner !== user.id || owner !== captureOwner())
+        throw new Error('capture account changed');
+      await assignCapture(id, owner);
+    },
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.captures });
+    },
   });
 }
 
@@ -707,6 +743,8 @@ export function useResolveCapture(): UseMutationResult<void, Error, ResolveCaptu
 
   return useMutation({
     mutationFn: async ({ capture, decision }: ResolveCaptureVariables) => {
+      if (capture.ownerId !== captureOwner() || capture.ownerId == null)
+        throw new Error('capture account changed');
       if (decision === 'mine') return keepCapturedRating(capture);
       if (decision === 'server') return discardCapturedRating(capture);
       if (decision === 'retry') return retryCapture(capture);
@@ -744,8 +782,13 @@ export function useRedeemReset(): UseMutationResult<User, Error, RedeemResetInpu
   const client = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: RedeemResetInput) => (await api.auth.redeemReset(input)).user,
+    mutationFn: async (input: RedeemResetInput) => {
+      await client.cancelQueries({ queryKey: queryKeys.session });
+      confirmCaptureOwner(null);
+      return (await api.auth.redeemReset(input)).user;
+    },
     onSuccess: (user) => {
+      confirmCaptureOwner(user.id);
       // Same as a login: whatever is cached belonged to somebody else.
       client.clear();
       client.setQueryData(queryKeys.session, user);

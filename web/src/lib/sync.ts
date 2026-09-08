@@ -1,6 +1,8 @@
+import { captureOwner } from '@/lib/captureIdentity';
 import { ApiError, api, isApiError } from '@/lib/api';
 import {
   listCaptures,
+  getCapture,
   removeCapture,
   saveCapture,
   type Capture,
@@ -46,12 +48,22 @@ const EMPTY_RESULT: SyncResult = { synced: 0, conflicts: 0, failed: 0, pending: 
  * value, a product that is gone — and repeating it would only repeat the answer.
  */
 function isTransient(error: unknown): boolean {
-  return isApiError(error) && (error.isNetworkError || error.status >= 500);
+  if (error instanceof IdentityChanged) return true;
+  return isApiError(error) && (error.isNetworkError || error.status === 401 || error.status >= 500);
 }
 
 function messageOf(error: unknown): string {
   if (isApiError(error)) return error.serverMessage ?? error.message;
   return error instanceof Error ? error.message : String(error);
+}
+
+class IdentityChanged extends Error {}
+
+function requestOwner(capture: Capture): { expectedUserId: string } {
+  if (capture.ownerId == null || capture.ownerId !== captureOwner()) {
+    throw new IdentityChanged('capture account changed');
+  }
+  return { expectedUserId: capture.ownerId };
 }
 
 /**
@@ -68,7 +80,7 @@ async function resolveProduct(capture: Capture): Promise<string> {
   if (capture.progress.productId !== null) return capture.progress.productId;
 
   try {
-    const { product } = await api.products.byEan(capture.ean);
+    const { product } = await api.products.byEan(capture.ean, requestOwner(capture));
     return product.id;
   } catch (error) {
     if (!isApiError(error) || error.status !== 404) throw error;
@@ -83,7 +95,10 @@ async function resolveProduct(capture: Capture): Promise<string> {
   }
 
   try {
-    const { product } = await api.products.create({ ean: capture.ean, ...capture.product });
+    const { product } = await api.products.create(
+      { ean: capture.ean, ...capture.product },
+      requestOwner(capture),
+    );
     return product.id;
   } catch (error) {
     // Somebody else entered the same EAN between the lookup and the create.
@@ -109,7 +124,7 @@ async function findRatingConflict(
 ): Promise<CaptureConflict | null> {
   if (capture.rating === null) return null;
 
-  const { product } = await api.products.get(productId);
+  const { product } = await api.products.get(productId, requestOwner(capture));
   const own = product.ownRating;
   if (own === null) return null;
 
@@ -138,12 +153,16 @@ async function syncCapture(capture: Capture): Promise<Capture['state']> {
   if (current.progress.productId !== productId) await advance({ productId });
 
   if (current.price !== null && !current.progress.price) {
-    await api.prices.add(productId, {
-      cents: current.price.cents,
-      shop: current.price.shop,
-      note: current.price.note,
-      purchasedAt: current.price.purchasedAt,
-    });
+    await api.prices.add(
+      productId,
+      {
+        cents: current.price.cents,
+        shop: current.price.shop,
+        note: current.price.note,
+        purchasedAt: current.price.purchasedAt,
+      },
+      requestOwner(current),
+    );
     await advance({ price: true });
   }
 
@@ -153,7 +172,10 @@ async function syncCapture(capture: Capture): Promise<Capture['state']> {
     const photo = current.photos[current.progress.photos];
     if (photo === undefined) break;
 
-    await api.photos.upload(productId, photo.blob, { filename: photo.filename });
+    await api.photos.upload(productId, photo.blob, {
+      filename: photo.filename,
+      ...requestOwner(current),
+    });
     await advance({ photos: current.progress.photos + 1 });
   }
 
@@ -164,10 +186,14 @@ async function syncCapture(capture: Capture): Promise<Capture['state']> {
       return 'conflict';
     }
 
-    await api.ratings.upsert(productId, {
-      stars: current.rating.stars,
-      comment: current.rating.comment,
-    });
+    await api.ratings.upsert(
+      productId,
+      {
+        stars: current.rating.stars,
+        comment: current.rating.comment,
+      },
+      requestOwner(current),
+    );
     await advance({ rating: true });
   }
 
@@ -185,10 +211,32 @@ async function syncCapture(capture: Capture): Promise<Capture['state']> {
  * A capture waiting for a decision is skipped rather than retried; so is one
  * the server refused, until somebody presses the button.
  */
-export async function syncCaptures(): Promise<SyncResult> {
+let active: Promise<SyncResult> | null = null;
+
+/** One run per browser origin (Web Locks), with a same-tab fallback. */
+export function syncCaptures(): Promise<SyncResult> {
+  if (active !== null) return active;
+  const owner = captureOwner();
+  if (owner === null) return Promise.resolve({ ...EMPTY_RESULT });
+  const run = () => runSync(owner);
+  const operation = async (): Promise<SyncResult> => {
+    if (navigator.locks === undefined) return run();
+    return await navigator.locks.request(
+      'product-rating-sync',
+      { ifAvailable: true },
+      async (lock) => (lock === null ? { ...EMPTY_RESULT } : await run()),
+    );
+  };
+  active = operation().finally(() => {
+    active = null;
+  });
+  return active;
+}
+
+async function runSync(owner: string): Promise<SyncResult> {
   let captures: Capture[];
   try {
-    captures = await listCaptures();
+    captures = await listCaptures(owner);
   } catch {
     // No IndexedDB — a private window, or storage switched off. Nothing was
     // ever queued in that case either.
@@ -198,6 +246,7 @@ export async function syncCaptures(): Promise<SyncResult> {
   const result: SyncResult = { ...EMPTY_RESULT };
 
   for (const capture of captures) {
+    if (captureOwner() !== owner) break;
     if (capture.state !== 'pending') {
       if (capture.state === 'conflict') result.conflicts += 1;
       else result.failed += 1;
@@ -211,10 +260,12 @@ export async function syncCaptures(): Promise<SyncResult> {
     } catch (error) {
       const transient = isTransient(error);
 
+      const latest = await getCapture(capture.id);
+      if (latest === undefined) continue;
       await saveCapture({
-        ...capture,
+        ...latest,
         state: transient ? 'pending' : 'failed',
-        attempts: capture.attempts + 1,
+        attempts: latest.attempts + 1,
         lastError: messageOf(error),
       });
 

@@ -279,6 +279,21 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [x] **[S]** `armhf` ist seit dem 22.08.2026 baubar, aber ungetestet: Es gibt keinen Runner dafür, und `better-sqlite3` hat dort keinen Prebuild, wird also bei jedem Bau übersetzt (mehrere Minuten). Beim ersten produktiven Lauf gegenprüfen, ob das Paket startet und Abfragen beantwortet; danach entscheiden, ob armhf in README 7.2 als unterstützte Architektur genannt wird. Stand 2026-08-24: Alle bisherigen Tests und Produkterfassungen liefen bereits auf `armhf` – als unterstützte Architektur in README 7.2 aufgenommen
 - [ ] **[S]** `.npmrc` setzt `engine-strict=true`, `jsdom` (nur Test-Abhängigkeit) verlangt Node `^22.22.2`. Ubuntu liefert derzeit `22.22.1`, dort scheitert `npm install` ohne `--engine-strict=false`. Für den Paketbau ist das am 22.08.2026 gelöst (`install_runtime_dependencies` schaltet die Regel ab, `check_prerequisites` prüft die Node-Version selbst); offen bleibt der Entwicklungs-Install. Prüfen, ob die Anforderung mit einem `jsdom`-Update verschwindet oder ob die Regel für Entwicklungsabhängigkeiten zu streng ist
 
+## M15 – Codereview vom 07.09.2026 (CODEX-REVIEW.md)
+
+- [x] **[M]** R1: Restore lehnt einen unvollständigen Snapshot vor der ersten Änderung ab und hält Datenbank und Uploads wiederherstellbar
+- [x] **[S]** R1-Nachtrag: Datenbankdatei und Upload-Verzeichnis behalten beim Austausch Eigentümer und Rechte – sonst startet der Dienst nach einem `restore` als `root` nicht mehr
+- [x] **[M]** R2: Offline-Erfassungen tragen die Konto-ID, Anzeige und Sync sind daran gebunden, jeder Sync-Request wird serverseitig gegengeprüft
+- [x] **[S]** R3: Prüfen und Verbrauchen des Reset-Links in einer Transaktion nach dem Hashing
+- [x] **[S]** R4: Jeder Passwortwechsel widerruft ausstehende Reset-Links in derselben Transaktion
+- [x] **[S]** R5: Fehlerbehandlung im Sync führt den zuletzt gespeicherten Fortschritt fort
+- [x] **[S]** R6: Automatischer Sync hängt an einem neuen Auslöser statt am Ende der vorherigen Mutation
+- [ ] **[S]** Der Restore legt die eingehenden Fotos vor dem Austausch vollständig neben dem Upload-Verzeichnis ab; währenddessen liegen sie zweimal auf der Platte. Für sechsstellige Bestände prüfen, ob Hardlinks aus dem Snapshot heraus möglich sind – `fs.cp()` kann das nicht, `createBackup()` macht es mit `link()` bereits selbst
+- [ ] **[S]** `inspectSnapshot()` läuft auf dem CLI-Weg zweimal (einmal in `restore.ts` vor der Rückfrage, einmal in `restoreBackup()`) und prüft dabei jede referenzierte Datei einzeln. Bei großen Beständen ist das spürbar; ein Ergebnis durchreichen, falls es je stört
+- [ ] **[S]** Die wiederhergestellten Fotodateien gehören dem Konto, das `restore` aufruft, nicht dem Dienstnutzer. Über die Rechte des Verzeichnisses ist das abgedeckt; falls eine Installation strengere Vorgaben hat, `chown -R` im Wiederherstellungsweg nachrüsten
+- [ ] **[S]** Web Locks sichern den Sync über Tabs hinweg ab, iOS Safari kann sie seit 15.4. Beim nächsten iPhone-Test gegenprüfen, dass der Rückfallweg (`navigator.locks === undefined`) dort nicht greift
+- [ ] **[S]** R2 ist statisch und mit Komponententests belegt, ein echter Kontowechsel im Browser auf dem iPhone steht aus
+
 ---
 
 ## Backlog (nach dem MVP)

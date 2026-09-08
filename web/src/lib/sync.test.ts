@@ -1,3 +1,6 @@
+import { confirmCaptureOwner } from '@/lib/captureIdentity';
+import { api, ApiError } from '@/lib/api';
+import { getCapture, saveCapture, assignCapture } from '@/lib/offlineQueue';
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearCaptures, enqueueCapture, listCaptures, type Capture } from '@/lib/offlineQueue';
@@ -330,5 +333,107 @@ describe('resolving a conflict', () => {
     await discardCapturedRating(capture);
 
     expect(await listCaptures()).toEqual([]);
+  });
+});
+
+describe('review regressions: owner and progress', () => {
+  it('keeps A’s queue private from B and transfers it after A returns', async () => {
+    confirmCaptureOwner('account-a');
+    const capture = await captureRating();
+    confirmCaptureOwner('account-b');
+    const lookup = vi.spyOn(api.products, 'byEan').mockResolvedValue({ product: PRODUCT });
+    const get = vi.spyOn(api.products, 'get').mockResolvedValue({ product: PRODUCT });
+    const put = vi
+      .spyOn(api.ratings, 'upsert')
+      .mockResolvedValue({ rating: makeRating(), ratings: PRODUCT.ratings });
+    try {
+      expect(await listCaptures()).toEqual([]);
+      await syncCaptures();
+      expect(lookup).not.toHaveBeenCalled();
+      confirmCaptureOwner('account-a');
+      expect((await listCaptures())[0]?.id).toBe(capture.id);
+      expect((await syncCaptures()).synced).toBe(1);
+      expect(put.mock.calls[0]?.[2]).toEqual({ expectedUserId: 'account-a' });
+    } finally {
+      lookup.mockRestore();
+      get.mockRestore();
+      put.mockRestore();
+    }
+  });
+
+  it('stops before the next write after an account switch during a read', async () => {
+    confirmCaptureOwner('account-a');
+    const capture = await captureRating();
+    const lookup = vi.spyOn(api.products, 'byEan').mockImplementation(async () => {
+      confirmCaptureOwner('account-b');
+      return { product: PRODUCT };
+    });
+    const put = vi.spyOn(api.ratings, 'upsert');
+    try {
+      expect((await syncCaptures()).pending).toBe(1);
+      expect(put).not.toHaveBeenCalled();
+      expect((await getCapture(capture.id))?.ownerId).toBe('account-a');
+    } finally {
+      lookup.mockRestore();
+      put.mockRestore();
+    }
+  });
+
+  it('never infers a legacy capture owner during sync', async () => {
+    const capture = await captureRating();
+    await saveCapture({ ...capture, ownerId: null });
+    expect(await listCaptures()).toEqual([]);
+    expect((await syncCaptures()).synced).toBe(0);
+    await assignCapture(capture.id, 'user-1');
+    expect((await listCaptures())[0]?.ownerId).toBe('user-1');
+  });
+
+  it.each([0, 503])('retains price and photo progress after a later %i failure', async (status) => {
+    const capture = await enqueueCapture({
+      ean: TEST_EAN,
+      label: 'Test',
+      price: { cents: 199, shop: null, note: null, purchasedAt: '2026-08-20' },
+      photos: [{ blob: new Blob(['photo']), filename: 'photo.webp' }],
+      rating: { stars: 4, comment: null, capturedAt: CAPTURED_AT },
+    });
+    const lookup = vi.spyOn(api.products, 'byEan').mockResolvedValue({ product: PRODUCT });
+    const price = vi.spyOn(api.prices, 'add').mockResolvedValue({ price: {} as never });
+    const photo = vi.spyOn(api.photos, 'upload').mockResolvedValue({ photo: {} as never });
+    const get = vi
+      .spyOn(api.products, 'get')
+      .mockRejectedValueOnce(new ApiError({ status, code: 'failure' }))
+      .mockResolvedValue({ product: PRODUCT });
+    const put = vi
+      .spyOn(api.ratings, 'upsert')
+      .mockResolvedValue({ rating: makeRating(), ratings: PRODUCT.ratings });
+    try {
+      expect((await syncCaptures()).pending).toBe(1);
+      expect((await getCapture(capture.id))?.progress).toMatchObject({ price: true, photos: 1 });
+      expect((await syncCaptures()).synced).toBe(1);
+      expect(price).toHaveBeenCalledTimes(1);
+      expect(photo).toHaveBeenCalledTimes(1);
+    } finally {
+      lookup.mockRestore();
+      price.mockRestore();
+      photo.mockRestore();
+      get.mockRestore();
+      put.mockRestore();
+    }
+  });
+
+  it('coalesces simultaneous sync requests', async () => {
+    await captureRating();
+    const lookup = vi
+      .spyOn(api.products, 'byEan')
+      .mockRejectedValue(new ApiError({ status: 503, code: 'unavailable' }));
+    try {
+      const first = syncCaptures();
+      const second = syncCaptures();
+      expect(first).toBe(second);
+      await Promise.all([first, second]);
+      expect(lookup).toHaveBeenCalledTimes(1);
+    } finally {
+      lookup.mockRestore();
+    }
   });
 });
