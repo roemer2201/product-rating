@@ -103,10 +103,33 @@ a {
   font-size: 0.8125rem;
 }
 
+/* The logout button keeps its size; the text next to it gives way instead. */
+.app-header__user > .button {
+  flex-shrink: 0;
+}
+
+/*
+ * "Angemeldet als" and the name are two boxes with a plain space between them,
+ * which is the only place the line may break. A narrow header therefore puts
+ * the name on its own line instead of clipping it, and only a name that is too
+ * long for a whole line still gets an ellipsis.
+ */
+.app-header__session {
+  min-width: 0;
+  text-align: right;
+}
+
+.app-header__session-label {
+  white-space: nowrap;
+}
+
 .app-header__username {
+  display: inline-block;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  vertical-align: bottom;
 }
 
 .app-main {
@@ -593,11 +616,13 @@ a {
 }
 
 /*
- * Eleven options -- zero plus ten stars -- do not fit across a phone as long as
- * every one of them keeps its 44 pixel tap target, so they are laid out as a
- * grid that breaks into two rows and only collapses into one where there is
- * room for it. Six columns splits the scale in the middle (0 to 5 above, 6 to
- * 10 below) instead of leaving a ragged wrap wherever the line happens to end.
+ * Twelve cells -- zero, ten stars and the number of the top rating behind them
+ * -- do not fit across a phone as long as every one of them keeps its 44 pixel
+ * tap target, so they are laid out as a grid that breaks into two rows and only
+ * collapses into one where there is room for it. Six columns splits the scale
+ * in the middle (0 to 5 above, 6 to 10 below) instead of leaving a ragged wrap
+ * wherever the line happens to end, and the closing number is what makes both
+ * rows the same length.
  */
 .stars {
   display: grid;
@@ -608,7 +633,7 @@ a {
 
 @media (min-width: 38rem) {
   .stars {
-    grid-template-columns: repeat(11, minmax(var(--tap-target), 1fr));
+    grid-template-columns: repeat(12, minmax(var(--tap-target), 1fr));
   }
 }
 
@@ -620,14 +645,15 @@ a {
   min-height: var(--tap-target);
   border-radius: var(--radius-md);
   color: var(--color-star);
-  /* Eleven glyphs in a row: smaller than the five-star widget carried, and
+  /* A dozen glyphs in a row: smaller than the five-star widget carried, and
      scaled with the column so a narrow phone does not push them apart. */
   font-size: clamp(1.25rem, 5vw, 1.5rem);
   line-height: 1;
   cursor: pointer;
 }
 
-.stars__option--zero {
+.stars__option--zero,
+.stars__option--max {
   color: var(--color-text-muted);
   font-size: 1rem;
   font-weight: 600;

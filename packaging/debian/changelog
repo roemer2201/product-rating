@@ -1,3 +1,16 @@
+product-rating (0.2.3) unstable; urgency=medium
+
+  * The header no longer cuts off the account name on a narrow screen. The
+    label and the name may now sit on two lines, and the name is shortened
+    only when it is too long for a line of its own.
+  * The rating scale closes with the number of the top rating, the way it
+    opens with a zero. Both rows the scale wraps into on a phone are the
+    same length, and a tap on that number gives the full ten stars.
+  * No change to the installation layout, to the configuration or to the
+    database.
+
+ -- roemer2201 <roemer2201@users.noreply.github.com>  Thu, 10 Sep 2026 00:00:00 +0000
+
 product-rating (0.2.2) unstable; urgency=medium
 
   * New app mark: a barcode above a row of five stars on a green ground. It

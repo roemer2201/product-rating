@@ -5,6 +5,71 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-09-10 – „10“ am Ende der Sterneskala
+
+**Anlass**
+
+Die Bewertungsskala bricht auf dem Telefon in zwei Reihen um. Die obere trug
+sechs Zeichen (die „0“ und fünf Sterne), die untere nur fünf – ein sichtbar
+schiefes Raster.
+
+**Umsetzung**
+
+- Hinter dem letzten Stern steht jetzt die Zahl der Höchstbewertung, so wie am
+  Anfang die „0“ steht. Damit sind beide Reihen sechs Zellen breit.
+- Die Zelle ist ein zweites `<label>` mit `htmlFor` auf denselben Radio-Button
+  wie der zehnte Stern: ein Tipp darauf wählt die Höchstwertung, alle Sterne
+  füllen sich. Kein zweiter Radio-Button für denselben Wert, der die Gruppe
+  durcheinanderbrächte.
+- `.stars` verteilt in der breiten Darstellung zwölf statt elf Spalten, und
+  `.stars__option--max` folgt der Gestaltung von `.stars__option--zero`.
+- Zwei Tests: die Zelle wählt die Höchstwertung, und im deaktivierten Zustand
+  tut sie nichts.
+
+**Entscheidungen**
+
+- Die Zelle trägt `aria-hidden`. Der Radio-Button für zehn Sterne ist bereits
+  angesagt; ein zweites Label dafür würde Screenreadern denselben Wert doppelt
+  vorlesen. Die Zahl ist eine Beschriftung der Skala, keine eigene Option.
+- Der zehnte Stern behält seine Zelle. Die Zahl kommt hinzu, statt den Stern zu
+  ersetzen – die Skala zeigt weiterhin zehn Sterne, so wie sie heißt.
+- Bei zehn Sternen sind Stern und Zahl gemeinsam hinterlegt: die Rückmeldung
+  soll dort erscheinen, wo der Finger war.
+
+---
+
+## 2026-09-10 – Zeilenumbruch im Kopfbereich nach „Angemeldet als“
+
+**Anlass**
+
+Auf schmalen Anzeigen stand „Angemeldet als `<name>`“ in einer Zeile, die nicht
+umbrechen durfte (`white-space: nowrap`). Der Name wurde deshalb abgeschnitten,
+statt in die nächste Zeile zu rutschen.
+
+**Umsetzung**
+
+- `strings.session.loggedInAs()` ist zu `strings.session.loggedInAsLabel`
+  geworden. Der Kopfbereich setzt Beschriftung und Name als zwei Boxen mit einem
+  gewöhnlichen Leerzeichen dazwischen; genau dort – also nach „als“ – darf die
+  Zeile jetzt brechen.
+- Beide Teile brechen intern nicht um: „Angemeldet als“ bleibt zusammen, und der
+  Name bekommt erst dann wieder eine Ellipse, wenn er allein zu lang für eine
+  Zeile ist.
+- Die Abmelden-Schaltfläche schrumpft nicht mehr mit (`flex-shrink: 0`), damit
+  der Platz beim Text gespart wird und nicht bei der Schaltfläche.
+- Die drei Stellen in `AppLayout.test.tsx` prüfen nun Beschriftung und Namen
+  getrennt.
+
+**Entscheidungen**
+
+- Der Umbruch entsteht über zwei Elemente statt über ein geschütztes Leerzeichen
+  im Text. Ein U+00A0 mitten in einer Zeichenkette wäre unsichtbar und würde die
+  Suche nach dem Text in Tests und Werkzeugen erschweren.
+- Lint, Typecheck, `format:check` und die Testsuite (654 Tests in 61 Dateien)
+  liefen durch.
+
+---
+
 ## 2026-09-07 – Nachprüfung der Review-Korrekturen
 
 **Anlass**

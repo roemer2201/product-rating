@@ -24,7 +24,8 @@ describe('AppLayout', () => {
 
     renderLayout();
 
-    expect(await screen.findByText(strings.session.loggedInAs('anna'))).toBeInTheDocument();
+    expect(await screen.findByText(strings.session.loggedInAsLabel)).toBeInTheDocument();
+    expect(screen.getByText('anna')).toBeInTheDocument();
     expect(screen.getByText('Katalogansicht')).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: strings.nav.label })).toBeInTheDocument();
   });
@@ -37,7 +38,7 @@ describe('AppLayout', () => {
     ]);
 
     renderLayout();
-    await screen.findByText(strings.session.loggedInAs('anna'));
+    await screen.findByText(strings.session.loggedInAsLabel);
 
     await user.click(screen.getByRole('button', { name: strings.common.logout }));
 
@@ -53,7 +54,7 @@ describe('AppLayout', () => {
     ]);
 
     renderLayout();
-    await screen.findByText(strings.session.loggedInAs('anna'));
+    await screen.findByText(strings.session.loggedInAsLabel);
 
     await user.click(screen.getByRole('button', { name: strings.common.logout }));
 

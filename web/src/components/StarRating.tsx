@@ -60,9 +60,16 @@ const OPTIONS = Array.from(
  * of from code that has to be maintained. The inputs are visually hidden and
  * their labels carry the star, which keeps a 44 pixel touch target without
  * giving up any of that.
+ *
+ * The scale ends with the number of the top rating, mirroring the zero it
+ * starts with: it is a second label for the same radio, so both ends of the
+ * scale are named and the two rows the widget wraps into on a phone are equally
+ * long. Assistive technology already has the radio itself and would only hear
+ * the top rating twice, which is why the extra cell is hidden from it.
  */
 export function StarRating({ value, onChange, disabled = false, label }: StarRatingProps) {
   const name = useId();
+  const maxId = `${name}-max`;
 
   return (
     <div className="stars" role="radiogroup" aria-label={label ?? strings.rating.starsLabel}>
@@ -84,6 +91,7 @@ export function StarRating({ value, onChange, disabled = false, label }: StarRat
               value={stars}
               checked={checked}
               disabled={disabled}
+              {...(stars === RATING_MAX_STARS ? { id: maxId } : {})}
               onChange={() => {
                 onChange(stars);
               }}
@@ -95,6 +103,16 @@ export function StarRating({ value, onChange, disabled = false, label }: StarRat
           </label>
         );
       })}
+
+      <label
+        className={`stars__option stars__option--max${
+          value === RATING_MAX_STARS ? ' stars__option--checked' : ''
+        }`}
+        htmlFor={maxId}
+        aria-hidden="true"
+      >
+        {RATING_MAX_STARS}
+      </label>
     </div>
   );
 }

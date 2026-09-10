@@ -35,6 +35,17 @@ describe('StarRating', () => {
     expect(onChange).toHaveBeenCalledWith(0);
   });
 
+  it('fills every star when the number at the end of the scale is tapped', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+
+    render(<StarRating value={2} onChange={onChange} />);
+    // Hidden from assistive technology, so it is found the way an eye finds it.
+    await user.click(screen.getByText(String(RATING_MAX_STARS)));
+
+    expect(onChange).toHaveBeenCalledWith(RATING_MAX_STARS);
+  });
+
   it('marks the current value for assistive technology', () => {
     render(<StarRating value={2} onChange={vi.fn()} />);
 
@@ -50,6 +61,7 @@ describe('StarRating', () => {
     await user.click(
       screen.getByRole('radio', { name: strings.rating.starLabel(RATING_MAX_STARS) }),
     );
+    await user.click(screen.getByText(String(RATING_MAX_STARS)));
 
     expect(onChange).not.toHaveBeenCalled();
   });
