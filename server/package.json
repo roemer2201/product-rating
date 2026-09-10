@@ -1,6 +1,6 @@
 {
   "name": "@product-rating/server",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "description": "Fastify API server for product-rating",
   "type": "module",
