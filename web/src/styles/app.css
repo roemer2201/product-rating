@@ -103,10 +103,33 @@ a {
   font-size: 0.8125rem;
 }
 
+/* The logout button keeps its size; the text next to it gives way instead. */
+.app-header__user > .button {
+  flex-shrink: 0;
+}
+
+/*
+ * "Angemeldet als" and the name are two boxes with a plain space between them,
+ * which is the only place the line may break. A narrow header therefore puts
+ * the name on its own line instead of clipping it, and only a name that is too
+ * long for a whole line still gets an ellipsis.
+ */
+.app-header__session {
+  min-width: 0;
+  text-align: right;
+}
+
+.app-header__session-label {
+  white-space: nowrap;
+}
+
 .app-header__username {
+  display: inline-block;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  vertical-align: bottom;
 }
 
 .app-main {

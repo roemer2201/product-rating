@@ -5,6 +5,38 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-09-10 – Zeilenumbruch im Kopfbereich nach „Angemeldet als“
+
+**Anlass**
+
+Auf schmalen Anzeigen stand „Angemeldet als `<name>`“ in einer Zeile, die nicht
+umbrechen durfte (`white-space: nowrap`). Der Name wurde deshalb abgeschnitten,
+statt in die nächste Zeile zu rutschen.
+
+**Umsetzung**
+
+- `strings.session.loggedInAs()` ist zu `strings.session.loggedInAsLabel`
+  geworden. Der Kopfbereich setzt Beschriftung und Name als zwei Boxen mit einem
+  gewöhnlichen Leerzeichen dazwischen; genau dort – also nach „als“ – darf die
+  Zeile jetzt brechen.
+- Beide Teile brechen intern nicht um: „Angemeldet als“ bleibt zusammen, und der
+  Name bekommt erst dann wieder eine Ellipse, wenn er allein zu lang für eine
+  Zeile ist.
+- Die Abmelden-Schaltfläche schrumpft nicht mehr mit (`flex-shrink: 0`), damit
+  der Platz beim Text gespart wird und nicht bei der Schaltfläche.
+- Die drei Stellen in `AppLayout.test.tsx` prüfen nun Beschriftung und Namen
+  getrennt.
+
+**Entscheidungen**
+
+- Der Umbruch entsteht über zwei Elemente statt über ein geschütztes Leerzeichen
+  im Text. Ein U+00A0 mitten in einer Zeichenkette wäre unsichtbar und würde die
+  Suche nach dem Text in Tests und Werkzeugen erschweren.
+- Lint, Typecheck, `format:check` und die Testsuite (654 Tests in 61 Dateien)
+  liefen durch.
+
+---
+
 ## 2026-09-07 – Nachprüfung der Review-Korrekturen
 
 **Anlass**

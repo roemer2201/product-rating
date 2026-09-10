@@ -57,7 +57,9 @@ export const strings = {
   session: {
     checking: 'Anmeldung wird geprüft …',
     unreachable: 'Der Server ist gerade nicht erreichbar.',
-    loggedInAs: (username: string) => `Angemeldet als ${username}`,
+    // Label and name are separate so the header can break the line between
+    // them when it runs out of room, instead of cutting the name off.
+    loggedInAsLabel: 'Angemeldet als',
     logoutFailed: 'Abmelden hat nicht geklappt.',
   },
 
