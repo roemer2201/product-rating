@@ -31,6 +31,9 @@ import { strings } from '@/lib/strings';
 /** How long a keystroke waits before it turns into a request. */
 const SEARCH_DEBOUNCE_MS = 300;
 
+/** Ties the camera button to the panel it opens, for assistive technology. */
+const SCANNER_PANEL_ID = 'catalogue-barcode-scanner';
+
 /**
  * The choices of the "at least this many stars" filter: every star of the
  * scale except zero, which is not a filter — it lets everything through.
@@ -106,11 +109,10 @@ export function CataloguePage() {
           <label className="field__label" htmlFor="catalogue-search">
             {strings.catalogue.search}
           </label>
-          <div className="filters__row">
+          <div className="filters__search">
             <input
               id="catalogue-search"
               className="field__input"
-              style={{ flex: '1 1 auto' }}
               type="search"
               value={search}
               onChange={(event) => {
@@ -122,15 +124,16 @@ export function CataloguePage() {
             />
             <button
               type="button"
-              className="button"
-              style={{ flex: '0 0 var(--tap-target)', padding: 0 }}
+              className="button filters__scan"
               onClick={() => {
                 setScannerOpen((open) => !open);
               }}
-              aria-label={strings.nav.scan}
-              title={strings.nav.scan}
+              aria-label={strings.catalogue.scanSearch}
+              title={strings.catalogue.scanSearch}
               aria-expanded={scannerOpen}
-              aria-controls="catalogue-barcode-scanner"
+              // Only while the panel exists: a reference to an id that is not
+              // in the document is an error, not an empty relation.
+              aria-controls={scannerOpen ? SCANNER_PANEL_ID : undefined}
             >
               <CameraIcon className="button__icon" />
             </button>
@@ -138,12 +141,9 @@ export function CataloguePage() {
         </div>
 
         {scannerOpen && (
-          <div id="catalogue-barcode-scanner" className="section" style={{ marginTop: 0 }}>
-            <div
-              className="form__actions"
-              style={{ justifyContent: 'space-between', marginTop: 0 }}
-            >
-              <h2 className="section__title">{strings.scan.title}</h2>
+          <div id={SCANNER_PANEL_ID} className="filters__scanner">
+            <div className="filters__scanner-header">
+              <h2 className="section__title">{strings.catalogue.scanSearch}</h2>
               <button
                 type="button"
                 className="button button--quiet"

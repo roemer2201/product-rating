@@ -149,6 +149,10 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
       unmittelbar nach dem Anlegen hochgeladen und wandert ohne Verbindung mit in
       die Warteschlange. Der gemeinsame Teil liegt in
       `web/src/components/PhotoPicker.tsx`
+- [x] **[M]** Barcode-Suche im Katalog: neben dem Suchfeld öffnet ein Kamera-Knopf
+      den vorhandenen `BarcodeScanner` an Ort und Stelle, die erkannte EAN wird
+      sofort zum Suchbegriff. `BarcodeScanner` bekam dafür `autoStart`, weil ein
+      Scanner, den man mit einem Kamera-Knopf aufmacht, die Absicht schon kennt
 - [ ] **[S]** Suchbegriff und Filter des Katalogs beim Zurücknavigieren erhalten – aktuell sind sie Zustand der Ansicht und gehen beim Wechsel auf ein Produkt verloren
 - [ ] **[S]** Ton und Vibration beim Treffer abschaltbar machen, sobald es eine Stelle für persönliche Einstellungen gibt
 

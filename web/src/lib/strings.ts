@@ -399,6 +399,10 @@ export const strings = {
     title: 'Katalog',
     search: 'Suchen',
     searchPlaceholder: 'Name, Sorte, Marke oder EAN',
+    // Not "Scannen": that is the screen in the navigation, which creates a
+    // product. This one only fills the search field, and a screen reader
+    // announces both one after the other.
+    scanSearch: 'Barcode suchen',
     filters: 'Filter',
     category: 'Kategorie',
     allCategories: 'Alle Kategorien',

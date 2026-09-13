@@ -119,13 +119,15 @@ describe('CataloguePage', () => {
     renderCatalogue();
     await screen.findByText('Apfelsaft');
 
-    await user.click(screen.getByRole('button', { name: strings.nav.scan }));
-    expect(screen.getByRole('heading', { name: strings.scan.title })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: strings.catalogue.scanSearch }));
+    expect(screen.getByRole('heading', { name: strings.catalogue.scanSearch })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Test-EAN scannen' }));
 
     expect(screen.getByLabelText(strings.catalogue.search)).toHaveValue('4006381333931');
-    expect(screen.queryByRole('heading', { name: strings.scan.title })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: strings.catalogue.scanSearch }),
+    ).not.toBeInTheDocument();
     await waitFor(() => {
       expect(lastListUrl(fetchMock.mock.calls)).toContain('q=4006381333931');
     });

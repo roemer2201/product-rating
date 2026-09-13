@@ -1060,6 +1060,41 @@ a {
   min-width: 0;
 }
 
+/* The search field and the camera button next to it. */
+.filters__search {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.filters__search .field__input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* A square of the tap target size: the icon is the whole label. */
+.filters__scan {
+  flex: 0 0 var(--tap-target);
+  padding: 0;
+}
+
+/*
+ * The scanner opened from the search field. It carries the dividing line of a
+ * section but none of its spacing above: it belongs to the field it was opened
+ * from, and the gap of `.filters` already sets it apart.
+ */
+.filters__scanner {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.filters__scanner-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+}
+
 /* --- Empty states and skeletons ------------------------------------------- */
 
 .empty-state {

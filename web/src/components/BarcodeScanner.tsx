@@ -66,6 +66,17 @@ export function BarcodeScanner({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const autoStartedRef = useRef(false);
+  /**
+   * Numbers the starts, so a stream can tell whether anyone still wants it.
+   *
+   * `getUserMedia` takes as long as it takes — a permission dialog, a camera
+   * that has to wake up — and in that time the scanner can be closed or pointed
+   * at another camera. The stream then arrives for a start nobody is waiting
+   * for any more, and without this it would be stored in `streamRef` after the
+   * cleanup has already run: a track that keeps recording, with the camera
+   * indicator lit, until the page is reloaded.
+   */
+  const startIdRef = useRef(0);
 
   const [running, setRunning] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -78,15 +89,22 @@ export function BarcodeScanner({
   const [torchFailed, setTorchFailed] = useState(false);
 
   const stop = useCallback(() => {
+    // Whatever is still opening belongs to nobody from here on.
+    startIdRef.current += 1;
     closeCamera(streamRef.current);
     streamRef.current = null;
     if (videoRef.current !== null) videoRef.current.srcObject = null;
     setRunning(false);
+    setStarting(false);
     setTorchOn(false);
     setTorchReady(false);
   }, []);
 
   const start = useCallback(async (nextDeviceId?: string) => {
+    const startId = (startIdRef.current += 1);
+    /** False once this start has been stopped or overtaken by a later one. */
+    const isCurrent = (): boolean => startIdRef.current === startId;
+
     setStarting(true);
     setProblem(null);
     setTorchFailed(false);
@@ -99,6 +117,14 @@ export function BarcodeScanner({
 
     try {
       const stream = await openCamera(nextDeviceId);
+
+      // Closed or restarted while the camera was opening: give the stream back
+      // at once instead of leaving a track running that nothing points at.
+      if (!isCurrent()) {
+        closeCamera(stream);
+        return;
+      }
+
       streamRef.current = stream;
 
       const video = videoRef.current;
@@ -109,17 +135,26 @@ export function BarcodeScanner({
         await video.play().catch(() => undefined);
       }
 
+      // `stop()` during `play()` has already closed the stream this start put
+      // into `streamRef`; announcing it as running would show a dead picture.
+      if (!isCurrent()) return;
+
       setRunning(true);
       setTorchReady(hasTorch(stream));
       // Labels only exist once a permission has been granted, so the list is
       // read after the first stream rather than before it.
-      setDevices(await listCameras());
+      const cameras = await listCameras();
+      if (isCurrent()) setDevices(cameras);
     } catch (error) {
+      // A failure of a start that has been given up says nothing about the one
+      // that took its place.
+      if (!isCurrent()) return;
       streamRef.current = null;
       setRunning(false);
       setProblem(error instanceof CameraError ? error.problem : 'unknown');
     } finally {
-      setStarting(false);
+      // `stop()` has already cleared this, and a later start owns it now.
+      if (isCurrent()) setStarting(false);
     }
   }, []);
 

@@ -5,6 +5,54 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-09-13 – Barcode-Suche im Katalog
+
+**Anlass**
+
+Im Katalog ließ sich bisher nur tippen. Wer das Produkt in der Hand hat, will
+den Strichcode halten statt dreizehn Ziffern abzuschreiben – und der Weg über
+„Scannen“ in der Navigation führt zur Produktseite oder ins Anlegeformular,
+nicht zurück in die Liste.
+
+**Umsetzung**
+
+- Neben dem Suchfeld steht ein Kamera-Knopf. Er klappt den vorhandenen
+  `BarcodeScanner` an Ort und Stelle auf; die erkannte EAN wird ohne den
+  Tipp-Verzug sofort Such- und Filterbegriff, der Scanner schließt sich und gibt
+  die Kamera frei. Die EAN bleibt im Suchfeld sichtbar und änderbar.
+- `BarcodeScanner` bekam dafür `autoStart`: ein Scanner, den ein Kamera-Knopf
+  öffnet, kennt die Absicht bereits. Einmalig – „Kamera anhalten“ startet ihn
+  nicht erneut. Die Scan-Ansicht bleibt unverändert, dort ist `autoStart` aus.
+- `start()` und `stop()` zählen jetzt die Startvorgänge mit. Ein Stream, der
+  erst ankommt, nachdem der Scanner geschlossen oder erneut gestartet wurde,
+  wird sofort zurückgegeben, statt in `streamRef` zu landen, das niemand mehr
+  aufräumt.
+- Eigene Tests für den Kamera-Lebenszyklus (`BarcodeScanner.test.tsx`) und für
+  den Weg vom Scan zum Suchbegriff (`CataloguePage.test.tsx`).
+
+**Entscheidungen**
+
+- Die Sichtweise „der Katalog sucht, die Scan-Ansicht legt an“ bleibt. Der neue
+  Knopf füllt nur das Suchfeld; er navigiert nicht und legt nichts an. Deshalb
+  heißt er auch „Barcode suchen“ und nicht „Scannen“ – sonst hätten Knopf,
+  Navigationslink und Überschrift für Screenreader denselben Namen bei
+  verschiedenem Verhalten.
+- Der Zählerstand statt eines `mounted`-Merkers: derselbe Mechanismus fängt das
+  Schließen während des Öffnens und den Kamerawechsel während des Öffnens ab.
+  Ein Stream ohne Besitzer ist kein Detail – die Kameraleuchte am Telefon bleibt
+  sonst an, bis die Seite neu geladen wird.
+- Kein `style`-Attribut im Markup. Die Ausrichtung von Feld und Knopf steht in
+  `app.css` (`.filters__search`, `.filters__scan`, `.filters__scanner`), weil
+  die Content-Security-Policy `style-src 'self'` ohne `'unsafe-inline'` setzt
+  und `securityHeaders.ts` ausdrücklich damit begründet ist, dass die Oberfläche
+  keine Inline-Stile verwendet. React würde die Stile zwar über das CSSOM setzen
+  und damit an der Policy vorbei – aber eine Begründung, die nicht mehr stimmt,
+  ist beim nächsten Mal kein Halt.
+- `aria-controls` steht nur am Knopf, solange das Panel im Dokument ist. Ein
+  Verweis auf eine nicht vorhandene ID ist ein Fehler, keine leere Beziehung.
+
+---
+
 ## 2026-09-10 – „10“ am Ende der Sterneskala
 
 **Anlass**
