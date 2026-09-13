@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router';
@@ -7,6 +7,19 @@ import { strings } from '@/lib/strings';
 import { mockFetch } from '@/testing/fetchMock';
 import { makeProduct, makeProductPage, makeRating } from '@/testing/fixtures';
 import { renderWithProviders } from '@/testing/render';
+
+vi.mock('@/components/BarcodeScanner', () => ({
+  BarcodeScanner: ({ onDetected }: { onDetected: (ean: string) => void }) => (
+    <button
+      type="button"
+      onClick={() => {
+        onDetected('4006381333931');
+      }}
+    >
+      Test-EAN scannen
+    </button>
+  ),
+}));
 
 /**
  * The catalogue: what is shown, and what the filters turn into.
@@ -94,6 +107,30 @@ describe('CataloguePage', () => {
     // finished term.
     const searches = fetchMock.mock.calls.filter(([url]) => String(url).includes('q='));
     expect(searches).toHaveLength(1);
+  });
+
+  it('uses a scanned EAN as the search term', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([
+      CATEGORIES,
+      { path: '/products', body: makeProductPage([makeProduct()]) },
+    ]);
+
+    renderCatalogue();
+    await screen.findByText('Apfelsaft');
+
+    await user.click(screen.getByRole('button', { name: strings.catalogue.scanSearch }));
+    expect(screen.getByRole('heading', { name: strings.catalogue.scanSearch })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Test-EAN scannen' }));
+
+    expect(screen.getByLabelText(strings.catalogue.search)).toHaveValue('4006381333931');
+    expect(
+      screen.queryByRole('heading', { name: strings.catalogue.scanSearch }),
+    ).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(lastListUrl(fetchMock.mock.calls)).toContain('q=4006381333931');
+    });
   });
 
   it('turns the filters into query parameters', async () => {

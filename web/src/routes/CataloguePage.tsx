@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import {
   PRODUCT_SEARCH_MAX_LENGTH,
@@ -6,10 +6,12 @@ import {
   type ProductSortField,
   type SortOrder,
 } from '@product-rating/shared';
+import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { EmptyState, ErrorNotice, SkeletonList } from '@/components/Feedback';
 import { LoadMore } from '@/components/LoadMore';
 import { ProductCard } from '@/components/ProductCard';
 import { SelectField } from '@/components/Field';
+import { CameraIcon } from '@/components/icons';
 import { errorMessage } from '@/lib/api';
 import { useCategories, useProductList } from '@/lib/queries';
 import { strings } from '@/lib/strings';
@@ -29,6 +31,9 @@ import { strings } from '@/lib/strings';
 /** How long a keystroke waits before it turns into a request. */
 const SEARCH_DEBOUNCE_MS = 300;
 
+/** Ties the camera button to the panel it opens, for assistive technology. */
+const SCANNER_PANEL_ID = 'catalogue-barcode-scanner';
+
 /**
  * The choices of the "at least this many stars" filter: every star of the
  * scale except zero, which is not a filter — it lets everything through.
@@ -45,6 +50,7 @@ const SORT_LABELS: Record<ProductSortField, string> = {
 export function CataloguePage() {
   const [search, setSearch] = useState('');
   const [term, setTerm] = useState('');
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [category, setCategory] = useState('');
   const [minStars, setMinStars] = useState('');
   const [ratedByMe, setRatedByMe] = useState(false);
@@ -76,9 +82,19 @@ export function CataloguePage() {
   const total = list.data?.pages[0]?.total ?? 0;
   const filtered = term !== '' || category !== '' || minStars !== '' || ratedByMe;
 
+  const handleDetectedEan = useCallback((ean: string): void => {
+    // A scan is already a complete search term, so do not make it wait for the
+    // typing debounce. Keeping `search` in sync also leaves the EAN visible and
+    // editable in the regular search field after the camera closes.
+    setSearch(ean);
+    setTerm(ean);
+    setScannerOpen(false);
+  }, []);
+
   const resetFilters = (): void => {
     setSearch('');
     setTerm('');
+    setScannerOpen(false);
     setCategory('');
     setMinStars('');
     setRatedByMe(false);
@@ -89,20 +105,59 @@ export function CataloguePage() {
       <h1 className="page__title">{strings.catalogue.title}</h1>
 
       <div className="filters">
-        <label className="field">
-          <span className="field__label">{strings.catalogue.search}</span>
-          <input
-            className="field__input"
-            type="search"
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value);
-            }}
-            placeholder={strings.catalogue.searchPlaceholder}
-            maxLength={PRODUCT_SEARCH_MAX_LENGTH}
-            autoComplete="off"
-          />
-        </label>
+        <div className="field">
+          <label className="field__label" htmlFor="catalogue-search">
+            {strings.catalogue.search}
+          </label>
+          <div className="filters__search">
+            <input
+              id="catalogue-search"
+              className="field__input"
+              type="search"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+              }}
+              placeholder={strings.catalogue.searchPlaceholder}
+              maxLength={PRODUCT_SEARCH_MAX_LENGTH}
+              autoComplete="off"
+            />
+            <button
+              type="button"
+              className="button filters__scan"
+              onClick={() => {
+                setScannerOpen((open) => !open);
+              }}
+              aria-label={strings.catalogue.scanSearch}
+              title={strings.catalogue.scanSearch}
+              aria-expanded={scannerOpen}
+              // Only while the panel exists: a reference to an id that is not
+              // in the document is an error, not an empty relation.
+              aria-controls={scannerOpen ? SCANNER_PANEL_ID : undefined}
+            >
+              <CameraIcon className="button__icon" />
+            </button>
+          </div>
+        </div>
+
+        {scannerOpen && (
+          <div id={SCANNER_PANEL_ID} className="filters__scanner">
+            <div className="filters__scanner-header">
+              <h2 className="section__title">{strings.catalogue.scanSearch}</h2>
+              <button
+                type="button"
+                className="button button--quiet"
+                onClick={() => {
+                  setScannerOpen(false);
+                }}
+              >
+                {strings.common.close}
+              </button>
+            </div>
+            <p className="section__intro">{strings.scan.intro}</p>
+            <BarcodeScanner onDetected={handleDetectedEan} autoStart />
+          </div>
+        )}
 
         <div className="filters__row">
           <SelectField
