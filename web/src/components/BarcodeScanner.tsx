@@ -27,13 +27,16 @@ import { strings } from '@/lib/strings';
  *
  * The camera does not start on its own. Opening it costs battery and lights the
  * indicator on the phone, and a screen that grabs the camera because it was
- * navigated to is a screen people stop navigating to.
+ * navigated to is a screen people stop navigating to. Callers that are opened
+ * by an explicit camera action may opt in to a one-time automatic start.
  */
 
 interface BarcodeScannerProps {
   onDetected: (ean: string) => void;
   /** Stops decoding without giving up the camera, e.g. during the lookup. */
   paused?: boolean;
+  /** Starts the camera once on mount, for an explicit user-triggered scanner. */
+  autoStart?: boolean;
 }
 
 /** The German explanation for each way the camera can be unavailable. */
@@ -54,10 +57,15 @@ function problemText(problem: CameraProblem): string {
   }
 }
 
-export function BarcodeScanner({ onDetected, paused = false }: BarcodeScannerProps) {
+export function BarcodeScanner({
+  onDetected,
+  paused = false,
+  autoStart = false,
+}: BarcodeScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const autoStartedRef = useRef(false);
 
   const [running, setRunning] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -114,6 +122,15 @@ export function BarcodeScanner({ onDetected, paused = false }: BarcodeScannerPro
       setStarting(false);
     }
   }, []);
+
+  // An inline scanner opened through a camera button already has the user's
+  // intent to use the camera, so it may start immediately. This is deliberately
+  // one-shot: pressing "Kamera anhalten" must not start it again.
+  useEffect(() => {
+    if (!autoStart || autoStartedRef.current || problem !== null) return;
+    autoStartedRef.current = true;
+    void start(deviceId);
+  }, [autoStart, deviceId, problem, start]);
 
   // Give the camera back when the screen goes away, whatever the reason.
   useEffect(() => stop, [stop]);
