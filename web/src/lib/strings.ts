@@ -54,6 +54,17 @@ export const strings = {
     never: 'nie',
   },
 
+  /*
+   * The pull-to-refresh gesture. The screen shows a symbol, not these words:
+   * they are the running commentary for assistive technology, which has no
+   * other way to tell that the list is about to be, or is being, reloaded.
+   */
+  pullRefresh: {
+    idle: 'Zum Aktualisieren ziehen',
+    ready: 'Loslassen zum Aktualisieren',
+    refreshing: 'Wird aktualisiert …',
+  },
+
   session: {
     checking: 'Anmeldung wird geprüft …',
     unreachable: 'Der Server ist gerade nicht erreichbar.',

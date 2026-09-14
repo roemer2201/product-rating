@@ -142,3 +142,13 @@ export function SearchIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+/** The pull-to-refresh indicator of the catalogue. */
+export function RefreshIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3" />
+      <path d="M18 3.5v3.6h-3.6" />
+    </svg>
+  );
+}

@@ -10,6 +10,7 @@ import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { EmptyState, ErrorNotice, SkeletonList } from '@/components/Feedback';
 import { LoadMore } from '@/components/LoadMore';
 import { ProductCard } from '@/components/ProductCard';
+import { PullToRefresh } from '@/components/PullToRefresh';
 import { SelectField } from '@/components/Field';
 import { CameraIcon } from '@/components/icons';
 import { errorMessage } from '@/lib/api';
@@ -26,6 +27,10 @@ import { strings } from '@/lib/strings';
  *
  * The search term is held back for a moment before it becomes a request. On a
  * phone keyboard that is the difference between one query and eight.
+ *
+ * At the very top the screen can be pulled down to reload, the gesture the
+ * catalogue is asked for most: someone else in the household has entered or
+ * rated something, and the list in hand is a few minutes old.
  */
 
 /** How long a keystroke waits before it turns into a request. */
@@ -91,6 +96,16 @@ export function CataloguePage() {
     setScannerOpen(false);
   }, []);
 
+  /**
+   * What the pull gesture reloads: the list as it currently stands - every page
+   * that has been loaded so far, so a list scrolled halfway does not collapse
+   * back to its first page - and the categories behind the filter, which grow
+   * with the catalogue.
+   */
+  const refreshCatalogue = async (): Promise<void> => {
+    await Promise.all([list.refetch(), categories.refetch()]);
+  };
+
   const resetFilters = (): void => {
     setSearch('');
     setTerm('');
@@ -101,188 +116,192 @@ export function CataloguePage() {
   };
 
   return (
-    <section>
-      <h1 className="page__title">{strings.catalogue.title}</h1>
+    // The gesture is off while the first page is still on its way: there is
+    // nothing to refresh yet, and the skeleton is already saying so.
+    <PullToRefresh onRefresh={refreshCatalogue} disabled={list.isPending}>
+      <section>
+        <h1 className="page__title">{strings.catalogue.title}</h1>
 
-      <div className="filters">
-        <div className="field">
-          <label className="field__label" htmlFor="catalogue-search">
-            {strings.catalogue.search}
-          </label>
-          <div className="filters__search">
-            <input
-              id="catalogue-search"
-              className="field__input"
-              type="search"
-              value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
-              }}
-              placeholder={strings.catalogue.searchPlaceholder}
-              maxLength={PRODUCT_SEARCH_MAX_LENGTH}
-              autoComplete="off"
-            />
-            <button
-              type="button"
-              className="button filters__scan"
-              onClick={() => {
-                setScannerOpen((open) => !open);
-              }}
-              aria-label={strings.catalogue.scanSearch}
-              title={strings.catalogue.scanSearch}
-              aria-expanded={scannerOpen}
-              // Only while the panel exists: a reference to an id that is not
-              // in the document is an error, not an empty relation.
-              aria-controls={scannerOpen ? SCANNER_PANEL_ID : undefined}
-            >
-              <CameraIcon className="button__icon" />
-            </button>
-          </div>
-        </div>
-
-        {scannerOpen && (
-          <div id={SCANNER_PANEL_ID} className="filters__scanner">
-            <div className="filters__scanner-header">
-              <h2 className="section__title">{strings.catalogue.scanSearch}</h2>
+        <div className="filters">
+          <div className="field">
+            <label className="field__label" htmlFor="catalogue-search">
+              {strings.catalogue.search}
+            </label>
+            <div className="filters__search">
+              <input
+                id="catalogue-search"
+                className="field__input"
+                type="search"
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                }}
+                placeholder={strings.catalogue.searchPlaceholder}
+                maxLength={PRODUCT_SEARCH_MAX_LENGTH}
+                autoComplete="off"
+              />
               <button
                 type="button"
-                className="button button--quiet"
+                className="button filters__scan"
                 onClick={() => {
-                  setScannerOpen(false);
+                  setScannerOpen((open) => !open);
                 }}
+                aria-label={strings.catalogue.scanSearch}
+                title={strings.catalogue.scanSearch}
+                aria-expanded={scannerOpen}
+                // Only while the panel exists: a reference to an id that is not
+                // in the document is an error, not an empty relation.
+                aria-controls={scannerOpen ? SCANNER_PANEL_ID : undefined}
               >
-                {strings.common.close}
+                <CameraIcon className="button__icon" />
               </button>
             </div>
-            <p className="section__intro">{strings.scan.intro}</p>
-            <BarcodeScanner onDetected={handleDetectedEan} autoStart />
           </div>
-        )}
 
-        <div className="filters__row">
-          <SelectField
-            label={strings.catalogue.category}
-            value={category}
-            onChange={(event) => {
-              setCategory(event.target.value);
-            }}
-          >
-            <option value="">{strings.catalogue.allCategories}</option>
-            {(categories.data ?? []).map((entry) => (
-              <option key={entry} value={entry}>
-                {entry}
-              </option>
-            ))}
-          </SelectField>
+          {scannerOpen && (
+            <div id={SCANNER_PANEL_ID} className="filters__scanner">
+              <div className="filters__scanner-header">
+                <h2 className="section__title">{strings.catalogue.scanSearch}</h2>
+                <button
+                  type="button"
+                  className="button button--quiet"
+                  onClick={() => {
+                    setScannerOpen(false);
+                  }}
+                >
+                  {strings.common.close}
+                </button>
+              </div>
+              <p className="section__intro">{strings.scan.intro}</p>
+              <BarcodeScanner onDetected={handleDetectedEan} autoStart />
+            </div>
+          )}
 
-          <SelectField
-            label={strings.catalogue.minStars}
-            value={minStars}
-            onChange={(event) => {
-              setMinStars(event.target.value);
-            }}
-          >
-            <option value="">{strings.catalogue.anyStars}</option>
-            {MIN_STARS_OPTIONS.map((stars) => (
-              <option key={stars} value={stars}>
-                {strings.rating.starLabel(stars)}
-              </option>
-            ))}
-          </SelectField>
+          <div className="filters__row">
+            <SelectField
+              label={strings.catalogue.category}
+              value={category}
+              onChange={(event) => {
+                setCategory(event.target.value);
+              }}
+            >
+              <option value="">{strings.catalogue.allCategories}</option>
+              {(categories.data ?? []).map((entry) => (
+                <option key={entry} value={entry}>
+                  {entry}
+                </option>
+              ))}
+            </SelectField>
+
+            <SelectField
+              label={strings.catalogue.minStars}
+              value={minStars}
+              onChange={(event) => {
+                setMinStars(event.target.value);
+              }}
+            >
+              <option value="">{strings.catalogue.anyStars}</option>
+              {MIN_STARS_OPTIONS.map((stars) => (
+                <option key={stars} value={stars}>
+                  {strings.rating.starLabel(stars)}
+                </option>
+              ))}
+            </SelectField>
+          </div>
+
+          <div className="filters__row">
+            <SelectField
+              label={strings.catalogue.sort}
+              value={sort}
+              onChange={(event) => {
+                setSort(event.target.value as ProductSortField);
+              }}
+            >
+              {Object.entries(SORT_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </SelectField>
+
+            <SelectField
+              label={strings.catalogue.order}
+              value={order}
+              onChange={(event) => {
+                setOrder(event.target.value as SortOrder);
+              }}
+            >
+              <option value="asc">{strings.catalogue.orderAsc}</option>
+              <option value="desc">{strings.catalogue.orderDesc}</option>
+            </SelectField>
+          </div>
+
+          <label className="checkbox">
+            <input
+              type="checkbox"
+              checked={ratedByMe}
+              onChange={(event) => {
+                setRatedByMe(event.target.checked);
+              }}
+            />
+            {strings.catalogue.ratedByMe}
+          </label>
+
+          {filtered && (
+            <button type="button" className="button button--quiet" onClick={resetFilters}>
+              {strings.catalogue.resetFilters}
+            </button>
+          )}
         </div>
 
-        <div className="filters__row">
-          <SelectField
-            label={strings.catalogue.sort}
-            value={sort}
-            onChange={(event) => {
-              setSort(event.target.value as ProductSortField);
-            }}
-          >
-            {Object.entries(SORT_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </SelectField>
-
-          <SelectField
-            label={strings.catalogue.order}
-            value={order}
-            onChange={(event) => {
-              setOrder(event.target.value as SortOrder);
-            }}
-          >
-            <option value="asc">{strings.catalogue.orderAsc}</option>
-            <option value="desc">{strings.catalogue.orderDesc}</option>
-          </SelectField>
-        </div>
-
-        <label className="checkbox">
-          <input
-            type="checkbox"
-            checked={ratedByMe}
-            onChange={(event) => {
-              setRatedByMe(event.target.checked);
+        {list.error !== null && (
+          <ErrorNotice
+            message={errorMessage(list.error)}
+            onRetry={() => {
+              void list.refetch();
             }}
           />
-          {strings.catalogue.ratedByMe}
-        </label>
-
-        {filtered && (
-          <button type="button" className="button button--quiet" onClick={resetFilters}>
-            {strings.catalogue.resetFilters}
-          </button>
         )}
-      </div>
 
-      {list.error !== null && (
-        <ErrorNotice
-          message={errorMessage(list.error)}
-          onRetry={() => {
-            void list.refetch();
-          }}
-        />
-      )}
-
-      {list.isPending ? (
-        <SkeletonList rows={4} />
-      ) : products.length === 0 ? (
-        <EmptyState
-          text={filtered ? strings.catalogue.emptyFiltered : strings.catalogue.empty}
-          action={
-            filtered ? (
-              <button type="button" className="button" onClick={resetFilters}>
-                {strings.catalogue.resetFilters}
-              </button>
-            ) : (
-              <Link className="button button--primary" to="/scan">
-                {strings.nav.scan}
-              </Link>
-            )
-          }
-        />
-      ) : (
-        <>
-          <p className="list-total" role="status">
-            {strings.catalogue.total(total)}
-          </p>
-
-          <ul className="product-list">
-            {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </ul>
-
-          <LoadMore
-            hasNext={list.hasNextPage}
-            isFetching={list.isFetchingNextPage}
-            onLoadMore={() => {
-              void list.fetchNextPage();
-            }}
+        {list.isPending ? (
+          <SkeletonList rows={4} />
+        ) : products.length === 0 ? (
+          <EmptyState
+            text={filtered ? strings.catalogue.emptyFiltered : strings.catalogue.empty}
+            action={
+              filtered ? (
+                <button type="button" className="button" onClick={resetFilters}>
+                  {strings.catalogue.resetFilters}
+                </button>
+              ) : (
+                <Link className="button button--primary" to="/scan">
+                  {strings.nav.scan}
+                </Link>
+              )
+            }
           />
-        </>
-      )}
-    </section>
+        ) : (
+          <>
+            <p className="list-total" role="status">
+              {strings.catalogue.total(total)}
+            </p>
+
+            <ul className="product-list">
+              {products.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </ul>
+
+            <LoadMore
+              hasNext={list.hasNextPage}
+              isFetching={list.isFetchingNextPage}
+              onLoadMore={() => {
+                void list.fetchNextPage();
+              }}
+            />
+          </>
+        )}
+      </section>
+    </PullToRefresh>
   );
 }

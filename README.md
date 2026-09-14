@@ -132,6 +132,12 @@ gemeinsamen Katalog (jemand anderes im Haushalt kann etwas geändert haben), ein
 Minute für die eigenen Bewertungen. Eine wegen falscher Eingabe abgelehnte
 Anfrage wird nicht wiederholt, eine abgerissene Verbindung schon.
 
+**Ziehen zum Aktualisieren.** Am Anfang des Katalogs weiter nach unten gezogen,
+kommt ein Aktualisieren-Symbol hervor; ab 64 Pixel geladener Strecke lädt das
+Loslassen Liste und Kategorien neu. Die Geste steckt in
+`web/src/components/PullToRefresh.tsx`, greift nur am Seitenanfang und nimmt
+dem Browser den Bildlauf erst ab, wenn sie ihn wirklich übernimmt.
+
 **Scanner.** `web/src/lib/scanner.ts` kapselt Kamera und Decoder. Gelesen werden
 nur EAN-13, EAN-8 und UPC-A; UPC-E bleibt bewusst außen vor, weil es als acht
 Ziffern ankommt, die *keine* gültige EAN-8 sind. Das WebAssembly-Modul liegt im

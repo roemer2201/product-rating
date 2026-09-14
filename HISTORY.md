@@ -5,6 +5,57 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-09-14 – Ziehen zum Aktualisieren im Katalog
+
+**Anlass**
+
+Der Katalog ist eine gemeinsame Liste: jemand anderes im Haushalt legt ein
+Produkt an oder bewertet eines, und die Liste in der Hand ist ein paar Minuten
+alt. Bisher half nur das Neuladen der Seite oder ein Wechsel der Ansicht. Auf
+dem Telefon sucht man dafür keinen Knopf, sondern zieht die Liste nach unten.
+
+**Umsetzung**
+
+- Neue Komponente `web/src/components/PullToRefresh.tsx`. Sie hängt an
+  `window`, weil hier das Dokument scrollt und nicht ein eigener Container, und
+  greift nur, solange `scrollY` bei null steht. Der Zug ist gedämpft (der Finger
+  legt die doppelte Strecke zurück), bei 96 px ist Schluss, ab 64 px löst das
+  Loslassen aus.
+- `touchmove` hängt als nicht-passiver Listener am Fenster und ruft
+  `preventDefault()` erst, wenn die Geste wirklich übernommen wurde – also nach
+  acht Pixeln nach unten und nur am Seitenanfang. Alles darunter bleibt
+  gewöhnliches Scrollen. Dazu `overscroll-behavior-y: contain` auf `html` und
+  `body`, damit im Browser-Tab nicht zusätzlich das eingebaute Neuladen anspringt.
+- Das Symbol kommt unter der Kopfzeile hervor, wird mit der Zugweite kräftiger,
+  dreht sich mit und wechselt ab der Schwelle in die Akzentfarbe; während des
+  Ladens dreht es sich weiter. `prefers-reduced-motion` schaltet Drehung und
+  Übergang ab, das Symbol bleibt stehen.
+- Der Katalog lädt damit die Liste und die Kategorien neu. `refetch()` der
+  Infinite Query holt jede bereits geladene Seite, sodass eine halb gescrollte
+  Liste nicht auf ihre erste Seite zurückfällt.
+- Tests für die Geste (`PullToRefresh.test.tsx`) und für die Wirkung im Katalog
+  (`CataloguePage.test.tsx`). Zusätzlich im Chromium mit Touch-Emulation
+  durchgespielt: Symbol, Schwelle, zwei Anfragen beim Loslassen, keine bei einem
+  kurzen Zug.
+
+**Entscheidungen**
+
+- Nur der Katalog. Die Komponente ist allgemein gehalten, aber „Meine
+  Bewertungen“ und die Verwaltungslisten bleiben vorerst außen vor, statt die
+  Geste überall gleichzeitig einzuführen.
+- Der Bildschirm fährt mitsamt Überschrift und Filtern nach unten, nicht nur die
+  Liste. Das ist das gewohnte Verhalten und gibt dem Zug etwas zum Festhalten.
+- Eine Mindestdauer von 400 ms für die Anzeige: gegen einen warmen Cache ist die
+  Antwort sofort da, und ein Symbol, das nur aufblitzt, liest sich wie „nichts
+  passiert“ statt wie „nichts hat sich geändert“.
+- Die drei Texte („Zum Aktualisieren ziehen“, „Loslassen zum Aktualisieren“,
+  „Wird aktualisiert“) stehen in `strings.ts`, sind auf dem Bildschirm aber
+  nicht zu sehen: sie sind die Begleitung für Screenreader, denen das Symbol
+  nichts sagt. Gerendert werden sie nur, solange etwas passiert – eine ständige
+  Aufforderung würde bei jedem Besuch der Liste vorgelesen.
+
+---
+
 ## 2026-09-13 – Barcode-Suche im Katalog
 
 **Anlass**
