@@ -34,11 +34,20 @@ ol {
 html {
   /* Keeps the address bar from shrinking the viewport mid-scroll on iOS. */
   height: 100%;
+  /*
+   * The catalogue brings its own pull-to-refresh, so the browser must not add
+   * a second one on top of it: in a Safari or Chrome tab, dragging past the
+   * top of the page would otherwise reload the whole document. In the app
+   * added to the home screen there is nothing to suppress - the standalone
+   * window has no such gesture - but it is the same bundle either way.
+   */
+  overscroll-behavior-y: contain;
 }
 
 body {
   min-height: 100%;
   margin: 0;
+  overscroll-behavior-y: contain;
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-sans);
@@ -756,6 +765,100 @@ a {
   display: flex;
   justify-content: center;
   padding: var(--space-4) 0;
+}
+
+/* --- Pull to refresh ------------------------------------------------------ */
+
+/*
+ * The gesture of `PullToRefresh`: the screen follows the finger downwards and
+ * a symbol comes out from under the header. Both are driven by the two custom
+ * properties the component sets - `--pull-distance` in pixels and
+ * `--pull-progress` from 0 to 1 - so the drag itself costs no style
+ * recalculation beyond a transform.
+ */
+
+.pull-refresh {
+  position: relative;
+}
+
+.pull-refresh__indicator {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  color: var(--color-text-muted);
+  /*
+   * Half of it hangs above the content, so at rest it sits behind the sticky
+   * header and only appears as the gap opens underneath.
+   */
+  transform: translate(-50%, calc(var(--pull-distance) / 2 - 1.125rem));
+  opacity: var(--pull-progress);
+}
+
+.pull-refresh__icon {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+/* Turns with the drag, which makes the distance visible without a number. */
+.pull-refresh[data-phase='pulling'] .pull-refresh__icon {
+  transform: rotate(calc(var(--pull-progress) * 180deg));
+}
+
+/* Far enough: the accent colour is the promise that letting go does something. */
+.pull-refresh[data-ready='true'] .pull-refresh__indicator {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.pull-refresh[data-phase='refreshing'] .pull-refresh__indicator {
+  color: var(--color-accent);
+  opacity: 1;
+}
+
+.pull-refresh__content {
+  transform: translateY(var(--pull-distance));
+}
+
+/*
+ * Only on the way back and into the resting position. While the finger is down
+ * there is no transition: a dragged thing that eases behind the finger feels
+ * broken rather than smooth.
+ */
+.pull-refresh__indicator--animated,
+.pull-refresh__content--animated {
+  transition: transform 220ms ease-out;
+}
+
+.pull-refresh__icon--spinning {
+  animation: pull-refresh-spin 900ms linear infinite;
+}
+
+@keyframes pull-refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pull-refresh__indicator--animated,
+  .pull-refresh__content--animated {
+    transition: none;
+  }
+
+  /* The symbol still says "running" through its colour; it just holds still. */
+  .pull-refresh__icon--spinning {
+    animation: none;
+  }
 }
 
 /* --- Product detail ------------------------------------------------------- */

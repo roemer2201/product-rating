@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router';
 import { CataloguePage } from '@/routes/CataloguePage';
@@ -75,6 +75,30 @@ describe('CataloguePage', () => {
     expect(screen.getByText(/4[.,]5/)).toBeInTheDocument();
     // A product nobody has rated says so rather than showing zero stars.
     expect(screen.getByText(strings.rating.averageNone)).toBeInTheDocument();
+  });
+
+  it('reloads the list when the screen is pulled down at the top', async () => {
+    const fetchMock = mockFetch([
+      CATEGORIES,
+      { path: '/products', body: makeProductPage([makeProduct()]) },
+    ]);
+
+    renderCatalogue();
+    await screen.findByText('Apfelsaft');
+
+    const before = fetchMock.mock.calls.length;
+
+    // Far enough past the threshold that letting go reloads. The gesture itself
+    // is tested in `PullToRefresh.test.tsx`; what matters here is that the
+    // catalogue asks the server again.
+    fireEvent.touchStart(window, { touches: [{ clientY: 100 }] });
+    fireEvent.touchMove(window, { touches: [{ clientY: 300 }] });
+    fireEvent.touchEnd(window, { touches: [] });
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.length).toBeGreaterThan(before);
+    });
+    expect(lastListUrl(fetchMock.mock.calls)).toContain('/api/v1/products');
   });
 
   it('offers the scanner when the catalogue is empty', async () => {

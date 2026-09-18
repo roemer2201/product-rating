@@ -153,6 +153,14 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
       den vorhandenen `BarcodeScanner` an Ort und Stelle, die erkannte EAN wird
       sofort zum Suchbegriff. `BarcodeScanner` bekam dafür `autoStart`, weil ein
       Scanner, den man mit einem Kamera-Knopf aufmacht, die Absicht schon kennt
+- [x] **[M]** Ziehen zum Aktualisieren im Katalog: Am Seitenanfang weiter nach
+      unten gezogen, erscheint ein kleines Aktualisieren-Symbol, das mit der
+      Zugweite deutlicher wird; ab 64 px geladener Strecke lädt das Loslassen
+      Liste und Kategorien neu (`web/src/components/PullToRefresh.tsx`)
+- [ ] **[S]** Die Ziehgeste auf einem echten iPhone gegenprüfen: im Safari-Tab
+      muss `overscroll-behavior-y: contain` das eingebaute Neuladen
+      unterdrücken, in der Web-App vom Home-Bildschirm darf das Gummiband der
+      Seite nicht stören (mit dem Gerätetest in M9)
 - [ ] **[S]** Suchbegriff und Filter des Katalogs beim Zurücknavigieren erhalten – aktuell sind sie Zustand der Ansicht und gehen beim Wechsel auf ein Produkt verloren
 - [ ] **[S]** Ton und Vibration beim Treffer abschaltbar machen, sobald es eine Stelle für persönliche Einstellungen gibt
 
