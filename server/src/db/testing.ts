@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { openDatabase, type AppDatabase, type OpenedDatabase } from './client.js';
 import { runMigrations } from './migrate.js';
-import { products, ratings, users } from './schema.js';
+import { categories, productCategories, products, ratings, users } from './schema.js';
 
 /**
  * Test helpers for the database layer.
@@ -49,13 +49,20 @@ export interface SeedUser {
   disabledAt?: Date | null;
 }
 
+export interface SeedCategory {
+  id?: string;
+  name: string;
+  frequent?: boolean;
+}
+
 export interface SeedProduct {
   id?: string;
   ean: string;
   name: string;
   variant?: string | null;
   brand?: string | null;
-  category?: string | null;
+  /** Names; an entry of the list is created for each one that is missing. */
+  categories?: string[];
   createdBy: string;
 }
 
@@ -72,6 +79,7 @@ export interface SeedRating {
 
 export interface SeedData {
   users?: SeedUser[];
+  categories?: SeedCategory[];
   products?: SeedProduct[];
   ratings?: SeedRating[];
 }
@@ -84,7 +92,7 @@ export const SEED_PASSWORD_HASH = '$argon2id$v=19$m=65536,t=3,p=1$c2VlZHNlZWRzZW
 
 /** Inserts fixture rows and returns the generated identifiers. */
 export function seedDatabase(db: AppDatabase, data: SeedData): SeedData {
-  const seeded: Required<SeedData> = { users: [], products: [], ratings: [] };
+  const seeded: Required<SeedData> = { users: [], categories: [], products: [], ratings: [] };
 
   for (const user of data.users ?? []) {
     const row = {
@@ -100,6 +108,29 @@ export function seedDatabase(db: AppDatabase, data: SeedData): SeedData {
     seeded.users.push(row);
   }
 
+  const categoryIds = new Map<string, string>();
+  const categoryId = (name: string): string => {
+    const known = categoryIds.get(name);
+    if (known !== undefined) return known;
+
+    const row = { id: randomUUID(), name, frequent: false };
+    db.insert(categories).values(row).run();
+    categoryIds.set(name, row.id);
+    seeded.categories.push(row);
+    return row.id;
+  };
+
+  for (const category of data.categories ?? []) {
+    const row = {
+      id: category.id ?? randomUUID(),
+      name: category.name,
+      frequent: category.frequent ?? false,
+    };
+    db.insert(categories).values(row).run();
+    categoryIds.set(row.name, row.id);
+    seeded.categories.push(row);
+  }
+
   for (const product of data.products ?? []) {
     const row = {
       id: product.id ?? randomUUID(),
@@ -107,11 +138,15 @@ export function seedDatabase(db: AppDatabase, data: SeedData): SeedData {
       name: product.name,
       variant: product.variant ?? null,
       brand: product.brand ?? null,
-      category: product.category ?? null,
       createdBy: product.createdBy,
     };
     db.insert(products).values(row).run();
-    seeded.products.push(row);
+    for (const name of product.categories ?? []) {
+      db.insert(productCategories)
+        .values({ productId: row.id, categoryId: categoryId(name) })
+        .run();
+    }
+    seeded.products.push({ ...row, categories: product.categories ?? [] });
   }
 
   for (const rating of data.ratings ?? []) {

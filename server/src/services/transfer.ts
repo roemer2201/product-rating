@@ -6,7 +6,17 @@ import { z } from 'zod';
 import { normaliseEan, RATING_MAX_STARS, RATING_MIN_STARS } from '@product-rating/shared';
 import type { AppConfig } from '../config/index.js';
 import type { AppDatabase, DbHandle } from '../db/index.js';
-import { photos, prices, products, ratings, users, type ProductRow } from '../db/index.js';
+import {
+  categories,
+  photos,
+  prices,
+  productCategories,
+  products,
+  ratings,
+  users,
+  type ProductRow,
+} from '../db/index.js';
+import { categoryKey, resolveCategoryNames, setProductCategories } from './categories.js';
 import { insertLockedUser } from './users.js';
 import { APP_VERSION } from '../version.js';
 import { ValidationError } from './errors.js';
@@ -47,10 +57,16 @@ export const EXPORT_FORMAT = 'product-rating-export';
 /**
  * Version of the file format, not of the application.
  *
- * It goes up when a reader of version 1 could misunderstand a newer file. Added
- * fields do not need it — the import ignores what it does not know.
+ * It goes up when a reader of an older version could misunderstand a newer
+ * file. Added fields do not need it — the import ignores what it does not know.
+ *
+ * Version 2 replaced the single free text `category` of a product with the list
+ * `categories` and added the category list of the instance. A reader of
+ * version 1 would have taken the missing `category` for "none" and, with
+ * `--update`, cleared it; refusing the file is the better answer. Version 1
+ * files are still read.
  */
-export const EXPORT_VERSION = 1;
+export const EXPORT_VERSION = 2;
 
 /** Owner only: a catalogue is personal data, and the photos are of a home. */
 const PRIVATE_MODE = 0o700;
@@ -92,12 +108,20 @@ const exportedPhotoSchema = z.object({
   createdAt: z.string().optional(),
 });
 
+const exportedCategorySchema = z.object({
+  name: z.string().min(1),
+  frequent: z.boolean().default(false),
+});
+
 const exportedProductSchema = z.object({
   ean: z.string().min(1),
   name: z.string().min(1),
   variant: z.string().nullish(),
   brand: z.string().nullish(),
+  /** Version 1: a single free text category. */
   category: z.string().nullish(),
+  /** Version 2: names from the category list. */
+  categories: z.array(z.string()).optional(),
   notes: z.string().nullish(),
   createdBy: z.string().nullish(),
   createdAt: z.string().optional(),
@@ -116,10 +140,13 @@ const exportFileSchema = z.object({
   version: z.number().int().min(1),
   /** Absent in files written before accounts were part of an export. */
   users: z.array(exportedUserSchema).default([]),
+  /** The category list, unused entries included; absent before version 2. */
+  categories: z.array(exportedCategorySchema).default([]),
   products: z.array(exportedProductSchema),
 });
 
 export type ExportedUser = z.infer<typeof exportedUserSchema>;
+export type ExportedCategory = z.infer<typeof exportedCategorySchema>;
 export type ExportedProduct = z.infer<typeof exportedProductSchema>;
 export type ExportFile = z.infer<typeof exportFileSchema>;
 
@@ -153,6 +180,8 @@ export interface ExportResult {
   files: string[];
   /** Accounts written, without their password hashes. */
   users: number;
+  /** Entries of the category list. */
+  categories: number;
   products: number;
   ratings: number;
   /** Price rows written into the JSON file. */
@@ -188,6 +217,22 @@ function collectUsers(db: DbHandle): ExportedUser[] {
     }));
 }
 
+/** The category list, alphabetically, with the entries no product uses yet. */
+function collectCategories(db: DbHandle): ExportedCategory[] {
+  return db
+    .select({ name: categories.name, frequent: categories.frequent })
+    .from(categories)
+    .all()
+    .sort((left, right) => left.name.localeCompare(right.name, 'de'));
+}
+
+/** The names of the categories of a product as the file has them, whatever its version. */
+function categoryNamesOf(product: ExportedProduct): string[] {
+  if (product.categories !== undefined) return product.categories;
+  const legacy = product.category?.trim();
+  return legacy === undefined || legacy === '' ? [] : [legacy];
+}
+
 /** Everything the export needs, in one read per table. */
 function collectProducts(db: DbHandle, includeTrash: boolean): ExportedProduct[] {
   const accounts = new Map(
@@ -205,6 +250,15 @@ function collectProducts(db: DbHandle, includeTrash: boolean): ExportedProduct[]
     .orderBy(asc(products.ean))
     .all();
 
+  const assigned = new Map<string, string[]>();
+  for (const row of db
+    .select({ productId: productCategories.productId, name: categories.name })
+    .from(productCategories)
+    .innerJoin(categories, eq(categories.id, productCategories.categoryId))
+    .all()) {
+    assigned.set(row.productId, [...(assigned.get(row.productId) ?? []), row.name]);
+  }
+
   const ratingRows = db.select().from(ratings).orderBy(asc(ratings.createdAt)).all();
   const priceRows = db.select().from(prices).orderBy(asc(prices.purchasedAt)).all();
   const photoRows = db
@@ -218,7 +272,9 @@ function collectProducts(db: DbHandle, includeTrash: boolean): ExportedProduct[]
     name: product.name,
     variant: product.variant,
     brand: product.brand,
-    category: product.category,
+    categories: (assigned.get(product.id) ?? []).sort((left, right) =>
+      left.localeCompare(right, 'de'),
+    ),
     notes: product.notes,
     createdBy: accounts.get(product.createdBy) ?? null,
     createdAt: product.createdAt.toISOString(),
@@ -274,6 +330,7 @@ export async function exportCatalogue(options: ExportOptions): Promise<ExportRes
   await mkdir(target, { recursive: true, mode: PRIVATE_MODE });
 
   const exported = collectProducts(db, includeTrash);
+  const categoryList = collectCategories(db);
   const accounts = options.withUsers === false ? [] : collectUsers(db);
   const photoRows = db.select().from(photos).all();
   const files: string[] = [];
@@ -292,6 +349,7 @@ export async function exportCatalogue(options: ExportOptions): Promise<ExportRes
       // in this file" and "this instance has no accounts" are different
       // statements, and the import reads a missing key as the first one.
       ...(options.withUsers === false ? {} : { users: accounts }),
+      categories: categoryList,
       products: exported,
     };
     const path = join(target, EXPORT_JSON_FILE);
@@ -299,6 +357,7 @@ export async function exportCatalogue(options: ExportOptions): Promise<ExportRes
     files.push(path);
     onProgress?.(
       `${EXPORT_JSON_FILE}: ${String(accounts.length)} account(s), ` +
+        `${String(categoryList.length)} categor${categoryList.length === 1 ? 'y' : 'ies'}, ` +
         `${String(exported.length)} product(s)`,
     );
   }
@@ -363,6 +422,7 @@ export async function exportCatalogue(options: ExportOptions): Promise<ExportRes
     directory: target,
     files,
     users: accounts.length,
+    categories: categoryList.length,
     products: exported.length,
     ratings: totalRatings,
     prices: totalPrices,
@@ -403,7 +463,7 @@ function productsCsv(exported: ExportedProduct[]): string {
       'name',
       'variant',
       'brand',
-      'category',
+      'categories',
       'notes',
       'created_by',
       'created_at',
@@ -426,7 +486,9 @@ function productsCsv(exported: ExportedProduct[]): string {
       product.name,
       product.variant ?? null,
       product.brand ?? null,
-      product.category ?? null,
+      // One cell, so a spreadsheet keeps one row per product. The semicolon
+      // is what a name in the list is least likely to contain.
+      categoryNamesOf(product).join('; ') || null,
       product.notes ?? null,
       product.createdBy ?? null,
       product.createdAt ?? null,
@@ -535,6 +597,8 @@ export interface ImportResult {
   usersCreated: number;
   /** Accounts the file names and this instance already had. */
   usersSkipped: number;
+  /** Entries added to the category list; names already on it are left alone. */
+  categoriesCreated: number;
   /**
    * Names of the accounts that were created and are waiting for a password
    * link, so the caller can tell an administrator what is left to do.
@@ -645,6 +709,7 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
   const result: ImportResult = {
     usersCreated: 0,
     usersSkipped: 0,
+    categoriesCreated: 0,
     usersNeedingPassword: [],
     productsCreated: 0,
     productsUpdated: 0,
@@ -726,6 +791,38 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
     );
   }
 
+  /**
+   * The category list comes next, once nothing can stop the import any more:
+   * every product below refers to its categories by name, and each name has
+   * to be an entry by then. Entries this instance already has keep their
+   * spelling and their mark; the file only fills in what is missing. A
+   * version 1 file has no list, only the free text of each product, and gets
+   * one entry per name.
+   */
+  const resolvedCategories = resolveCategoryNames(
+    db,
+    [
+      ...file.categories.map((entry) => entry.name),
+      ...file.products.flatMap((product) => categoryNamesOf(product)),
+    ],
+    {
+      now,
+      frequent: new Set(
+        file.categories.filter((entry) => entry.frequent).map((entry) => categoryKey(entry.name)),
+      ),
+      dryRun,
+    },
+  );
+  result.categoriesCreated = resolvedCategories.created.length;
+
+  const categoryIdsOf = (product: ExportedProduct): string[] => [
+    ...new Set(
+      categoryNamesOf(product)
+        .map((name) => resolvedCategories.byKey.get(categoryKey(name)))
+        .filter((id): id is string => id !== undefined),
+    ),
+  ];
+
   for (const entry of file.products) {
     const ean = normaliseEan(entry.ean);
     if (ean === null) {
@@ -751,7 +848,6 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
           name: entry.name,
           variant: entry.variant ?? null,
           brand: entry.brand ?? null,
-          category: entry.category ?? null,
           notes: entry.notes ?? null,
           createdBy: owner,
           createdAt: momentOf(entry.createdAt, now),
@@ -760,6 +856,7 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
           deletedBy: null,
         };
         db.insert(products).values(row).run();
+        setProductCategories(db, productId, categoryIdsOf(entry));
       }
     } else if (options.update === true) {
       result.productsUpdated += 1;
@@ -769,7 +866,6 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
             name: entry.name,
             variant: entry.variant ?? null,
             brand: entry.brand ?? null,
-            category: entry.category ?? null,
             notes: entry.notes ?? null,
             updatedAt: now,
             // A product that is in the trash here comes back with the import:
@@ -779,6 +875,7 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
           })
           .where(eq(products.id, productId))
           .run();
+        setProductCategories(db, productId, categoryIdsOf(entry));
       }
     } else {
       result.productsSkipped += 1;

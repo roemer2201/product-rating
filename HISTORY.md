@@ -5,6 +5,91 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-03 – Verwaltung mit eigenen Ansichten, Kategorien als vorgegebene Liste
+
+**Anlass**
+
+Die Kategorie war ein Freitextfeld je Produkt mit Vorschlägen aus den
+vorhandenen Werten. Gewünscht ist eine Liste, die Administratoren vorgeben und
+aus der beim Anlegen und Bearbeiten gewählt wird – mehrere Kategorien je
+Produkt, und einzelne als „häufig genutzt“ markiert, die im Formular immer zum
+Ankreuzen dastehen. Der Ort dafür ist die Verwaltung, die bisher Einladungen,
+Nutzer und Papierkorb auf einer langen Seite zeigte.
+
+**Umsetzung**
+
+- Datenmodell: `categories (id, name UNIQUE, frequent, …)` und
+  `product_categories (product_id, category_id)` mit zusammengesetztem
+  Primärschlüssel und Index auf `category_id`; beide Fremdschlüssel mit
+  `ON DELETE CASCADE`. `products.category` samt Index entfällt.
+- Migration `0009_product_categories.sql`: von drizzle-kit erzeugt, um die
+  Übernahme der Freitextwerte ergänzt. Je Wert, der sich nur in Groß- und
+  Kleinschreibung unterscheidet (gefaltet mit `pr_lower()`, also auch
+  „GETRÄNKE“/„Getränke“), entsteht ein Eintrag, benannt nach der häufigsten
+  Schreibweise; die Kennungen haben das Format einer UUID v4. Die Spalte geht
+  per `ALTER TABLE … DROP COLUMN`, nicht über einen Neuaufbau der Tabelle –
+  ein `DROP TABLE products` hätte über die Kaskade Bewertungen, Fotos und
+  Preise mitgenommen, weil der Migrator in einer Transaktion läuft und
+  `PRAGMA foreign_keys=OFF` dort nicht greift. Ein Test fährt die echten
+  Migrationen bis 0008, legt Produkte mit Freitext an und prüft das Ergebnis
+  von 0009.
+- Server: `services/categories.ts` (Liste, Anlegen, Umbenennen, Markieren,
+  Löschen, Zuordnungen, Auflösen nach Namen für den Import),
+  `routes/categories.ts`. Produkte tragen `categories: [{ id, name }]`; die
+  Kategorien einer ganzen Listenseite kommen in einer Abfrage. Anlegen und
+  Ändern nehmen `categoryIds` (höchstens 20), unbekannte Kennungen sind ein
+  `400` mit `details.unknown`. Der Katalogfilter heißt `categoryId` und findet
+  ein Produkt auch, wenn es weitere Kategorien trägt.
+- Weboberfläche: `/admin` ist eine Übersicht, Kategorien, Einladungen, Nutzer
+  und Papierkorb haben eigene Ansichten (`AdminCategoriesPage`,
+  `AdminInvitesPage`, `AdminUsersPage`, `AdminTrashPage`), die Rollenprüfung
+  sitzt in `AdminLayout`. Die drei vorhandenen Bereiche sind unverändert
+  umgezogen; das Kopieren in die Zwischenablage ist dabei als
+  `useClipboard()` herausgezogen.
+- Produktformular: `CategoryPicker` mit Checkboxen für die häufig genutzten
+  und einer Auswahlliste für die übrigen, Gewähltes als Chips mit ×.
+  Produktseite und Katalogkarte nennen alle Kategorien.
+- Offline-Warteschlange und Abgleich: Erfassungen speichern Kennungen; der
+  Abgleich holt die Liste, lässt inzwischen gelöschte Kategorien weg und ordnet
+  den Freitext älterer Erfassungen über den Namen zu.
+- Export/Import: Dateiformat Version 2 mit der Kategorienliste und Namen je
+  Produkt, Version 1 bleibt lesbar; `products.csv` hat die Spalte `categories`.
+  Der Import legt fehlende Kategorien erst an, nachdem die Kontenprüfung
+  durch ist – ein abgebrochener Import schreibt nichts.
+- Tests für Migration, Dienst, Routen, Berechtigungstabelle, Export/Import,
+  Abgleich, Formular, Produktseite und Verwaltung. Zusätzlich im gebauten
+  Stand mit Chromium durchgespielt: Kategorien anlegen, markieren, löschen
+  mit Rückfrage, Produkt mit drei Kategorien anlegen, Katalog danach filtern.
+
+**Entscheidungen**
+
+- Nur Administratoren legen Kategorien an; im Produktformular wird nur
+  gewählt. Eine fehlende Kategorie ist Pflege der Liste, nicht des Produkts.
+- Die vorhandenen Freitextwerte werden übernommen statt verworfen; markiert
+  wird dabei nichts, das entscheidet, wer die Liste danach durchsieht.
+- Löschen einer verwendeten Kategorie ist erlaubt, braucht einen zweiten Tipp,
+  der nennt, von wie vielen Produkten sie verschwindet. Umbenennen wirkt sofort
+  überall.
+- Änderungen an der Liste setzen `updated_at` der betroffenen Produkte nicht
+  neu: der Katalog nach „zuletzt geändert“ soll durch Listenpflege nicht
+  umsortiert werden.
+- Namen sind unabhängig von Groß- und Kleinschreibung eindeutig. Die Prüfung
+  liegt im Dienst (`pr_lower()`), der `UNIQUE`-Index nur auf der genauen
+  Schreibweise – ein Index über eine Anwendungsfunktion machte die
+  Datenbankdatei ohne die Anwendung unbenutzbar, SQLites `lower()` faltet
+  keine Umlaute.
+- Alphabetische Reihenfolge (deutsche Sortierung), keine frei sortierbare
+  Liste. Der Katalogfilter bleibt eine Einzelauswahl.
+- In der Oberfläche heißt der Bereich weiter „Verwaltung“, wie bisher in
+  Einstellungen und Texten.
+- Das Exportformat geht auf Version 2, obwohl hinzugefügte Felder das sonst
+  nicht verlangen: eine ältere Installation hätte das fehlende `category` als
+  „keine Kategorie“ gelesen und mit `--update` gelöscht.
+- Kein neuer Konfigurationsschlüssel; Docker und Debian-Paket brauchen keine
+  Änderung, beide führen die Migration beim Start bzw. in `postinst` aus.
+
+---
+
 ## 2026-09-14 – Ziehen zum Aktualisieren im Katalog
 
 **Anlass**

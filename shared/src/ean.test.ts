@@ -109,7 +109,7 @@ describe('createProductSchema', () => {
       name: '  Haferflocken  ',
       variant: '  Kernig  ',
       brand: '',
-      category: 'Frühstück',
+      categoryIds: ['cat-breakfast', 'cat-breakfast', 'cat-organic'],
     });
 
     expect(parsed).toEqual({
@@ -117,7 +117,8 @@ describe('createProductSchema', () => {
       name: 'Haferflocken',
       variant: 'Kernig',
       brand: null,
-      category: 'Frühstück',
+      // The same box ticked and picked from the dropdown is one category.
+      categoryIds: ['cat-breakfast', 'cat-organic'],
       notes: null,
     });
   });

@@ -1,5 +1,13 @@
 import { sql } from 'drizzle-orm';
-import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import {
+  check,
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/sqlite-core';
 import { RATING_MAX_STARS, RATING_MIN_STARS } from '@product-rating/shared';
 
 /**
@@ -146,7 +154,6 @@ export const products = sqliteTable(
      */
     variant: text('variant'),
     brand: text('brand'),
-    category: text('category'),
     notes: text('notes'),
     createdBy: text('created_by')
       .notNull()
@@ -167,8 +174,51 @@ export const products = sqliteTable(
   (table) => [
     index('products_name_idx').on(table.name),
     index('products_brand_idx').on(table.brand),
-    index('products_category_idx').on(table.category),
     index('products_deleted_at_idx').on(table.deletedAt),
+  ],
+);
+
+/**
+ * The categories of the catalogue, kept by administrators.
+ *
+ * A table of their own rather than free text on the product: the list is
+ * given, renaming one entry renames it on every product, and a product may
+ * carry several of them. Names are unique regardless of case; the index only
+ * holds the exact spelling, the case-insensitive check lives in the service,
+ * because SQLite's `lower()` does not fold umlauts and an index on an
+ * application defined function would make the file unreadable without it.
+ */
+export const categories = sqliteTable('categories', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull().unique(),
+  /** Offered as a checkbox on every product form instead of in the dropdown. */
+  frequent: integer('frequent', { mode: 'boolean' }).notNull().default(false),
+  createdAt: createdAt(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+/**
+ * Which product carries which category. Both sides cascade: a product purged
+ * from the trash and a category deleted by an administrator take their
+ * assignments with them, and nothing else.
+ */
+export const productCategories = sqliteTable(
+  'product_categories',
+  {
+    productId: text('product_id')
+      .notNull()
+      .references(() => products.id, { onDelete: 'cascade' }),
+    categoryId: text('category_id')
+      .notNull()
+      .references(() => categories.id, { onDelete: 'cascade' }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.productId, table.categoryId] }),
+    // The primary key leads with the product; filtering the catalogue by a
+    // category and counting its products go the other way round.
+    index('product_categories_category_id_idx').on(table.categoryId),
   ],
 );
 
@@ -274,6 +324,9 @@ export type PasswordResetRow = typeof passwordResets.$inferSelect;
 export type NewPasswordResetRow = typeof passwordResets.$inferInsert;
 export type ProductRow = typeof products.$inferSelect;
 export type NewProductRow = typeof products.$inferInsert;
+export type CategoryRow = typeof categories.$inferSelect;
+export type NewCategoryRow = typeof categories.$inferInsert;
+export type ProductCategoryRow = typeof productCategories.$inferSelect;
 export type RatingRow = typeof ratings.$inferSelect;
 export type NewRatingRow = typeof ratings.$inferInsert;
 export type PhotoRow = typeof photos.$inferSelect;

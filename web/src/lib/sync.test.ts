@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearCaptures, enqueueCapture, listCaptures, type Capture } from '@/lib/offlineQueue';
 import { discardCapturedRating, keepCapturedRating, syncCaptures } from '@/lib/sync';
 import { mockFetch } from '@/testing/fetchMock';
-import { makeProductDetail, makeRating, TEST_EAN } from '@/testing/fixtures';
+import { CATEGORY_LIST, makeProductDetail, makeRating, TEST_EAN } from '@/testing/fixtures';
 
 /**
  * The offline queue and what happens to it when the connection comes back.
@@ -109,7 +109,7 @@ describe('syncing a capture', () => {
     await enqueueCapture({
       ean: TEST_EAN,
       label: 'Apfelsaft',
-      product: { name: 'Apfelsaft', variant: null, brand: 'Bio Hof', category: null, notes: null },
+      product: { name: 'Apfelsaft', variant: null, brand: 'Bio Hof', categoryIds: [], notes: null },
     });
 
     const fetchMock = mockFetch([
@@ -131,6 +131,66 @@ describe('syncing a capture', () => {
     });
   });
 
+  it('leaves off a category that was deleted between the shelf and the sync', async () => {
+    await enqueueCapture({
+      ean: TEST_EAN,
+      label: 'Apfelsaft',
+      product: {
+        name: 'Apfelsaft',
+        variant: null,
+        brand: null,
+        categoryIds: ['cat-drinks', 'cat-deleted'],
+        notes: null,
+      },
+    });
+
+    const fetchMock = mockFetch([
+      {
+        path: `/products/by-ean/${TEST_EAN}`,
+        status: 404,
+        body: { error: { code: 'not_found' } },
+      },
+      { path: '/categories', body: { categories: CATEGORY_LIST } },
+      { path: '/products', method: 'POST', body: { product: PRODUCT, restored: false } },
+    ]);
+
+    const result = await syncCaptures();
+
+    // The capture is somebody's work; one stale category does not fail it.
+    expect(result.synced).toBe(1);
+    const post = fetchMock.mock.calls.find(([, init]) => (init as RequestInit)?.method === 'POST');
+    expect(JSON.parse(String((post?.[1] as RequestInit).body))).toMatchObject({
+      categoryIds: ['cat-drinks'],
+    });
+  });
+
+  it('finds the free text category of a capture from before the list', async () => {
+    // As an older version of the app wrote it into IndexedDB.
+    await enqueueCapture({
+      ean: TEST_EAN,
+      label: 'Apfelsaft',
+      product: { name: 'Apfelsaft', variant: null, brand: null, category: 'getränke', notes: null },
+    });
+
+    const fetchMock = mockFetch([
+      {
+        path: `/products/by-ean/${TEST_EAN}`,
+        status: 404,
+        body: { error: { code: 'not_found' } },
+      },
+      { path: '/categories', body: { categories: CATEGORY_LIST } },
+      { path: '/products', method: 'POST', body: { product: PRODUCT, restored: false } },
+    ]);
+
+    await syncCaptures();
+
+    const post = fetchMock.mock.calls.find(([, init]) => (init as RequestInit)?.method === 'POST');
+    const body = JSON.parse(String((post?.[1] as RequestInit).body)) as Record<string, unknown>;
+    expect(body.categoryIds).toEqual(['cat-drinks']);
+    // The old field stays home; the server does not know it any more.
+    expect(body).not.toHaveProperty('category');
+  });
+
   it('adopts the product somebody else created in the meantime', async () => {
     await enqueueCapture({
       ean: TEST_EAN,
@@ -139,7 +199,7 @@ describe('syncing a capture', () => {
         name: 'Apfelsaft vom Regal',
         variant: null,
         brand: null,
-        category: null,
+        categoryIds: [],
         notes: null,
       },
       price: { cents: 199, shop: 'Bioladen', note: null, purchasedAt: '2026-08-20' },

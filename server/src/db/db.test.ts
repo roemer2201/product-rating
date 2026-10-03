@@ -1,11 +1,19 @@
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
 import { openDatabase } from './client.js';
-import { runMigrations } from './migrate.js';
+import { migrationsFolder, runMigrations } from './migrate.js';
 import { ratings, sessions, users } from './schema.js';
 import { createTestDatabase, seedDatabase, type TestDatabase } from './testing.js';
 
@@ -96,6 +104,87 @@ describe('runMigrations', () => {
       });
       expect(thirdRun).toEqual({ applied: 0, snapshot: null });
       upgraded.close();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('migration 0009: categories become a list', () => {
+  it('takes the free text categories over, one entry per spelling regardless of case', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'product-rating-categories-'));
+    const path = join(directory, 'app.db');
+    // The real migrations up to 0008: the state of an instance before the
+    // category list existed.
+    const before = join(directory, 'migrations');
+    cpSync(migrationsFolder(), before, { recursive: true });
+    const journalPath = join(before, 'meta', '_journal.json');
+    const journal = JSON.parse(readFileSync(journalPath, 'utf8')) as {
+      entries: { tag: string }[];
+    };
+    const upTo = journal.entries.findIndex((entry) => entry.tag === '0009_product_categories');
+    expect(upTo).toBeGreaterThan(0);
+    writeFileSync(
+      journalPath,
+      JSON.stringify({ ...journal, entries: journal.entries.slice(0, upTo) }),
+    );
+
+    try {
+      const opened = openDatabase({ path });
+      runMigrations({ db: opened.db, sqlite: opened.sqlite, databasePath: path, folder: before });
+
+      const insertUser = opened.sqlite.prepare(
+        `insert into users (id, username, password_hash, created_at) values (?, ?, 'x', 0)`,
+      );
+      insertUser.run('u1', 'anna');
+      const insertProduct = opened.sqlite.prepare(
+        `insert into products (id, ean, name, category, created_by, created_at, updated_at)
+         values (?, ?, ?, ?, 'u1', 0, 0)`,
+      );
+      insertProduct.run('p1', '4260000000011', 'Apfelsaft', 'Getränke');
+      insertProduct.run('p2', '4260000000028', 'Orangensaft', 'Getränke');
+      insertProduct.run('p3', '4260000000035', 'Wasser', 'GETRÄNKE ');
+      insertProduct.run('p4', '4260000000042', 'Zahnpasta', 'Bad');
+      insertProduct.run('p5', '4006381333931', 'Stift', null);
+      insertProduct.run('p6', '96385074', 'Radiergummi', '  ');
+
+      // The next release brings 0009.
+      runMigrations({ db: opened.db, sqlite: opened.sqlite, databasePath: path });
+
+      const list = opened.sqlite.prepare('select id, name, frequent from categories').all() as {
+        id: string;
+        name: string;
+        frequent: number;
+      }[];
+      // The spelling most products used names the entry; umlauts fold too.
+      expect(list.map((entry) => entry.name).sort()).toEqual(['Bad', 'Getränke']);
+      expect(list.every((entry) => entry.frequent === 0)).toBe(true);
+      expect(
+        list.every((entry) => /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab]/.test(entry.id)),
+      ).toBe(true);
+
+      const assigned = opened.sqlite
+        .prepare(
+          `select pc.product_id as product, c.name as name from product_categories pc
+           join categories c on c.id = pc.category_id order by pc.product_id`,
+        )
+        .all();
+      expect(assigned).toEqual([
+        { product: 'p1', name: 'Getränke' },
+        { product: 'p2', name: 'Getränke' },
+        { product: 'p3', name: 'Getränke' },
+        { product: 'p4', name: 'Bad' },
+      ]);
+
+      // The column is gone, the products and everything hanging off them are not.
+      const columns = opened.sqlite.prepare('pragma table_info(products)').all() as {
+        name: string;
+      }[];
+      expect(columns.map((column) => column.name)).not.toContain('category');
+      expect(opened.sqlite.prepare('select count(*) as count from products').get()).toEqual({
+        count: 6,
+      });
+      opened.close();
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

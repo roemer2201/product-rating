@@ -39,7 +39,14 @@ export interface CapturedProduct {
   name: string;
   variant: string | null;
   brand: string | null;
-  category: string | null;
+  /**
+   * Identifiers from the category list. Missing on captures written before
+   * the list existed; those carry the free text `category` instead, and the
+   * sync looks it up by name.
+   */
+  categoryIds?: string[];
+  /** Legacy: the single free text category of captures before the list. */
+  category?: string | null;
   notes: string | null;
 }
 

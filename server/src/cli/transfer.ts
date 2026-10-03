@@ -203,6 +203,7 @@ export const importCommand: CliCommand = {
         `accounts: ${String(result.usersCreated)} new, ` +
           `${String(result.usersSkipped)} already here`,
       );
+      io.out(`categories: ${String(result.categoriesCreated)} new`);
       io.out(
         `products: ${String(result.productsCreated)} new, ` +
           `${String(result.productsUpdated)} updated, ` +

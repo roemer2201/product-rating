@@ -5,7 +5,7 @@ import { Route, Routes } from 'react-router';
 import { CataloguePage } from '@/routes/CataloguePage';
 import { strings } from '@/lib/strings';
 import { mockFetch } from '@/testing/fetchMock';
-import { makeProduct, makeProductPage, makeRating } from '@/testing/fixtures';
+import { CATEGORY_LIST, makeProduct, makeProductPage, makeRating } from '@/testing/fixtures';
 import { renderWithProviders } from '@/testing/render';
 
 vi.mock('@/components/BarcodeScanner', () => ({
@@ -30,7 +30,7 @@ vi.mock('@/components/BarcodeScanner', () => ({
  * question.
  */
 
-const CATEGORIES = { path: '/products/categories', body: { categories: ['Getränke'] } };
+const CATEGORIES = { path: '/categories', body: { categories: CATEGORY_LIST } };
 
 function renderCatalogue() {
   return renderWithProviders(
@@ -174,7 +174,7 @@ describe('CataloguePage', () => {
 
     await waitFor(() => {
       const url = lastListUrl(fetchMock.mock.calls);
-      expect(url).toContain('category=Getr%C3%A4nke');
+      expect(url).toContain('categoryId=cat-drinks');
       expect(url).toContain('minStars=4');
       expect(url).toContain('ratedByMe=true');
       expect(url).toContain('sort=name');

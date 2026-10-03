@@ -27,6 +27,8 @@ let annaCookie: string;
 let annaId: string;
 let bertId: string;
 let productIds: Record<keyof typeof EAN, string>;
+/** Identifier of each seeded category by name. */
+let categoryIds: Record<string, string>;
 
 async function makeUser(username: string, role: 'admin' | 'user'): Promise<string> {
   const user = await createUser(harness.app.db, harness.config, {
@@ -55,14 +57,14 @@ function seedCatalogue(): void {
         ean: EAN.juice,
         name: 'Apfelsaft',
         brand: 'Bio Hof',
-        category: 'Getränke',
+        categories: ['Getränke'],
         createdBy: annaId,
       },
       {
         ean: EAN.oats,
         name: 'Haferflocken',
         brand: 'Kölln',
-        category: 'Frühstück',
+        categories: ['Frühstück'],
         createdBy: annaId,
       },
       {
@@ -70,7 +72,7 @@ function seedCatalogue(): void {
         name: 'Müsli Knusper',
         variant: 'Schoko',
         brand: 'Kölln',
-        category: 'Frühstück',
+        categories: ['Frühstück', 'Süßes'],
         createdBy: bertId,
       },
       { ean: EAN.toothpaste, name: 'Zahnpasta', brand: null, createdBy: bertId },
@@ -78,6 +80,9 @@ function seedCatalogue(): void {
   });
 
   const [juice, oats, muesli, toothpaste] = seeded.products ?? [];
+  categoryIds = Object.fromEntries(
+    (seeded.categories ?? []).map((category) => [category.name, category.id ?? '']),
+  );
   productIds = {
     juice: juice?.id ?? '',
     oats: oats?.id ?? '',
@@ -272,43 +277,6 @@ describe('reading products', () => {
   });
 });
 
-describe('category suggestions', () => {
-  it('lists each used category once, sorted, without the empty ones', async () => {
-    seedCatalogue();
-
-    const response = await harness.app.inject({
-      method: 'GET',
-      url: '/api/v1/products/categories',
-      headers: { cookie: annaCookie },
-    });
-
-    expect(response.statusCode).toBe(200);
-    // "Frühstück" is on two products and appears once; the toothpaste has no
-    // category at all and contributes nothing.
-    expect(response.json()).toEqual({ categories: ['Frühstück', 'Getränke'] });
-  });
-
-  it('answers an empty catalogue with an empty list', async () => {
-    const response = await harness.app.inject({
-      method: 'GET',
-      url: '/api/v1/products/categories',
-      headers: { cookie: annaCookie },
-    });
-
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ categories: [] });
-  });
-
-  it('refuses anonymous callers', async () => {
-    const response = await harness.app.inject({
-      method: 'GET',
-      url: '/api/v1/products/categories',
-    });
-
-    expect(response.statusCode).toBe(401);
-  });
-});
-
 describe('searching and filtering', () => {
   beforeEach(() => {
     seedCatalogue();
@@ -404,9 +372,18 @@ describe('searching and filtering', () => {
     expect((await listProducts('?q=birnen')).total).toBe(0);
   });
 
-  it('filters by category, ignoring case', async () => {
-    const page = await listProducts('?category=fr%C3%BChst%C3%BCck&sort=name');
+  it('filters by category, whatever else a product carries', async () => {
+    const page = await listProducts(`?categoryId=${categoryIds['Frühstück'] ?? ''}&sort=name`);
     expect(namesOf(page)).toEqual(['Haferflocken', 'Müsli Knusper']);
+    expect(page.products[1]?.categories.map((category) => category.name)).toEqual([
+      'Frühstück',
+      'Süßes',
+    ]);
+  });
+
+  it('finds nothing for a category nobody carries', async () => {
+    const page = await listProducts('?categoryId=unknown');
+    expect(page.total).toBe(0);
   });
 
   it('filters by minimum average rating and leaves unrated products out', async () => {
@@ -503,13 +480,13 @@ describe('changing and removing products', () => {
       method: 'PATCH',
       url: `/api/v1/products/${productIds.muesli}`,
       headers: writeHeaders(annaCookie),
-      payload: { name: 'Knuspermüsli', category: '' },
+      payload: { name: 'Knuspermüsli', categoryIds: [] },
     });
 
     expect(response.statusCode).toBe(200);
     const product = response.json().product;
     expect(product.name).toBe('Knuspermüsli');
-    expect(product.category).toBeNull();
+    expect(product.categories).toEqual([]);
     expect(new Date(product.updatedAt).getTime()).toBeGreaterThanOrEqual(
       new Date(before.json().product.updatedAt).getTime(),
     );

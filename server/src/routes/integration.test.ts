@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import sharp from 'sharp';
 import type {
+  Category,
   Invite,
   Photo,
   Product,
@@ -46,6 +47,8 @@ let adminCookie: string;
 let annaCookie: string;
 let bertCookie: string;
 let productId: string;
+let spreadId: string;
+let breakfastId: string;
 let photoId: string;
 
 /** A real JPEG with a GPS tag, the way a phone hands one over. */
@@ -147,6 +150,43 @@ describe('from an empty instance to a rated catalogue', () => {
     expect((invites.json().invites as Invite[]).every((entry) => entry.usedBy !== null)).toBe(true);
   });
 
+  it('lets the administrator set up the category list', async () => {
+    const created: string[] = [];
+    for (const payload of [
+      { name: 'Aufstrich', frequent: true },
+      { name: 'Frühstück', frequent: false },
+    ]) {
+      const response = await harness.app.inject({
+        method: 'POST',
+        url: '/api/v1/categories',
+        headers: writeHeaders(adminCookie),
+        payload,
+      });
+      expect(response.statusCode).toBe(201);
+      created.push((response.json().category as Category).id);
+    }
+    [spreadId = '', breakfastId = ''] = created;
+
+    // Everybody reads the list, only an administrator writes it.
+    const refused = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/categories',
+      headers: writeHeaders(annaCookie),
+      payload: { name: 'Getränke' },
+    });
+    expect(refused.statusCode).toBe(403);
+
+    const list = await harness.app.inject({
+      method: 'GET',
+      url: '/api/v1/categories',
+      headers: { cookie: annaCookie },
+    });
+    expect((list.json().categories as Category[]).map((entry) => entry.name)).toEqual([
+      'Aufstrich',
+      'Frühstück',
+    ]);
+  });
+
   it('carries the session of the registration into the next request', async () => {
     const response = await harness.app.inject({
       method: 'GET',
@@ -167,7 +207,7 @@ describe('from an empty instance to a rated catalogue', () => {
         ean: SCANNED_UPC_A,
         name: 'Erdnussbutter',
         brand: 'Nutty',
-        category: 'Aufstrich',
+        categoryIds: [spreadId],
         notes: '',
       },
     });
@@ -307,7 +347,12 @@ describe('browsing the catalogue afterwards', () => {
       method: 'POST',
       url: '/api/v1/products',
       headers: writeHeaders(bertCookie),
-      payload: { ean: OATS_EAN, name: 'Haferflocken', brand: 'Mühle', category: 'Frühstück' },
+      payload: {
+        ean: OATS_EAN,
+        name: 'Haferflocken',
+        brand: 'Mühle',
+        categoryIds: [breakfastId],
+      },
     });
     expect(response.statusCode).toBe(201);
   });
@@ -331,7 +376,7 @@ describe('browsing the catalogue afterwards', () => {
   });
 
   it('filters by category, by rating and by who rated', async () => {
-    expect(await search('category=Fr%C3%BChst%C3%BCck')).toEqual(['Haferflocken']);
+    expect(await search(`categoryId=${breakfastId}`)).toEqual(['Haferflocken']);
     // Only the peanut butter has been rated at all, with an average of three.
     expect(await search('minStars=3')).toEqual(['Erdnussbutter']);
     expect(await search('minStars=4')).toEqual([]);

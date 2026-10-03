@@ -46,7 +46,8 @@ export function ProductCard({ product, showOwnRating = false }: ProductCardProps
           )}
           <span className="product-card__brand">
             {product.brand ?? strings.product.noBrand}
-            {product.category !== null && ` · ${product.category}`}
+            {product.categories.length > 0 &&
+              ` · ${product.categories.map((entry) => entry.name).join(', ')}`}
           </span>
 
           <span className="product-card__rating">
