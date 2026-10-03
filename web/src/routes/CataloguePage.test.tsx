@@ -91,9 +91,13 @@ describe('CataloguePage', () => {
     // Far enough past the threshold that letting go reloads. The gesture itself
     // is tested in `PullToRefresh.test.tsx`; what matters here is that the
     // catalogue asks the server again.
-    fireEvent.touchStart(window, { touches: [{ clientY: 100 }] });
-    fireEvent.touchMove(window, { touches: [{ clientY: 300 }] });
-    fireEvent.touchEnd(window, { touches: [] });
+    fireEvent.touchStart(screen.getByText('Apfelsaft'), {
+      touches: [{ clientX: 100, identifier: 1, clientY: 100 }],
+    });
+    fireEvent.touchMove(screen.getByText('Apfelsaft'), {
+      touches: [{ clientX: 100, identifier: 1, clientY: 300 }],
+    });
+    fireEvent.touchEnd(screen.getByText('Apfelsaft'), { touches: [] });
 
     await waitFor(() => {
       expect(fetchMock.mock.calls.length).toBeGreaterThan(before);
