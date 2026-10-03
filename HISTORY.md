@@ -5,6 +5,39 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-03 – Review der Katalog-Aktualisierung
+
+**Anlass**
+
+Review von `d9b1f42` (über PR #39 in `e71b963` integriert). Die neue
+Ziehgeste aktualisierte auch nach einer Deaktivierung oder bei Berührungen
+außerhalb des Katalogs. Ein zweiter Finger ließ die verschobene Anzeige stehen,
+seitliches Wischen wurde übernommen und schnell aufeinanderfolgende Gesten
+konnten mehrere Aktualisierungen starten.
+
+**Umsetzung**
+
+- Gesten beginnen ausschließlich innerhalb der Katalog-Komponente. Horizontale
+  Bewegungen werden vor der Übernahme erkannt und bis zum Loslassen dem Browser
+  überlassen. Nicht abbrechbare Touch-Bewegungen werden ebenfalls nicht übernommen.
+- Deaktivierung und Mehrfinger-Gesten setzen Anzeige und gespeicherten Zug
+  gemeinsam zurück. Erneutes Aktivieren lässt den alten Zug nicht wieder aufleben.
+  Der ursprünglich berührende Finger wird über seine Kennung verfolgt.
+- Der Aktualisierungszustand wird sofort im Ereignishandler gesperrt, bevor React
+  den nächsten Render abschließt. Loslassen prüft erneut Deaktivierung,
+  Seitenanfang und verbliebene Finger.
+- Sieben zusätzliche Regressionstests reproduzieren die Fehler im ursprünglichen
+  Stand. Der Katalog-Integrationstest beginnt seine Berührung nun auf einem Produkt
+  statt auf dem Fenster und prüft damit den tatsächlichen Ereignisweg.
+
+**Entscheidungen**
+
+Schwelle, Dämpfung und Mindestanzeigedauer bleiben bestehen. Die Korrektur
+betrifft die Gestensteuerung; API, Datenbank und Paketkonfiguration ändern sich
+nicht.
+
+---
+
 ## 2026-09-14 – Ziehen zum Aktualisieren im Katalog
 
 **Anlass**
