@@ -56,6 +56,7 @@ export function CataloguePage() {
   const [search, setSearch] = useState('');
   const [term, setTerm] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
+  /** Identifier of the category filter; `''` lets every product through. */
   const [category, setCategory] = useState('');
   const [minStars, setMinStars] = useState('');
   const [ratedByMe, setRatedByMe] = useState(false);
@@ -76,7 +77,7 @@ export function CataloguePage() {
 
   const list = useProductList({
     ...(term === '' ? {} : { q: term }),
-    ...(category === '' ? {} : { category }),
+    ...(category === '' ? {} : { categoryId: category }),
     ...(minStars === '' ? {} : { minStars: Number(minStars) }),
     ...(ratedByMe ? { ratedByMe: true } : {}),
     sort,
@@ -99,8 +100,8 @@ export function CataloguePage() {
   /**
    * What the pull gesture reloads: the list as it currently stands - every page
    * that has been loaded so far, so a list scrolled halfway does not collapse
-   * back to its first page - and the categories behind the filter, which grow
-   * with the catalogue.
+   * back to its first page - and the categories behind the filter, which an
+   * administrator may have changed in the meantime.
    */
   const refreshCatalogue = async (): Promise<void> => {
     await Promise.all([list.refetch(), categories.refetch()]);
@@ -187,8 +188,8 @@ export function CataloguePage() {
             >
               <option value="">{strings.catalogue.allCategories}</option>
               {(categories.data ?? []).map((entry) => (
-                <option key={entry} value={entry}>
-                  {entry}
+                <option key={entry.id} value={entry.id}>
+                  {entry.name}
                 </option>
               ))}
             </SelectField>

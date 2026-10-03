@@ -6,7 +6,7 @@ import { mockUpload } from '@/testing/xhrMock';
 
 describe('buildQuery', () => {
   it('leaves out what is not set', () => {
-    expect(buildQuery({ q: 'milch', category: undefined, minStars: 3, ratedByMe: true })).toBe(
+    expect(buildQuery({ q: 'milch', categoryId: undefined, minStars: 3, ratedByMe: true })).toBe(
       '?q=milch&minStars=3&ratedByMe=true',
     );
   });

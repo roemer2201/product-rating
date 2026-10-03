@@ -15,6 +15,7 @@ import { registerErrorHandler } from './plugins/errorHandler.js';
 import { registerSecurityHeaders } from './plugins/securityHeaders.js';
 import { registerStaticFrontend } from './plugins/staticFrontend.js';
 import { registerAuthRoutes } from './routes/auth.js';
+import { registerCategoryRoutes } from './routes/categories.js';
 import { registerInviteRoutes } from './routes/invites.js';
 import { registerPhotoRoutes } from './routes/photos.js';
 import { registerPriceRoutes } from './routes/prices.js';
@@ -137,6 +138,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   registerInviteRoutes(app);
   registerUserRoutes(app);
   registerProductRoutes(app);
+  registerCategoryRoutes(app);
   registerRatingRoutes(app);
   registerPhotoRoutes(app);
   registerPriceRoutes(app);

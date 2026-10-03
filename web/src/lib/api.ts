@@ -1,6 +1,8 @@
 import { PHOTO_FIELD } from '@product-rating/shared';
 import type {
+  Category,
   ChangePasswordInput,
+  CreateCategoryInput,
   CreateInviteInput,
   CreateProductInput,
   CreateUserInput,
@@ -27,6 +29,7 @@ import type {
   SessionInfo,
   SortOrder,
   TrashEntry,
+  UpdateCategoryInput,
   UpdateProductInput,
   UpdateProfileInput,
   UpdateUserInput,
@@ -317,7 +320,7 @@ function uploadRequest<T>(path: string, body: FormData, options: UploadOptions =
 /** Query of `GET /api/v1/products`; every parameter may be left out. */
 export type ProductListParams = {
   q?: string | undefined;
-  category?: string | undefined;
+  categoryId?: string | undefined;
   minStars?: number | undefined;
   ratedByMe?: boolean | undefined;
   sort?: ProductSortField | undefined;
@@ -381,9 +384,6 @@ export const api = {
         signal === undefined ? {} : { signal },
       ),
 
-    /** Categories already in use, for the suggestion list of the product form. */
-    categories: () => request<{ categories: string[] }>('/products/categories'),
-
     get: (id: string, options: CaptureRequestOptions = {}) =>
       request<{ product: ProductDetail }>(`/${path('products', id)}`, options),
 
@@ -406,6 +406,28 @@ export const api = {
         `/${path('products', id)}`,
         { method: 'DELETE' },
       ),
+  },
+
+  categories: {
+    /** The whole list, alphabetically; every product form shows it. */
+    list: (options: CaptureRequestOptions = {}) =>
+      request<{ categories: Category[] }>('/categories', options),
+
+    /** Administrators only, like the other two below. */
+    create: (input: CreateCategoryInput) =>
+      request<{ category: Category }>('/categories', { method: 'POST', json: input }),
+
+    update: (id: string, input: UpdateCategoryInput) =>
+      request<{ category: Category }>(`/${path('categories', id)}`, {
+        method: 'PATCH',
+        json: input,
+      }),
+
+    /** Takes the category off every product carrying it; says how many. */
+    remove: (id: string) =>
+      request<{ ok: true; removedFrom: number }>(`/${path('categories', id)}`, {
+        method: 'DELETE',
+      }),
   },
 
   trash: {

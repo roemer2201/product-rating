@@ -1,11 +1,12 @@
-import { useId, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import {
   PRODUCT_BRAND_MAX_LENGTH,
-  PRODUCT_CATEGORY_MAX_LENGTH,
   PRODUCT_NAME_MAX_LENGTH,
   PRODUCT_NOTES_MAX_LENGTH,
   PRODUCT_VARIANT_MAX_LENGTH,
+  type CategoryRef,
 } from '@product-rating/shared';
+import { CategoryPicker } from '@/components/CategoryPicker';
 import { Field, TextAreaField } from '@/components/Field';
 import { ErrorNotice } from '@/components/Feedback';
 import type { FieldErrors } from '@/lib/forms';
@@ -24,10 +25,9 @@ import { strings } from '@/lib/strings';
  * telling them apart is the whole job of the list. Both halves are searched,
  * so it costs nothing to find a product by either one.
  *
- * The category is a free text field with a suggestion list rather than a
- * dropdown. A household invents its own categories, but it should not invent
- * "Getränke", "getraenke" and "Getränk" — offering what is already there is
- * enough to keep that from happening, while still letting a new one through.
+ * Categories come from the list the administrators keep, several per
+ * product (`CategoryPicker`). Free text let "Getränke", "getraenke" and
+ * "Getränk" grow side by side; a list that is given cannot.
  *
  * Between the fields and the buttons there is room for whatever else belongs
  * to the same save. The screen for a new product puts the photo there.
@@ -37,12 +37,15 @@ export interface ProductFormValues {
   name: string;
   variant: string;
   brand: string;
-  category: string;
+  /** Identifiers from the category list. */
+  categoryIds: string[];
   notes: string;
 }
 
 interface ProductFormProps {
   initial?: Partial<ProductFormValues>;
+  /** The categories the product carries, with names, for when the list is not there. */
+  initialCategories?: CategoryRef[];
   onSubmit: (values: ProductFormValues) => void;
   submitLabel: string;
   pendingLabel: string;
@@ -68,6 +71,7 @@ interface ProductFormProps {
 
 export function ProductForm({
   initial,
+  initialCategories,
   onSubmit,
   submitLabel,
   pendingLabel,
@@ -81,16 +85,24 @@ export function ProductForm({
   const [name, setName] = useState(initial?.name ?? '');
   const [variant, setVariant] = useState(initial?.variant ?? '');
   const [brand, setBrand] = useState(initial?.brand ?? '');
-  const [category, setCategory] = useState(initial?.category ?? '');
+  const [categoryIds, setCategoryIds] = useState(initial?.categoryIds ?? []);
   const [notes, setNotes] = useState(initial?.notes ?? '');
 
-  const categoryListId = useId();
-  // A failure here costs the suggestions and nothing else, so it is not shown.
+  // The same query the picker reads; asked for here to check the choice
+  // against the list once more before it goes out.
   const categories = useCategories();
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
-    onSubmit({ name, variant, brand, category, notes });
+    // A category deleted while the product carried it is gone from the product
+    // already — keeping its identifier would only turn the save into a `400`.
+    // Without a list there is nothing to check against, and the server decides.
+    const list = categories.data;
+    const chosen =
+      list === undefined
+        ? categoryIds
+        : categoryIds.filter((id) => list.some((entry) => entry.id === id));
+    onSubmit({ name, variant, brand, categoryIds: chosen, notes });
   };
 
   return (
@@ -133,25 +145,12 @@ export function ProductForm({
         optional
       />
 
-      <Field
-        label={strings.fields.category}
-        name="category"
-        value={category}
-        onChange={(event) => setCategory(event.target.value)}
-        maxLength={PRODUCT_CATEGORY_MAX_LENGTH}
-        hint={strings.product.categoryHint}
-        error={errors.category}
-        autoComplete="off"
-        // `list` gives the native suggestion list: it proposes without
-        // restricting, which a `<select>` could not do.
-        list={categoryListId}
-        optional
+      <CategoryPicker
+        value={categoryIds}
+        onChange={setCategoryIds}
+        known={initialCategories ?? []}
+        error={errors.categoryIds}
       />
-      <datalist id={categoryListId} aria-label={strings.product.categoryList}>
-        {(categories.data ?? []).map((entry) => (
-          <option key={entry} value={entry} />
-        ))}
-      </datalist>
 
       <TextAreaField
         label={strings.fields.notes}

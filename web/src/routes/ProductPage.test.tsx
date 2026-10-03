@@ -7,6 +7,7 @@ import { strings } from '@/lib/strings';
 import { listCaptures } from '@/lib/offlineQueue';
 import { mockFetch, testUser } from '@/testing/fetchMock';
 import {
+  CATEGORY_LIST,
   makePhoto,
   makePrice,
   makeProductDetail,
@@ -25,7 +26,7 @@ import { mockUpload } from '@/testing/xhrMock';
  * that they stay apart, both on screen and in the requests they cause.
  */
 
-const CATEGORIES = { path: '/products/categories', body: { categories: ['Getränke'] } };
+const CATEGORIES = { path: '/categories', body: { categories: CATEGORY_LIST } };
 
 /** Who is logged in is decided by the `/auth/me` route the test sets up. */
 function renderProduct() {
@@ -134,6 +135,76 @@ describe('ProductPage', () => {
       );
       expect(JSON.parse(String((patch?.[1] as RequestInit).body))).toMatchObject({
         name: 'Apfelsaft naturtrüb',
+      });
+    });
+  });
+
+  it('names every category of the product', async () => {
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      {
+        path: '/products/prod-1',
+        body: {
+          product: makeProductDetail({
+            categories: [
+              { id: 'cat-drinks', name: 'Getränke' },
+              { id: 'cat-vegan', name: 'Vegan' },
+            ],
+          }),
+        },
+      },
+    ]);
+
+    renderProduct();
+
+    expect(await screen.findByText(/Getränke, Vegan/)).toBeInTheDocument();
+  });
+
+  it('opens the form with the categories ticked and saves the changed set', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      { path: '/products/prod-1', method: 'PATCH', body: { product: makeProductDetail() } },
+      {
+        path: '/products/prod-1',
+        body: {
+          product: makeProductDetail({
+            categories: [
+              { id: 'cat-drinks', name: 'Getränke' },
+              { id: 'cat-vegan', name: 'Vegan' },
+              // Deleted by an administrator while the page was open.
+              { id: 'cat-gone', name: 'Saisonal' },
+            ],
+          }),
+        },
+      },
+    ]);
+
+    renderProduct();
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+    await user.click(screen.getByRole('button', { name: strings.common.edit }));
+
+    expect(await screen.findByRole('checkbox', { name: 'Getränke' })).toBeChecked();
+    expect(
+      screen.getByRole('button', { name: strings.product.categoryRemove('Vegan') }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: strings.product.categoryRemove('Vegan') }));
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: strings.product.categoryAdd }),
+      'Bio',
+    );
+    await user.click(screen.getByRole('button', { name: strings.common.save }));
+
+    await waitFor(() => {
+      const patch = fetchMock.mock.calls.find(
+        ([, init]) => (init as RequestInit)?.method === 'PATCH',
+      );
+      // The deleted one is not sent back: it would only turn the save into a 400.
+      expect(JSON.parse(String((patch?.[1] as RequestInit).body))).toMatchObject({
+        categoryIds: ['cat-drinks', 'cat-organic'],
       });
     });
   });

@@ -27,7 +27,7 @@ import {
   notTrashed,
   ownRatings,
   selectProducts,
-  toProductWithRatings,
+  toProductsWithRatings,
   toPublicRating,
   type ProductQueryRow,
 } from './products.js';
@@ -190,12 +190,13 @@ function cursorKeyOf(row: ProductQueryRow, sort: RatingSortField): CursorKey {
 }
 
 /** The caller's own rating is guaranteed by the filter, not by the types. */
-function toRatedProduct(row: ProductQueryRow): RatedProduct {
-  const product = toProductWithRatings(row);
-  if (product.ownRating === null) {
-    throw new Error('own ratings query returned a product without a rating');
-  }
-  return { ...product, ownRating: product.ownRating };
+function toRatedProducts(db: DbHandle, rows: readonly ProductQueryRow[]): RatedProduct[] {
+  return toProductsWithRatings(db, rows).map((product) => {
+    if (product.ownRating === null) {
+      throw new Error('own ratings query returned a product without a rating');
+    }
+    return { ...product, ownRating: product.ownRating };
+  });
 }
 
 /**
@@ -242,7 +243,7 @@ export function listOwnRatings(
   const last = page.at(-1);
 
   return {
-    ratings: page.map(toRatedProduct),
+    ratings: toRatedProducts(db, page),
     nextCursor:
       rows.length > limit && last !== undefined
         ? encodeCursor(sort, order, { key: cursorKeyOf(last, sort), id: last.product.id })

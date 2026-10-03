@@ -18,7 +18,9 @@ sich unter iOS zum Home-Bildschirm hinzufügen.
 
 - Anmeldung mit Benutzername und Passwort (Session-Cookie)
 - EAN per Kamera scannen (EAN-13, EAN-8, UPC-A) oder manuell eingeben
-- Produkt anlegen und bearbeiten: Name, Sorte, Marke, Kategorie, Notizen
+- Produkt anlegen und bearbeiten: Name, Sorte, Marke, Kategorien, Notizen
+- Kategorien aus einer Liste, die Administratoren in der Verwaltung vorgeben;
+  mehrere je Produkt, „häufig genutzte“ stehen im Formular zum Ankreuzen
 - Beliebig viele Fotos pro Produkt aufnehmen oder hochladen, in fester
   Reihenfolge; das erste ist das Hauptbild
 - Bewertung von 0 bis 10 Sternen, optional mit Kommentar – die eigene ist
@@ -98,7 +100,11 @@ mindestens 44 Pixel hoch, Ränder über `env(safe-area-inset-*)`.
 | `/products/:id` | Produkt: Foto, Durchschnitt, eigene Bewertung, Bearbeiten, Löschen |
 | `/ratings` | Eigene Bewertungen |
 | `/settings` | Konto, Anzeigename, Passwort, eigene Sitzungen, Abmelden |
-| `/admin` | Nutzer und Einladungen (nur Administratoren) |
+| `/admin` | Verwaltung (nur Administratoren): Übersicht über die vier Bereiche darunter |
+| `/admin/categories` | Kategorienliste: anlegen, umbenennen, „häufig genutzt“, löschen |
+| `/admin/invites` | Einladungscodes erzeugen, weitergeben, zurückziehen |
+| `/admin/users` | Konten: Rolle, Sperre, Passwort und Passwort-Links |
+| `/admin/trash` | Papierkorb: zurückholen oder endgültig entfernen |
 | `/login`, `/register` | Anmeldung und Registrierung mit Einladungscode |
 
 Die Adressen sind wie der übrige Code englisch; deutsch ist ausschließlich, was
@@ -137,6 +143,26 @@ kommt ein Aktualisieren-Symbol hervor; ab 64 Pixel geladener Strecke lädt das
 Loslassen Liste und Kategorien neu. Die Geste steckt in
 `web/src/components/PullToRefresh.tsx`, greift nur am Seitenanfang und nimmt
 dem Browser den Bildlauf erst ab, wenn sie ihn wirklich übernimmt.
+
+**Verwaltung.** Erreichbar über die Einstellungen, nicht über die Navigation:
+sie wird ein paar Mal im Leben einer Instanz gebraucht, die Navigation gehört
+dem Alltag. `/admin` ist eine Übersicht mit je einem Eintrag für Kategorien,
+Einladungen, Nutzer und Papierkorb, jeder Bereich hat eine eigene Ansicht mit
+einem Weg zurück. Die Rollenprüfung sitzt einmal in
+`web/src/components/AdminLayout.tsx` um alle fünf Ansichten herum – ein Konto
+ohne Rolle landet wieder in den Einstellungen; die eigentliche Sperre ist
+ohnehin der Server, der jede dieser Routen mit `403` beantwortet.
+
+**Kategorien im Produktformular.** Kategorien werden nicht getippt, sondern aus
+der Liste der Verwaltung gewählt, mehrere je Produkt
+(`web/src/components/CategoryPicker.tsx`). Die als „häufig genutzt“
+markierten stehen immer als Checkboxen da; alle übrigen bietet eine
+Auswahlliste „Kategorie hinzufügen …“ an – ein natives `<select>`, das auf dem
+iPhone das Auswahlrad öffnet. Was dort gewählt wurde, erscheint als Chip mit
+einem ×, das die Kategorie wieder abnimmt. Eine Kategorie, die eine
+Administratorin gelöscht hat, während das Formular offen war, wird beim
+Speichern stillschweigend weggelassen; das Produkt trägt sie da ohnehin nicht
+mehr.
 
 **Scanner.** `web/src/lib/scanner.ts` kapselt Kamera und Decoder. Gelesen werden
 nur EAN-13, EAN-8 und UPC-A; UPC-E bleibt bewusst außen vor, weil es als acht
@@ -329,8 +355,10 @@ sessions  (id, user_id, expires_at, user_agent, created_at, last_seen_at)
 password_resets (id = SHA-256 des Tokens, user_id, created_by, expires_at,
            used_at, created_at)
 invites   (code, created_by, expires_at, used_by, used_at)
-products  (id, ean UNIQUE, name, variant, brand, category, notes,
+products  (id, ean UNIQUE, name, variant, brand, notes,
            created_by, created_at, updated_at, deleted_at, deleted_by)
+categories (id, name UNIQUE, frequent, created_at, updated_at)
+product_categories (product_id, category_id)  PRIMARY KEY (product_id, category_id)
 ratings   (id, product_id, user_id, stars 0..5, comment, created_at, updated_at)
            UNIQUE (product_id, user_id)
 photos    (id, product_id, user_id, filename, mime, width, height,
@@ -426,9 +454,8 @@ vorbehalten, weil es fremde Bewertungen und Fotos mitnimmt.
 | `POST /api/v1/products` | angemeldet | Produkt anlegen; belegte EAN → `409` mit `details.productId` |
 | `GET /api/v1/products` | angemeldet | Liste mit Suche, Filtern, Sortierung und Cursor-Pagination |
 | `GET /api/v1/products/by-ean/:ean` | angemeldet | Nachschlagen nach dem Scan |
-| `GET /api/v1/products/categories` | angemeldet | Bereits verwendete Kategorien als Vorschlagsliste |
 | `GET /api/v1/products/:id` | angemeldet | Produkt inklusive eigener Bewertung, Durchschnitt, Anzahl, Fotos und aller Bewertungen |
-| `PATCH /api/v1/products/:id` | angemeldet | Name, Sorte, Marke, Kategorie oder Notizen ändern |
+| `PATCH /api/v1/products/:id` | angemeldet | Name, Sorte, Marke, Kategorien oder Notizen ändern |
 | `DELETE /api/v1/products/:id` | admin | Produkt in den Papierkorb legen (umkehrbar) |
 | `GET /api/v1/trash` | admin | Inhalt des Papierkorbs, jüngste Löschung zuerst |
 | `POST /api/v1/trash/:id/restore` | admin | Produkt aus dem Papierkorb zurückholen |
@@ -437,7 +464,8 @@ vorbehalten, weil es fremde Bewertungen und Fotos mitnimmt.
 **Papierkorb.** Löschen ist zweistufig. `DELETE /api/v1/products/:id` setzt
 `deleted_at` und `deleted_by`: die Zeile bleibt mitsamt Bewertungen, Fotos und
 Bilddateien liegen, jede lesende Abfrage sieht sie nur nicht mehr – Katalog,
-Suche, Kategorievorschläge, „Meine Bewertungen“ und das Nachschlagen per EAN.
+Suche, „Meine Bewertungen“ und das Nachschlagen per EAN. Seine Kategorien
+behält es; mitgezählt wird es bei ihnen nicht mehr.
 Erst `DELETE /api/v1/trash/:id` löscht wirklich, und nur das entfernt die
 Dateien von der Platte. Nach `app.trash_retention_days` erledigt der Server das
 von selbst (Standard 30 Tage, `0` schaltet es ab); geprüft wird beim Start und
@@ -446,7 +474,7 @@ danach einmal täglich, zusammen mit dem Aufräumen abgelaufener Sitzungen.
 Die EAN bleibt belegt, solange ein Produkt im Papierkorb liegt – der
 `UNIQUE`-Index kennt keinen Papierkorb. Wer dieselbe EAN erneut anlegt, holt das
 Produkt deshalb **zurück**, statt eine Fehlermeldung zu bekommen: die frisch
-eingegebenen Daten überschreiben Name, Sorte, Marke, Kategorie und Notizen, die
+eingegebenen Daten überschreiben Name, Sorte, Marke, Kategorien und Notizen, die
 alten
 Bewertungen und Fotos kommen mit. Ein `409` wäre hier eine Sackgasse – wer am
 Regal steht, darf den Papierkorb in der Regel gar nicht sehen. Die Antwort auf
@@ -462,6 +490,37 @@ Verpackung (bei der Terrine also „Maggi“), nicht der Laden, in dem gekauft
 wurde – der steht am Preiseintrag. Sorte und Marke sind beide freiwillig und
 werden beide durchsucht.
 
+**Kategorien.** Die Liste führen Administratoren, gelesen wird sie von jedem
+Konto, weil jedes Produktformular sie zeigt:
+
+| Route | Rolle | Zweck |
+|---|---|---|
+| `GET /api/v1/categories` | angemeldet | Ganze Liste, alphabetisch, mit `frequent` und `productCount` |
+| `POST /api/v1/categories` | admin | Kategorie anlegen (`name`, optional `frequent`); belegter Name → `409` |
+| `PATCH /api/v1/categories/:id` | admin | Umbenennen und/oder `frequent` setzen |
+| `DELETE /api/v1/categories/:id` | admin | Löschen; nimmt sie allen Produkten ab, Antwort nennt `removedFrom` |
+
+Ein Produkt nennt seine Kategorien als `categories: [{ id, name }]`, beim
+Anlegen und Ändern schickt der Client `categoryIds` – höchstens 20, doppelte
+werden zusammengefasst, eine unbekannte Kennung beantwortet der Server mit
+`400` und `details.unknown`. Beim Ändern ersetzt `categoryIds` die ganze Menge,
+`[]` nimmt alle ab, ein fehlendes Feld lässt sie stehen. Namen sind ohne
+Rücksicht auf Groß- und Kleinschreibung eindeutig („getränke“ neben „Getränke“
+gibt es nicht); der `UNIQUE`-Index kennt nur die genaue Schreibweise, die
+übrige Prüfung macht der Dienst über `pr_lower()`, weil SQLites `lower()` keine
+Umlaute faltet. Umbenennen wirkt sofort auf allen Produkten, weil sie auf den
+Eintrag zeigen und nicht auf seinen Namen; Änderungen an der Liste setzen
+`updated_at` der Produkte nicht neu – sie sind Pflege der Liste, keine
+Korrektur des Produkts. `productCount` zählt nur den Katalog, nicht den
+Papierkorb.
+
+Bis zur Version 0.2.3 war die Kategorie ein Freitextfeld am Produkt. Die Migration
+`0009_product_categories.sql` übernimmt die vorhandenen Werte: je Schreibweise,
+die sich nur in Groß- und Kleinschreibung unterscheidet, ein Eintrag, benannt
+nach der Schreibweise, die die meisten Produkte hatten; danach entfällt die
+Spalte `products.category`. Keine übernommene Kategorie ist als „häufig
+genutzt“ markiert – das entscheidet, wer die Liste danach durchsieht.
+
 **EAN-Normalisierung.** Akzeptiert werden EAN-13, EAN-8 und UPC-A, jeweils mit
 Prüfung der Prüfziffer. Gespeichert und nachgeschlagen wird immer die auf
 dreizehn Stellen aufgefüllte Form – dieselbe Ware ergibt also unabhängig davon,
@@ -473,7 +532,7 @@ welches Symbol der Scanner gelesen hat, denselben Eintrag. Führende Nullen
 | Parameter | Werte | Bedeutung |
 |---|---|---|
 | `q` | Text | Sucht in Name, Sorte und Marke, bei mindestens vier Ziffern zusätzlich als EAN-Präfix |
-| `category` | Text | Genaue Kategorie, Groß- und Kleinschreibung egal |
+| `categoryId` | Kennung | Nur Produkte, die diese Kategorie tragen – neben welchen auch immer |
 | `minStars` | 0–10 | Nur Produkte, deren Durchschnitt diesen Wert erreicht; unbewertete fallen heraus |
 | `ratedByMe` | `true`/`false` | Nur selbst bewertete Produkte |
 | `sort` | `name`, `created`, `updated`, `rating` | Standard `updated` |
@@ -704,7 +763,7 @@ Let's-Encrypt-Zertifikat (DNS-Challenge funktioniert auch ohne offenen Port 80).
 - Konten werden nie gelöscht, sondern deaktiviert – Bewertungen und Fotos
   behalten damit einen gültigen Eigentümer. Mit dem Deaktivieren verfallen alle
   Sessions des Kontos.
-- Rollen: `admin` (Nutzerverwaltung, Einladungen, alle Daten) und `user`
+- Rollen: `admin` (Nutzerverwaltung, Einladungen, Kategorienliste, alle Daten) und `user`
   (eigene Bewertungen und Fotos, gemeinsamer Produktkatalog). Der letzte aktive
   Administrator kann weder herabgestuft noch deaktiviert werden.
 - Ein Konto kann **ohne Passwort** dastehen: nach einem Import (der bewusst
@@ -1284,7 +1343,7 @@ Unterschied zu `backup`/`restore`:
 
 | | `backup` / `restore` | `export` / `import` |
 |---|---|---|
-| Umfang | ganze Instanz: Datenbankdatei, Konten mit Passwörtern, Sitzungen, Einladungen, Uploads | Konten **ohne** Passwörter, Produkte, Bewertungen, Preise, Fotos |
+| Umfang | ganze Instanz: Datenbankdatei, Konten mit Passwörtern, Sitzungen, Einladungen, Uploads | Konten **ohne** Passwörter, Kategorienliste, Produkte, Bewertungen, Preise, Fotos |
 | Form | SQLite-Datei und Bilddateien | JSON und CSV, Bilder als WebP |
 | Ziel | dieselbe Anwendung, meist dieselbe Maschine | eine andere Instanz, ein Tabellenprogramm |
 | Konten | kommen mit, samt Hash | werden drüben angelegt, aber ohne Passwort |
@@ -1349,6 +1408,22 @@ gehört dem, der es abgegeben hat. Damit ist derselbe Import zweimal
 ausführbar, ohne dass sich etwas verdoppelt: Fotos erkennt der Import an Konto
 und Aufnahmezeitpunkt wieder, Preise an Konto, Einkaufstag und Betrag. Bilder laufen beim Einlesen durch denselben Weg
 wie ein Upload – neu kodiert, Thumbnail erzeugt, Metadaten entfernt.
+
+**Kategorien reisen als Namen.** `export.json` trägt die ganze Liste –
+auch Einträge, die noch an keinem Produkt hängen – samt Markierung „häufig
+genutzt“, und jedes Produkt nennt seine Kategorien als Liste von Namen. Der
+Import legt an, was drüben fehlt, mit der Markierung aus der Datei; ein Name,
+den es drüben schon gibt (auch in anderer Groß- und Kleinschreibung), bleibt,
+wie er ist – wie bei den Konten wiegt die Instanz schwerer als die Datei.
+`--update` ersetzt die Kategorien eines vorhandenen Produkts durch die der
+Datei. In `products.csv` stehen sie in einer Spalte `categories`, durch „; “
+getrennt.
+
+Seit den Kategorien hat das Dateiformat die Version 2. Dateien der Version 1
+mit dem früheren Einzelwert `category` liest der Import weiterhin und macht aus
+jedem Wert einen Eintrag der Liste. Eine ältere Installation lehnt eine Datei
+der Version 2 dagegen ab, statt die fehlende `category` als „keine“ zu lesen und
+sie mit `--update` zu löschen.
 
 **CSV** ist RFC 4180 mit Byte Order Mark, damit ein Tabellenprogramm
 „Getränke“ liest und nicht „GetrÃ¤nke“. Es ist ein reines Ausgabeformat;

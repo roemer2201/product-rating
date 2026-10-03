@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { normaliseEan } from '../ean.js';
 import { RATING_MAX_STARS, RATING_MIN_STARS } from '../types.js';
+import { categoryIdsSchema } from './category.js';
 import { SORT_ORDERS, type SortOrder } from './sort.js';
 
 /**
@@ -15,20 +16,12 @@ import { SORT_ORDERS, type SortOrder } from './sort.js';
 export const PRODUCT_NAME_MAX_LENGTH = 200;
 export const PRODUCT_VARIANT_MAX_LENGTH = 200;
 export const PRODUCT_BRAND_MAX_LENGTH = 120;
-export const PRODUCT_CATEGORY_MAX_LENGTH = 60;
 export const PRODUCT_NOTES_MAX_LENGTH = 2000;
 export const PRODUCT_SEARCH_MAX_LENGTH = 100;
 
 /** Page sizes for the product list; the client may ask for less, not for more. */
 export const PRODUCT_LIST_DEFAULT_LIMIT = 25;
 export const PRODUCT_LIST_MAX_LIMIT = 100;
-
-/**
- * Upper bound on the category suggestions of `GET /api/v1/products/categories`.
- * A household that has passed two hundred categories is no longer choosing from
- * a list anyway, and the route stays a single small response either way.
- */
-export const PRODUCT_CATEGORY_SUGGESTION_LIMIT = 200;
 
 /**
  * Upper bound on the entries `GET /api/v1/trash` returns. The trash is emptied
@@ -62,7 +55,6 @@ export const eanSchema = z
 const nameSchema = z.string().trim().min(1).max(PRODUCT_NAME_MAX_LENGTH);
 const variantSchema = z.string().trim().max(PRODUCT_VARIANT_MAX_LENGTH);
 const brandSchema = z.string().trim().max(PRODUCT_BRAND_MAX_LENGTH);
-const categorySchema = z.string().trim().max(PRODUCT_CATEGORY_MAX_LENGTH);
 const notesSchema = z.string().trim().max(PRODUCT_NOTES_MAX_LENGTH);
 
 /** Empty text fields arrive as `""` from a form; they mean "not set". */
@@ -74,7 +66,8 @@ export const createProductSchema = z.object({
   name: nameSchema,
   variant: optionalText(variantSchema),
   brand: optionalText(brandSchema),
-  category: optionalText(categorySchema),
+  /** Identifiers from `GET /api/v1/categories`; none at all is fine. */
+  categoryIds: categoryIdsSchema.default([]),
   notes: optionalText(notesSchema),
 });
 
@@ -87,7 +80,8 @@ export const updateProductSchema = z
     name: nameSchema.optional(),
     variant: optionalText(variantSchema).optional(),
     brand: optionalText(brandSchema).optional(),
-    category: optionalText(categorySchema).optional(),
+    /** Replaces the whole set; `[]` takes every category off the product. */
+    categoryIds: categoryIdsSchema.optional(),
     notes: optionalText(notesSchema).optional(),
   })
   .refine((value) => Object.values(value).some((entry) => entry !== undefined), {
@@ -102,7 +96,8 @@ const flagSchema = z
 export const productListQuerySchema = z.object({
   /** Free text over name, variant, brand and — for digits — the EAN. */
   q: z.string().trim().max(PRODUCT_SEARCH_MAX_LENGTH).optional(),
-  category: z.string().trim().max(PRODUCT_CATEGORY_MAX_LENGTH).optional(),
+  /** Keeps products that carry this category, whatever else they carry. */
+  categoryId: z.string().trim().max(64).optional(),
   /** Keeps products whose average rating reaches this many stars. */
   minStars: z.coerce.number().int().min(RATING_MIN_STARS).max(RATING_MAX_STARS).optional(),
   /** Restricts the list to products the caller has rated themselves. */

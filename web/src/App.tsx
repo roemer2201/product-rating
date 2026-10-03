@@ -1,7 +1,12 @@
 import { Route, Routes } from 'react-router';
+import { AdminLayout } from '@/components/AdminLayout';
 import { AppLayout } from '@/components/AppLayout';
 import { RequireAuth } from '@/components/RequireAuth';
+import { AdminCategoriesPage } from '@/routes/AdminCategoriesPage';
+import { AdminInvitesPage } from '@/routes/AdminInvitesPage';
 import { AdminPage } from '@/routes/AdminPage';
+import { AdminTrashPage } from '@/routes/AdminTrashPage';
+import { AdminUsersPage } from '@/routes/AdminUsersPage';
 import { CataloguePage } from '@/routes/CataloguePage';
 import { LoginPage } from '@/routes/LoginPage';
 import { NotFoundPage } from '@/routes/NotFoundPage';
@@ -43,7 +48,14 @@ export default function App() {
           <Route path="products/:id" element={<ProductPage />} />
           <Route path="ratings" element={<RatingsPage />} />
           <Route path="settings" element={<SettingsPage />} />
-          <Route path="admin" element={<AdminPage />} />
+          {/* One role check for the overview and every screen behind it. */}
+          <Route path="admin" element={<AdminLayout />}>
+            <Route index element={<AdminPage />} />
+            <Route path="categories" element={<AdminCategoriesPage />} />
+            <Route path="invites" element={<AdminInvitesPage />} />
+            <Route path="users" element={<AdminUsersPage />} />
+            <Route path="trash" element={<AdminTrashPage />} />
+          </Route>
         </Route>
       </Route>
 

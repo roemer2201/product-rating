@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm';
 import sharp from 'sharp';
 import { parseConfig, type AppConfig } from '../config/index.js';
 import { createTestDatabase, seedDatabase, type TestDatabase } from '../db/testing.js';
+import { createCategory, listCategories } from './categories.js';
 import { listProductPhotos, storePhoto } from './photos.js';
 import { createPrice, listProductPrices } from './prices.js';
 import { listProducts, trashProduct } from './products.js';
@@ -57,13 +58,15 @@ function newInstance(withProducts = true): Instance {
 
   if (withProducts) {
     const seeded = seedDatabase(database.db, {
+      // On the list, but on no product yet: it has to travel all the same.
+      categories: [{ name: 'Vegan', frequent: true }],
       products: [
         {
           ean: '4260000000011',
           name: 'Apfelsaft',
           variant: 'naturtrüb',
           brand: 'Bio Hof',
-          category: 'Getränke',
+          categories: ['Getränke', 'Bio'],
           createdBy: ANNA,
         },
         { ean: '4006381333931', name: 'Kaffee', createdBy: BERT },
@@ -150,8 +153,8 @@ describe('exporting', () => {
 
     // Byte order mark first, otherwise a spreadsheet mangles the umlauts.
     expect(products.startsWith('\uFEFF')).toBe(true);
-    expect(products).toContain('ean,name,variant,brand,category');
-    expect(products).toContain('4260000000011,Apfelsaft,naturtrüb,Bio Hof,Getränke');
+    expect(products).toContain('ean,name,variant,brand,categories');
+    expect(products).toContain('4260000000011,Apfelsaft,naturtrüb,Bio Hof,Bio; Getränke');
     // The average of five and three stars, next to the count.
     expect(products).toMatch(/4260000000011.*,2,4,/);
     expect(ratings).toContain('"trüb, wie er soll"');
@@ -199,6 +202,108 @@ describe('exporting', () => {
       includeTrash: true,
     });
     expect(with_.products).toBe(2);
+  });
+});
+
+describe('categories in an export', () => {
+  it('writes the list and the names on each product', async () => {
+    const result = await exportCatalogue({
+      db: source.database.db,
+      config: source.config,
+      target: directory,
+    });
+
+    expect(result.categories).toBe(3);
+
+    const file = JSON.parse(readFileSync(join(directory, EXPORT_JSON_FILE), 'utf8')) as {
+      version: number;
+      categories: { name: string; frequent: boolean }[];
+      products: { ean: string; categories: string[]; category?: string }[];
+    };
+
+    expect(file.version).toBe(2);
+    expect(file.categories).toEqual([
+      { name: 'Bio', frequent: false },
+      { name: 'Getränke', frequent: false },
+      { name: 'Vegan', frequent: true },
+    ]);
+    const juice = file.products.find((entry) => entry.ean === '4260000000011');
+    expect(juice?.categories).toEqual(['Bio', 'Getränke']);
+    expect(juice?.category).toBeUndefined();
+    expect(file.products.find((entry) => entry.ean === '4006381333931')?.categories).toEqual([]);
+  });
+
+  it('arrives with its marks, and reuses what is already here', async () => {
+    // Already on the list over there, spelt differently and not marked.
+    createCategory(target.database.db, { name: 'getränke', frequent: false });
+
+    await exportCatalogue({ db: source.database.db, config: source.config, target: directory });
+    const result = await importCatalogue({
+      db: target.database.db,
+      config: target.config,
+      source: directory,
+    });
+
+    expect(result.categoriesCreated).toBe(2);
+    expect(
+      listCategories(target.database.db).map(({ name, frequent, productCount }) => ({
+        name,
+        frequent,
+        productCount,
+      })),
+    ).toEqual([
+      { name: 'Bio', frequent: false, productCount: 1 },
+      // This instance's spelling wins; the file only fills in what is missing.
+      { name: 'getränke', frequent: false, productCount: 1 },
+      { name: 'Vegan', frequent: true, productCount: 0 },
+    ]);
+
+    const imported = productIdOf(target, '4260000000011');
+    const page = listProducts(target.database.db, ANNA, { sort: 'updated', limit: 25 });
+    expect(
+      page.products.find((entry) => entry.id === imported)?.categories.map((entry) => entry.name),
+    ).toEqual(['Bio', 'getränke']);
+  });
+
+  it('reads the single free text category of a version 1 file', async () => {
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(
+      join(directory, EXPORT_JSON_FILE),
+      JSON.stringify({
+        format: 'product-rating-export',
+        version: 1,
+        products: [
+          { ean: '4260000000011', name: 'Apfelsaft', category: 'Getränke', createdBy: 'anna' },
+          { ean: '4006381333931', name: 'Kaffee', category: null, createdBy: 'bert' },
+        ],
+      }),
+    );
+
+    const result = await importCatalogue({
+      db: target.database.db,
+      config: target.config,
+      source: directory,
+    });
+
+    expect(result).toMatchObject({ categoriesCreated: 1, productsCreated: 2, problems: [] });
+    const page = listProducts(target.database.db, ANNA, { sort: 'name', limit: 25 });
+    expect(page.products.map((entry) => entry.categories.map((category) => category.name))).toEqual(
+      [['Getränke'], []],
+    );
+  });
+
+  it('creates no category on a dry run, but counts them', async () => {
+    await exportCatalogue({ db: source.database.db, config: source.config, target: directory });
+
+    const result = await importCatalogue({
+      db: target.database.db,
+      config: target.config,
+      source: directory,
+      dryRun: true,
+    });
+
+    expect(result.categoriesCreated).toBe(3);
+    expect(listCategories(target.database.db)).toEqual([]);
   });
 });
 

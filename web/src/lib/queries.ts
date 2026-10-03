@@ -12,7 +12,9 @@ import {
   type UseQueryResult,
 } from '@tanstack/react-query';
 import type {
+  Category,
   ChangePasswordInput,
+  CreateCategoryInput,
   CreateInviteInput,
   CreatePriceInput,
   CreateProductInput,
@@ -32,6 +34,7 @@ import type {
   ResetPasswordInput,
   SessionInfo,
   TrashEntry,
+  UpdateCategoryInput,
   UpdateProductInput,
   UpdateProfileInput,
   UpdateUserInput,
@@ -279,13 +282,18 @@ export function useProduct(id: string): UseQueryResult<ProductDetail, Error> {
   });
 }
 
-/** The categories in use, for the suggestion list of the product form. */
-export function useCategories(): UseQueryResult<string[], Error> {
+/**
+ * The category list, for the product form, the catalogue filter and the
+ * administration.
+ *
+ * Under the product key on purpose: a saved product changes the counts of the
+ * list, and the invalidation every product mutation does already covers it.
+ */
+export function useCategories(): UseQueryResult<Category[], Error> {
   return useQuery({
     queryKey: queryKeys.products.categories,
-    queryFn: async () => (await api.products.categories()).categories,
-    // Suggestions may lag a little; a category added elsewhere is not urgent.
-    staleTime: CACHE_TIMES.own,
+    queryFn: async () => (await api.categories.list()).categories,
+    staleTime: CACHE_TIMES.catalogue,
   });
 }
 
@@ -797,6 +805,52 @@ export function useRedeemReset(): UseMutationResult<User, Error, RedeemResetInpu
 }
 
 /* ----------------------------------------------------------- administration */
+
+/**
+ * A change to the category list shows on products as well — a rename on every
+ * card, a deletion in every filter — so all three drop the whole catalogue
+ * rather than the list alone.
+ */
+export function useCreateCategory(): UseMutationResult<Category, Error, CreateCategoryInput> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: CreateCategoryInput) => (await api.categories.create(input)).category,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.products.all });
+    },
+  });
+}
+
+export interface UpdateCategoryVariables {
+  id: string;
+  input: UpdateCategoryInput;
+}
+
+export function useUpdateCategory(): UseMutationResult<Category, Error, UpdateCategoryVariables> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, input }: UpdateCategoryVariables) =>
+      (await api.categories.update(id, input)).category,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.products.all });
+      void client.invalidateQueries({ queryKey: queryKeys.ratings.all });
+    },
+  });
+}
+
+export function useDeleteCategory(): UseMutationResult<number, Error, string> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => (await api.categories.remove(id)).removedFrom,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.products.all });
+      void client.invalidateQueries({ queryKey: queryKeys.ratings.all });
+    },
+  });
+}
 
 export function useInvites(): UseQueryResult<Invite[], Error> {
   return useQuery({

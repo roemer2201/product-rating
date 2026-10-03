@@ -79,6 +79,28 @@ export interface Invite {
 }
 
 /**
+ * A category of the catalogue, as the list of `GET /api/v1/categories` has it.
+ *
+ * The list is kept by administrators; everybody picks from it. A frequent one
+ * stands as a checkbox on every product form, the rest wait in a dropdown.
+ */
+export interface Category {
+  id: string;
+  name: string;
+  frequent: boolean;
+  /** Products of the catalogue carrying it, the trash not counted. */
+  productCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A category as it travels with a product: enough to show it and to filter by it. */
+export interface CategoryRef {
+  id: string;
+  name: string;
+}
+
+/**
  * A product in the shared catalogue. An EAN exists exactly once across all
  * users; ratings and photos are per user.
  */
@@ -93,7 +115,8 @@ export interface Product {
    */
   variant: string | null;
   brand: string | null;
-  category: string | null;
+  /** Alphabetical; empty when the product carries none. */
+  categories: CategoryRef[];
   notes: string | null;
   createdBy: string;
   createdAt: string;

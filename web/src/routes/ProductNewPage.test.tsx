@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router';
 import { ProductNewPage } from '@/routes/ProductNewPage';
 import { listCaptures } from '@/lib/offlineQueue';
 import { strings } from '@/lib/strings';
 import { mockFetch, testUser } from '@/testing/fetchMock';
-import { TEST_EAN, makeProduct } from '@/testing/fixtures';
+import { CATEGORY_LIST, TEST_EAN, makeProduct } from '@/testing/fixtures';
 import { renderWithProviders } from '@/testing/render';
 import { mockUpload } from '@/testing/xhrMock';
 
@@ -19,7 +19,7 @@ import { mockUpload } from '@/testing/xhrMock';
  * already there and must not be lost behind an error about a picture.
  */
 
-const CATEGORIES = { path: '/products/categories', body: { categories: ['Getränke'] } };
+const CATEGORIES = { path: '/categories', body: { categories: CATEGORY_LIST } };
 
 function renderNew() {
   return renderWithProviders(
@@ -69,6 +69,52 @@ describe('ProductNewPage', () => {
     await user.click(screen.getByRole('button', { name: strings.product.create }));
 
     expect(await screen.findByText('Produktseite')).toBeInTheDocument();
+  });
+
+  it('offers the frequent categories as boxes and the others in a dropdown', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([
+      CATEGORIES,
+      { path: '/products', method: 'POST', status: 201, body: { product: makeProduct() } },
+    ]);
+
+    renderNew();
+    await fillName(user);
+
+    const drinks = await screen.findByRole('checkbox', { name: 'Getränke' });
+    expect(drinks).not.toBeChecked();
+    // The frequent one has its box and is not offered a second time.
+    const dropdown = screen.getByRole('combobox', { name: strings.product.categoryAdd });
+    expect(within(dropdown).queryByRole('option', { name: 'Getränke' })).not.toBeInTheDocument();
+
+    await user.selectOptions(dropdown, 'Vegan');
+    await user.selectOptions(dropdown, 'Bio');
+    // What was picked is a chip now, and gone from the dropdown.
+    expect(
+      screen.getByRole('button', { name: strings.product.categoryRemove('Vegan') }),
+    ).toBeInTheDocument();
+    expect(within(dropdown).queryByRole('option', { name: 'Vegan' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: strings.product.categoryRemove('Bio') }));
+    await user.click(drinks);
+    await user.click(screen.getByRole('button', { name: strings.product.create }));
+
+    expect(await screen.findByText('Produktseite')).toBeInTheDocument();
+    const post = fetchMock.mock.calls.find(([, init]) => (init as RequestInit)?.method === 'POST');
+    expect(JSON.parse(String((post?.[1] as RequestInit).body))).toMatchObject({
+      categoryIds: ['cat-vegan', 'cat-drinks'],
+    });
+  });
+
+  it('says where categories come from while there are none', async () => {
+    mockFetch([{ path: '/categories', body: { categories: [] } }]);
+
+    renderNew();
+
+    expect(await screen.findByText(strings.product.categoriesNone)).toBeInTheDocument();
+    expect(
+      screen.queryByRole('combobox', { name: strings.product.categoryAdd }),
+    ).not.toBeInTheDocument();
   });
 
   it('creates the product first and uploads the photo to it', async () => {
@@ -192,6 +238,7 @@ describe('ProductNewPage', () => {
     const captures = await listCaptures();
     expect(captures).toHaveLength(1);
     expect(captures[0]?.product?.name).toBe('Apfelsaft');
+    expect(captures[0]?.product?.categoryIds).toEqual([]);
     expect(captures[0]?.photos).toHaveLength(1);
   });
 });

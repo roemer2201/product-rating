@@ -135,6 +135,7 @@ export const strings = {
     variant: 'Sorte',
     brand: 'Marke',
     category: 'Kategorie',
+    categories: 'Kategorien',
     notes: 'Notizen',
     comment: 'Kommentar',
   },
@@ -178,6 +179,9 @@ export const strings = {
     resetLinkInvalid:
       'Dieser Link gilt nicht mehr. Er ist abgelaufen, wurde schon benutzt oder wurde ersetzt.',
     eanTaken: 'Zu dieser EAN gibt es schon ein Produkt.',
+    categoryNameTaken: 'Eine Kategorie mit diesem Namen gibt es schon.',
+    categoryUnknown:
+      'Eine der gewählten Kategorien gibt es nicht mehr. Bitte die Auswahl prüfen und erneut speichern.',
     unsupportedImage: 'Dieses Bildformat wird nicht angenommen.',
     photoUnreadable: 'Diese Datei lässt sich nicht als Bild lesen.',
   },
@@ -292,8 +296,17 @@ export const strings = {
     variantHint:
       'Die Geschmacksrichtung oder Ausführung, zum Beispiel „Spaghetti Bolognese“ zur „5 Minuten Terrine“.',
     brandHint: 'Der Hersteller oder die Handelsmarke auf der Verpackung.',
-    categoryHint: 'Vorhandene Kategorien stehen zur Auswahl, neue dürfen dazukommen.',
-    categoryList: 'Vorhandene Kategorien',
+    categoriesHint:
+      'Häufige Kategorien zum Ankreuzen, alle weiteren über die Auswahl darunter. Mehrere sind möglich.',
+    categoriesFrequent: 'Häufig genutzt',
+    categoryAdd: 'Weitere Kategorie',
+    categoryAddPlaceholder: 'Kategorie hinzufügen …',
+    categoryRemove: (name: string) => `${name} entfernen`,
+    categoriesLoading: 'Kategorien werden geladen …',
+    categoriesUnavailable: 'Die Kategorien lassen sich gerade nicht laden.',
+    categoriesNone:
+      'Es gibt noch keine Kategorien. Angelegt werden sie von Administratoren in der Verwaltung.',
+    categoriesToAdmin: 'Kategorien verwalten',
     notesHint: 'Platz für alles, was du dir merken willst.',
     create: 'Produkt anlegen',
     creating: 'Wird angelegt …',
@@ -496,7 +509,7 @@ export const strings = {
     logoutIntro: 'Meldet dieses Gerät ab. Andere Sitzungen bleiben bestehen.',
 
     adminTitle: 'Verwaltung',
-    adminIntro: 'Nutzer und Einladungen verwalten.',
+    adminIntro: 'Kategorien, Einladungen, Nutzer und Papierkorb verwalten.',
     toAdmin: 'Zur Verwaltung',
   },
 
@@ -504,6 +517,39 @@ export const strings = {
 
   admin: {
     title: 'Verwaltung',
+    intro: 'Was nur Administratoren dürfen. Alles hier gilt für den ganzen Haushalt.',
+    back: 'Zur Verwaltung',
+    /** One line per entry of the overview, under its title. */
+    categoriesSummary: 'Die Liste, aus der Produkte ihre Kategorien wählen.',
+    invitesSummary: 'Codes für neue Konten erzeugen und weitergeben.',
+    usersSummary: 'Rollen, Sperren und Passwörter der Konten.',
+    trashSummary: 'Gelöschte Produkte zurückholen oder endgültig entfernen.',
+
+    categoriesTitle: 'Kategorien',
+    categoriesIntro:
+      'Beim Anlegen und Bearbeiten eines Produkts wird aus dieser Liste gewählt, mehrere je Produkt sind möglich. Häufig genutzte stehen dort immer zum Ankreuzen, alle anderen in einer Auswahlliste.',
+    categoryName: 'Name',
+    categoryNew: 'Neue Kategorie',
+    categoryFrequent: 'Häufig genutzt',
+    categoryFrequentFor: (name: string) => `${name} häufig genutzt`,
+    categoryCreate: 'Kategorie anlegen',
+    categoryCreating: 'Wird angelegt …',
+    categoriesEmpty: 'Es gibt noch keine Kategorien.',
+    categoryProducts: (count: number) => (count === 1 ? '1 Produkt' : `${count} Produkte`),
+    categoryRename: 'Umbenennen',
+    categoryRenameFor: (name: string) => `${name} umbenennen`,
+    categoryRenameSubmit: 'Namen speichern',
+    categoryDelete: 'Löschen',
+    categoryDeleteFor: (name: string) => `${name} löschen`,
+    categoryDeleteConfirm: (count: number) =>
+      count === 0
+        ? 'Wirklich löschen?'
+        : `Von ${count === 1 ? '1 Produkt' : `${count} Produkten`} entfernen und löschen?`,
+    categoryDeleted: (name: string, count: number) =>
+      count === 0
+        ? `„${name}“ ist gelöscht.`
+        : `„${name}“ ist gelöscht und von ${count === 1 ? '1 Produkt' : `${count} Produkten`} entfernt.`,
+
     usersTitle: 'Nutzer',
     usersEmpty: 'Es gibt noch keine weiteren Nutzer.',
     userDisabled: 'Deaktiviert',
@@ -584,6 +630,7 @@ export function apiErrorText(
     if (field === 'invite') return strings.errors.inviteInvalid;
     if (field === 'token') return strings.errors.resetLinkInvalid;
     if (field === 'ean') return strings.validation.ean;
+    if (field === 'categoryIds') return strings.errors.categoryUnknown;
     if (field === 'photo') {
       // Three ways an upload is refused, and each one has a different remedy:
       // take a smaller picture, use another format, or pick a file that really
@@ -609,6 +656,7 @@ export function apiErrorText(
   if (status === 409) {
     if (field === 'username') return strings.errors.usernameTaken;
     if (field === 'ean') return strings.errors.eanTaken;
+    if (field === 'name') return strings.errors.categoryNameTaken;
     return strings.errors.conflict;
   }
 

@@ -114,7 +114,7 @@ export function ProductNewPage() {
       name: values.name,
       variant: emptyToNull(values.variant),
       brand: emptyToNull(values.brand),
-      category: emptyToNull(values.category),
+      categoryIds: values.categoryIds,
       notes: emptyToNull(values.notes),
     });
 
@@ -184,7 +184,7 @@ export function ProductNewPage() {
                     name: values.name,
                     variant: emptyToNull(values.variant),
                     brand: emptyToNull(values.brand),
-                    category: emptyToNull(values.category),
+                    categoryIds: values.categoryIds,
                     notes: emptyToNull(values.notes),
                   },
                   photos: capturedPhotos,

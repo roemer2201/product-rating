@@ -1,4 +1,5 @@
 import type {
+  Category,
   Photo,
   Price,
   ProductDetail,
@@ -69,6 +70,28 @@ export function makePrice(overrides: Partial<Price> = {}): Price {
   };
 }
 
+export function makeCategory(overrides: Partial<Category> = {}): Category {
+  return {
+    id: 'cat-drinks',
+    name: 'Getränke',
+    frequent: false,
+    productCount: 1,
+    createdAt: '2026-08-01T10:00:00.000Z',
+    updatedAt: '2026-08-01T10:00:00.000Z',
+    ...overrides,
+  };
+}
+
+/**
+ * The category list as `GET /api/v1/categories` answers it: one frequent
+ * entry, two that wait in the dropdown.
+ */
+export const CATEGORY_LIST = [
+  makeCategory({ id: 'cat-organic', name: 'Bio', frequent: false, productCount: 0 }),
+  makeCategory({ id: 'cat-drinks', name: 'Getränke', frequent: true }),
+  makeCategory({ id: 'cat-vegan', name: 'Vegan', frequent: false, productCount: 0 }),
+];
+
 export function makeProduct(overrides: Partial<ProductWithRatings> = {}): ProductWithRatings {
   return {
     id: 'prod-1',
@@ -76,7 +99,7 @@ export function makeProduct(overrides: Partial<ProductWithRatings> = {}): Produc
     name: 'Apfelsaft',
     variant: 'naturtrüb',
     brand: 'Bio Hof',
-    category: 'Getränke',
+    categories: [{ id: 'cat-drinks', name: 'Getränke' }],
     notes: null,
     createdBy: testUser.id,
     createdAt: '2026-08-01T10:00:00.000Z',

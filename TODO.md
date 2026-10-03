@@ -310,6 +310,43 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [ ] **[S]** Web Locks sichern den Sync über Tabs hinweg ab, iOS Safari kann sie seit 15.4. Beim nächsten iPhone-Test gegenprüfen, dass der Rückfallweg (`navigator.locks === undefined`) dort nicht greift
 - [ ] **[S]** R2 ist statisch und mit Komponententests belegt, ein echter Kontowechsel im Browser auf dem iPhone steht aus
 
+## M16 – Verwaltung und Kategorienliste
+
+- [x] **[M]** Verwaltung als Übersicht mit eigenen Ansichten für Kategorien,
+      Einladungen, Nutzer und Papierkorb (`/admin/…`), Rollenprüfung einmal in
+      `AdminLayout`; erreichbar wie bisher über die Einstellungen
+- [x] **[M]** Tabellen `categories` und `product_categories`, Migration
+      `0009_product_categories.sql` übernimmt die bisherigen Freitextwerte
+      (Schreibvarianten in Groß-/Kleinschreibung zusammengeführt) und entfernt
+      `products.category`
+- [x] **[M]** Routen `GET/POST /api/v1/categories`, `PATCH/DELETE
+      /api/v1/categories/:id` (schreibend nur Admin); Produkte tragen
+      `categories`, Anlegen und Ändern nehmen `categoryIds`, Katalogfilter
+      `categoryId`; `GET /api/v1/products/categories` entfällt
+- [x] **[M]** Produktformular: häufig genutzte Kategorien als Checkboxen,
+      übrige über eine Auswahlliste als Chips, mehrere je Produkt
+- [x] **[S]** Offline-Warteschlange speichert Kategorie-Kennungen; ältere
+      Erfassungen mit Freitext werden beim Abgleich über den Namen zugeordnet,
+      gelöschte Kategorien weggelassen
+- [x] **[S]** Export/Import im Dateiformat Version 2 mit Kategorienliste,
+      Version 1 bleibt lesbar; CSV-Spalte `categories`
+- [ ] **[S]** Auf dem iPhone prüfen: Auswahlrad der Kategorieauswahl, Chips und
+      Checkboxen daumenfreundlich, Formular auf kleinem Bildschirm (mit dem
+      Gerätetest in M9)
+- [ ] **[S]** Nach dem Update der produktiven Instanz die von der Migration
+      übernommenen Kategorien durchsehen: Schreibvarianten, die sich nicht nur
+      in Groß-/Kleinschreibung unterscheiden („Getränk“/„Getränke“), bleiben
+      zwei Einträge; zusammenführen geht derzeit nur über Umbenennen des einen
+      und Neuzuordnen der Produkte. Häufig genutzte markieren
+- [ ] **[S]** Zusammenführen zweier Kategorien in der Verwaltung („A in B
+      aufgehen lassen“), falls die Durchsicht oben zeigt, dass es gebraucht
+      wird
+- [ ] **[S]** CLI-Gegenstück `product-rating category list|add|rename|remove`
+      – Konten und Einladungen lassen sich über die Kommandozeile pflegen, die
+      Kategorienliste bisher nur in der Weboberfläche
+- [ ] **[S]** Reihenfolge der Kategorien frei sortierbar machen, falls
+      alphabetisch nicht reicht (bewusst zurückgestellt, siehe HISTORY)
+
 ---
 
 ## Backlog (nach dem MVP)
@@ -317,7 +354,8 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [x] Mehrere Fotos pro Produkt inklusive Sortierung
 - [x] Attribut „Sorte“ am Produkt (Name „5 Minuten Terrine“, Sorte „Spaghetti
       Bolognese“), auch in Suche, Export und Offline-Erfassung
-- [ ] Tags und freie Kategorien mit Autovervollständigung
+- [ ] Tags mit Autovervollständigung (Kategorien sind seit M16 eine vorgegebene
+      Liste der Verwaltung, freie Kategorien damit vom Tisch)
 - [x] Papierkorb mit Wiederherstellung statt endgültigem Löschen
 - [x] Export nach CSV und JSON, Import zum Umzug
 - [x] Offline-Erfassung mit Sync-Queue (IndexedDB) und Konfliktbehandlung

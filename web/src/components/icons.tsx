@@ -92,6 +92,15 @@ export function PlusIcon({ className }: IconProps) {
   );
 }
 
+/** Takes something off again, e.g. a category chip of the product form. */
+export function CloseIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />
+    </svg>
+  );
+}
+
 export function TrashIcon({ className }: IconProps) {
   return (
     <svg {...base} className={className}>

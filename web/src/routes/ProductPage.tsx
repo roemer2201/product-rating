@@ -62,7 +62,7 @@ export function ProductPage() {
       name: values.name,
       variant: emptyToNull(values.variant),
       brand: emptyToNull(values.brand),
-      category: emptyToNull(values.category),
+      categoryIds: values.categoryIds,
       notes: emptyToNull(values.notes),
     });
 
@@ -97,9 +97,10 @@ export function ProductPage() {
             name: detail.name,
             variant: detail.variant ?? '',
             brand: detail.brand ?? '',
-            category: detail.category ?? '',
+            categoryIds: detail.categories.map((entry) => entry.id),
             notes: detail.notes ?? '',
           }}
+          initialCategories={detail.categories}
           onSubmit={onSave}
           submitLabel={strings.common.save}
           pendingLabel={strings.common.saving}
@@ -131,7 +132,9 @@ export function ProductPage() {
         {[
           detail.variant,
           detail.brand ?? strings.product.noBrand,
-          detail.category ?? strings.product.noCategory,
+          detail.categories.length === 0
+            ? strings.product.noCategory
+            : detail.categories.map((entry) => entry.name).join(', '),
         ]
           .filter((entry) => entry !== null)
           .join(' · ')}

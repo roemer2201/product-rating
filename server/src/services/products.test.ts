@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { productListQuerySchema, type ProductListQuery } from '@product-rating/shared';
+import { productCategories } from '../db/index.js';
 import { createTestDatabase, seedDatabase, type TestDatabase } from '../db/testing.js';
-import { ConflictError, NotFoundError } from './errors.js';
+import { createCategory, deleteCategory, listCategories } from './categories.js';
+import { ConflictError, NotFoundError, ValidationError } from './errors.js';
 import {
   createProduct,
   getProduct,
-  listCategories,
   listProducts,
   listTrash,
   purgeExpiredTrash,
@@ -118,7 +119,7 @@ describe('createProduct', () => {
       name: 'Apfelsaft',
       variant: null,
       brand: null,
-      category: null,
+      categoryIds: [],
       notes: null,
     });
 
@@ -128,7 +129,7 @@ describe('createProduct', () => {
         name: 'Anderer Name',
         variant: null,
         brand: null,
-        category: null,
+        categoryIds: [],
         notes: null,
       });
       expect.unreachable('a taken EAN has to be a conflict');
@@ -139,20 +140,101 @@ describe('createProduct', () => {
   });
 });
 
+describe('categories of a product', () => {
+  it('carries the chosen categories, alphabetically', () => {
+    const drinks = createCategory(database.db, { name: 'Getränke', frequent: true });
+    const organic = createCategory(database.db, { name: 'Bio', frequent: false });
+
+    const created = createProduct(database.db, annaId, {
+      ean: '4260000000011',
+      name: 'Apfelsaft',
+      variant: null,
+      brand: null,
+      categoryIds: [drinks.id, organic.id],
+      notes: null,
+    });
+
+    expect(created.product.categories.map((entry) => entry.name)).toEqual(['Bio', 'Getränke']);
+    expect(getProduct(database.db, annaId, created.product.id).categories).toEqual([
+      { id: organic.id, name: 'Bio' },
+      { id: drinks.id, name: 'Getränke' },
+    ]);
+    expect(listProducts(database.db, annaId, query()).products[0]?.categories).toHaveLength(2);
+  });
+
+  it('refuses an identifier that is not on the list, and writes nothing', () => {
+    expect(() =>
+      createProduct(database.db, annaId, {
+        ean: '4260000000011',
+        name: 'Apfelsaft',
+        variant: null,
+        brand: null,
+        categoryIds: ['gone'],
+        notes: null,
+      }),
+    ).toThrow(ValidationError);
+
+    expect(listProducts(database.db, annaId, query()).total).toBe(0);
+  });
+
+  it('filters the list by one category among several', () => {
+    const seeded = seedDatabase(database.db, {
+      products: [
+        {
+          ean: '4260000000011',
+          name: 'Hafermilch',
+          categories: ['Getränke', 'Vegan'],
+          createdBy: annaId,
+        },
+        { ean: '4260000000028', name: 'Apfelsaft', categories: ['Getränke'], createdBy: annaId },
+        { ean: '4260000000035', name: 'Tofu', categories: ['Vegan'], createdBy: annaId },
+      ],
+    });
+    const vegan = seeded.categories?.find((entry) => entry.name === 'Vegan')?.id ?? '';
+
+    const page = listProducts(database.db, annaId, query({ categoryId: vegan, sort: 'name' }));
+
+    expect(page.total).toBe(2);
+    expect(page.products.map((product) => product.name)).toEqual(['Hafermilch', 'Tofu']);
+  });
+
+  it('loses a deleted category, and nothing else', () => {
+    const seeded = seedDatabase(database.db, {
+      products: [
+        {
+          ean: '4260000000011',
+          name: 'Hafermilch',
+          categories: ['Getränke', 'Vegan'],
+          createdBy: annaId,
+        },
+      ],
+    });
+    const productId = seeded.products?.[0]?.id ?? '';
+    const vegan = seeded.categories?.find((entry) => entry.name === 'Vegan')?.id ?? '';
+
+    expect(deleteCategory(database.db, vegan).removedFrom).toBe(1);
+
+    const product = getProduct(database.db, annaId, productId);
+    expect(product.categories.map((entry) => entry.name)).toEqual(['Getränke']);
+  });
+});
+
 describe('updateProduct', () => {
   it('only touches the fields that were sent', () => {
+    const drinks = createCategory(database.db, { name: 'Getränke', frequent: false });
+    const juice = createCategory(database.db, { name: 'Saft', frequent: false });
     const created = createProduct(database.db, annaId, {
       ean: '4260000000011',
       name: 'Apfelsaft',
       variant: 'naturtrüb',
       brand: 'Bio Hof',
-      category: 'Getränke',
+      categoryIds: [drinks.id],
       notes: 'trüb',
     });
 
-    const updated = updateProduct(database.db, created.product.id, { category: 'Saft' });
+    const updated = updateProduct(database.db, created.product.id, { categoryIds: [juice.id] });
 
-    expect(updated.category).toBe('Saft');
+    expect(updated.categories).toEqual([{ id: juice.id, name: 'Saft' }]);
     expect(updated.variant).toBe('naturtrüb');
     expect(updated.brand).toBe('Bio Hof');
     expect(updated.notes).toBe('trüb');
@@ -164,13 +246,32 @@ describe('updateProduct', () => {
       name: '5 Minuten Terrine',
       variant: 'Spaghetti Bolognese',
       brand: null,
-      category: null,
+      categoryIds: [],
       notes: null,
     });
 
     // `null` is a value, not "leave it alone" — the form sends it when
     // somebody empties the field.
     expect(updateProduct(database.db, created.product.id, { variant: null }).variant).toBeNull();
+  });
+
+  it('keeps the categories unless they are sent, and clears them with an empty list', () => {
+    const drinks = createCategory(database.db, { name: 'Getränke', frequent: false });
+    const created = createProduct(database.db, annaId, {
+      ean: '4260000000011',
+      name: 'Apfelsaft',
+      variant: null,
+      brand: null,
+      categoryIds: [drinks.id],
+      notes: null,
+    });
+
+    expect(updateProduct(database.db, created.product.id, { name: 'Saft' }).categories).toEqual([
+      { id: drinks.id, name: 'Getränke' },
+    ]);
+    expect(updateProduct(database.db, created.product.id, { categoryIds: [] }).categories).toEqual(
+      [],
+    );
   });
 
   it('fails for an unknown product', () => {
@@ -184,7 +285,7 @@ describe('the trash', () => {
     const seeded = seedDatabase(database.db, {
       users: [{ username: 'bert' }],
       products: [
-        { ean: '4260000000011', name: 'Apfelsaft', category: 'Getränke', createdBy: annaId },
+        { ean: '4260000000011', name: 'Apfelsaft', categories: ['Getränke'], createdBy: annaId },
       ],
     });
     const productId = seeded.products?.[0]?.id ?? '';
@@ -206,7 +307,9 @@ describe('the trash', () => {
 
     expect(trashed.ratings).toBe(2);
     expect(listProducts(database.db, annaId, query()).total).toBe(0);
-    expect(listCategories(database.db)).toEqual([]);
+    // The category stays on the product, but the count is of the catalogue.
+    expect(listCategories(database.db)).toMatchObject([{ name: 'Getränke', productCount: 0 }]);
+    expect(listTrash(database.db)[0]?.product.categories).toMatchObject([{ name: 'Getränke' }]);
     expect(() => getProduct(database.db, annaId, productId)).toThrow(NotFoundError);
     expect(listTrash(database.db).map((entry) => entry.product.id)).toEqual([productId]);
     expect(listTrash(database.db)[0]).toMatchObject({ ratings: 2, photos: 0 });
@@ -231,14 +334,16 @@ describe('the trash', () => {
       name: 'Apfelsaft naturtrüb',
       variant: null,
       brand: null,
-      category: null,
+      categoryIds: [],
       notes: null,
     });
 
     expect(created.restored).toBe(true);
     expect(created.product.id).toBe(productId);
-    // The freshly entered data wins, the ratings come back untouched.
+    // The freshly entered data wins, categories included; the ratings come
+    // back untouched.
     expect(created.product.name).toBe('Apfelsaft naturtrüb');
+    expect(created.product.categories).toEqual([]);
     expect(getProduct(database.db, annaId, productId).ratings.count).toBe(2);
   });
 
@@ -252,6 +357,9 @@ describe('the trash', () => {
 
     expect(removed.removedRatings).toBe(2);
     expect(removed.removedPhotos).toEqual([]);
+    // The assignment went with the product, the entry of the list did not.
+    expect(database.db.select().from(productCategories).all()).toEqual([]);
+    expect(listCategories(database.db).map((entry) => entry.name)).toEqual(['Getränke']);
     expect(listTrash(database.db)).toEqual([]);
     expect(() => purgeProduct(database.db, productId)).toThrow(NotFoundError);
   });

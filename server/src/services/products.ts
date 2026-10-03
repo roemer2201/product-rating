@@ -2,9 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { and, asc, desc, eq, isNotNull, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import { alias, type SQLiteColumn } from 'drizzle-orm/sqlite-core';
 import {
-  PRODUCT_CATEGORY_SUGGESTION_LIMIT,
   TRASH_LIST_LIMIT,
   toRatingSummary,
+  type CategoryRef,
   type CreateProductInput,
   type Product,
   type ProductListPage,
@@ -26,6 +26,13 @@ import {
   type ProductRow,
   type RatingRow,
 } from '../db/index.js';
+import {
+  assertCategoriesExist,
+  carriesCategory,
+  categoriesOfProduct,
+  categoriesOfProducts,
+  setProductCategories,
+} from './categories.js';
 import { ConflictError, NotFoundError } from './errors.js';
 import {
   decodeCursor,
@@ -107,14 +114,19 @@ export interface ProductQueryRow {
   primaryPhotoId: string | null;
 }
 
-export function toPublicProduct(row: ProductRow): Product {
+/**
+ * The product as the API shows it. Its categories live in a table of their own
+ * and come from the caller — `categoriesOfProducts()` reads them for a whole
+ * page in one query.
+ */
+export function toPublicProduct(row: ProductRow, categories: CategoryRef[]): Product {
   return {
     id: row.id,
     ean: row.ean,
     name: row.name,
     variant: row.variant,
     brand: row.brand,
-    category: row.category,
+    categories,
     notes: row.notes,
     createdBy: row.createdBy,
     createdAt: row.createdAt.toISOString(),
@@ -133,13 +145,31 @@ export function toPublicRating(row: RatingRow): Rating {
   };
 }
 
-export function toProductWithRatings(row: ProductQueryRow): ProductWithRatings {
+export function toProductWithRatings(
+  row: ProductQueryRow,
+  categories: CategoryRef[],
+): ProductWithRatings {
   return {
-    ...toPublicProduct(row.product),
+    ...toPublicProduct(row.product, categories),
     ownRating: row.own === null ? null : toPublicRating(row.own),
     ratings: toRatingSummary(row.average, row.ratingCount),
     primaryPhotoId: row.primaryPhotoId,
   };
+}
+
+/**
+ * Turns the rows of a list into products, with the categories of the whole
+ * page read in one query.
+ */
+export function toProductsWithRatings(
+  db: DbHandle,
+  rows: readonly ProductQueryRow[],
+): ProductWithRatings[] {
+  const assigned = categoriesOfProducts(
+    db,
+    rows.map((row) => row.product.id),
+  );
+  return rows.map((row) => toProductWithRatings(row, assigned.get(row.product.id) ?? []));
 }
 
 /** Selects products together with the caller's rating and the aggregates. */
@@ -191,7 +221,7 @@ export function getProduct(db: DbHandle, userId: string, id: string): ProductWit
     .where(and(eq(products.id, id), notTrashed))
     .get();
   if (row === undefined) throw new NotFoundError('product not found');
-  return toProductWithRatings(row);
+  return toProductWithRatings(row, categoriesOfProduct(db, id));
 }
 
 /** Lookup after a scan. The EAN is expected in its normalised form. */
@@ -200,33 +230,7 @@ export function getProductByEan(db: DbHandle, userId: string, ean: string): Prod
     .where(and(eq(products.ean, ean), notTrashed))
     .get();
   if (row === undefined) throw new NotFoundError('no product with this EAN', { ean });
-  return toProductWithRatings(row);
-}
-
-/**
- * The categories the catalogue already uses, alphabetically.
- *
- * A category is free text on the product rather than a table of its own: a
- * household decides for itself whether it sorts by aisle or by shelf, and a
- * fixed list would only be in the way. What keeps that from ending in five
- * spellings of the same word is this list — the product form offers what is
- * already there, so the second yoghurt gets the category the first one got.
- *
- * Sorting happens here rather than in SQL because `SELECT DISTINCT` in SQLite
- * only orders by columns of its own result set, and a case sensitive order
- * would put "Tiefkühl" behind "obst". `localeCompare` also gets the umlauts
- * right, which a byte comparison does not.
- */
-export function listCategories(db: DbHandle): string[] {
-  return db
-    .selectDistinct({ category: products.category })
-    .from(products)
-    .where(and(isNotNull(products.category), notTrashed))
-    .all()
-    .map((row) => row.category)
-    .filter((category): category is string => category !== null && category !== '')
-    .sort((left, right) => left.localeCompare(right, 'de'))
-    .slice(0, PRODUCT_CATEGORY_SUGGESTION_LIMIT);
+  return toProductWithRatings(row, categoriesOfProduct(db, row.product.id));
 }
 
 export interface CreatedProduct {
@@ -258,6 +262,7 @@ export function createProduct(
     return { product: restoreWithData(db, existing, input, now), restored: true };
   }
   if (existing !== undefined) throw eanConflict(existing);
+  assertCategoriesExist(db, input.categoryIds);
 
   const row: ProductRow = {
     id: randomUUID(),
@@ -265,7 +270,6 @@ export function createProduct(
     name: input.name,
     variant: input.variant,
     brand: input.brand,
-    category: input.category,
     notes: input.notes,
     createdBy: userId,
     createdAt: now,
@@ -275,7 +279,10 @@ export function createProduct(
   };
 
   try {
-    db.insert(products).values(row).run();
+    db.transaction((tx) => {
+      tx.insert(products).values(row).run();
+      setProductCategories(tx, row.id, input.categoryIds);
+    });
   } catch (error) {
     // Two clients scanning the same new product at the same time.
     if (String(error).includes('UNIQUE')) {
@@ -288,7 +295,7 @@ export function createProduct(
     throw error;
   }
 
-  return { product: toPublicProduct(row), restored: false };
+  return { product: toPublicProduct(row, categoriesOfProduct(db, row.id)), restored: false };
 }
 
 /** Brings a trashed product back and writes the freshly entered data over it. */
@@ -298,33 +305,38 @@ function restoreWithData(
   input: CreateProductInput,
   now: Date,
 ): Product {
+  assertCategoriesExist(db, input.categoryIds);
+
   const row: ProductRow = {
     ...existing,
     name: input.name,
     variant: input.variant,
     brand: input.brand,
-    category: input.category,
     notes: input.notes,
     updatedAt: now,
     deletedAt: null,
     deletedBy: null,
   };
 
-  db.update(products)
-    .set({
-      name: row.name,
-      variant: row.variant,
-      brand: row.brand,
-      category: row.category,
-      notes: row.notes,
-      updatedAt: row.updatedAt,
-      deletedAt: null,
-      deletedBy: null,
-    })
-    .where(eq(products.id, existing.id))
-    .run();
+  db.transaction((tx) => {
+    tx.update(products)
+      .set({
+        name: row.name,
+        variant: row.variant,
+        brand: row.brand,
+        notes: row.notes,
+        updatedAt: row.updatedAt,
+        deletedAt: null,
+        deletedBy: null,
+      })
+      .where(eq(products.id, existing.id))
+      .run();
+    // The form that brought it back had the categories in front of it, so
+    // they replace the old ones like every other field does.
+    setProductCategories(tx, existing.id, input.categoryIds);
+  });
 
-  return toPublicProduct(row);
+  return toPublicProduct(row, categoriesOfProduct(db, existing.id));
 }
 
 function eanConflict(existing: ProductRow): ConflictError {
@@ -347,19 +359,22 @@ export function updateProduct(
 ): Product {
   const existing = findProductById(db, id);
   if (existing === undefined) throw new NotFoundError('product not found');
+  if (input.categoryIds !== undefined) assertCategoriesExist(db, input.categoryIds);
 
   const changes: Partial<ProductRow> = { updatedAt: now };
   if (input.name !== undefined) changes.name = input.name;
   if (input.variant !== undefined) changes.variant = input.variant;
   if (input.brand !== undefined) changes.brand = input.brand;
-  if (input.category !== undefined) changes.category = input.category;
   if (input.notes !== undefined) changes.notes = input.notes;
 
-  db.update(products).set(changes).where(eq(products.id, id)).run();
+  db.transaction((tx) => {
+    tx.update(products).set(changes).where(eq(products.id, id)).run();
+    if (input.categoryIds !== undefined) setProductCategories(tx, id, input.categoryIds);
+  });
 
   const updated = findProductById(db, id);
   if (updated === undefined) throw new NotFoundError('product not found');
-  return toPublicProduct(updated);
+  return toPublicProduct(updated, categoriesOfProduct(db, id));
 }
 
 export interface DeletedProduct {
@@ -416,7 +431,10 @@ export function trashProduct(
   db.update(products).set({ deletedAt: now, deletedBy: userId }).where(eq(products.id, id)).run();
 
   return {
-    product: toPublicProduct({ ...existing, deletedAt: now, deletedBy: userId }),
+    product: toPublicProduct(
+      { ...existing, deletedAt: now, deletedBy: userId },
+      categoriesOfProduct(db, id),
+    ),
     ...attachedCounts(db, id),
   };
 }
@@ -430,7 +448,10 @@ export function restoreProduct(db: DbHandle, id: string): Product {
 
   db.update(products).set({ deletedAt: null, deletedBy: null }).where(eq(products.id, id)).run();
 
-  return toPublicProduct({ ...existing, deletedAt: null, deletedBy: null });
+  return toPublicProduct(
+    { ...existing, deletedAt: null, deletedBy: null },
+    categoriesOfProduct(db, id),
+  );
 }
 
 /**
@@ -460,8 +481,13 @@ export function listTrash(db: DbHandle): TrashEntry[] {
     .limit(TRASH_LIST_LIMIT)
     .all();
 
+  const assigned = categoriesOfProducts(
+    db,
+    rows.map((row) => row.product.id),
+  );
+
   return rows.map((row) => ({
-    product: toPublicProduct(row.product),
+    product: toPublicProduct(row.product, assigned.get(row.product.id) ?? []),
     // Only rows with a `deleted_at` are selected; the fallback pleases the types.
     deletedAt: (row.product.deletedAt ?? new Date(0)).toISOString(),
     deletedBy: row.product.deletedBy,
@@ -487,13 +513,16 @@ export function purgeProduct(db: DbHandle, id: string): DeletedProduct {
 
   const attachedPhotos = db.select().from(photos).where(eq(photos.productId, id)).all();
   const counts = attachedCounts(db, id);
+  // Read before the cascade takes the assignments along.
+  const assignedCategories = categoriesOfProduct(db, id);
 
-  // `ratings` and `photos` reference the product with `on delete cascade`, and
-  // `foreign_keys = ON` is set on every connection, so one statement is enough.
+  // `ratings`, `photos` and `product_categories` reference the product with
+  // `on delete cascade`, and `foreign_keys = ON` is set on every connection,
+  // so one statement is enough.
   db.delete(products).where(eq(products.id, id)).run();
 
   return {
-    product: toPublicProduct(existing),
+    product: toPublicProduct(existing, assignedCategories),
     removedRatings: counts.ratings,
     removedPhotos: attachedPhotos,
   };
@@ -609,11 +638,9 @@ function filterConditions(query: ProductListQuery): SQL[] {
     if (condition !== undefined) conditions.push(condition);
   }
 
-  const category = query.category?.trim();
-  if (category !== undefined && category.length > 0) {
-    conditions.push(
-      sql`${sql.raw(LOWER_FUNCTION)}(${products.category}) = ${sql.raw(LOWER_FUNCTION)}(${category})`,
-    );
+  const categoryId = query.categoryId?.trim();
+  if (categoryId !== undefined && categoryId.length > 0) {
+    conditions.push(carriesCategory(categoryId));
   }
 
   if (query.minStars !== undefined) {
@@ -696,7 +723,7 @@ export function listProducts(
   const last = page.at(-1);
 
   return {
-    products: page.map(toProductWithRatings),
+    products: toProductsWithRatings(db, page),
     nextCursor:
       rows.length > limit && last !== undefined
         ? encodeCursor(sort, order, { key: cursorKeyOf(last, sort), id: last.product.id })

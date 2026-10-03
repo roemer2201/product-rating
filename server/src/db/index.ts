@@ -18,15 +18,19 @@ export {
 } from './migrate.js';
 export * as schema from './schema.js';
 export {
+  categories,
   invites,
   passwordResets,
   photos,
   prices,
+  productCategories,
   products,
   ratings,
   sessions,
   users,
+  type CategoryRow,
   type InviteRow,
+  type NewCategoryRow,
   type NewInviteRow,
   type NewPasswordResetRow,
   type NewPhotoRow,
@@ -38,6 +42,7 @@ export {
   type PasswordResetRow,
   type PhotoRow,
   type PriceRow,
+  type ProductCategoryRow,
   type ProductRow,
   type RatingRow,
   type SessionRow,

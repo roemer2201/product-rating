@@ -7,6 +7,7 @@ import {
   saveCapture,
   type Capture,
   type CaptureConflict,
+  type CapturedProduct,
 } from '@/lib/offlineQueue';
 
 /**
@@ -94,9 +95,15 @@ async function resolveProduct(capture: Capture): Promise<string> {
     });
   }
 
+  const { category: _legacy, categoryIds: _chosen, ...fields } = capture.product;
+
   try {
     const { product } = await api.products.create(
-      { ean: capture.ean, ...capture.product },
+      {
+        ean: capture.ean,
+        ...fields,
+        categoryIds: await captureCategoryIds(capture, capture.product),
+      },
       requestOwner(capture),
     );
     return product.id;
@@ -107,6 +114,30 @@ async function resolveProduct(capture: Capture): Promise<string> {
     }
     throw error;
   }
+}
+
+/**
+ * The categories of a capture as the list has them now.
+ *
+ * Between the shelf and the sync an administrator may have deleted one of
+ * them. That is not a reason to refuse the whole capture — the product, the
+ * rating and the photo are still somebody's work — so a category that is
+ * gone is left off, the way the cascade took it off every other product.
+ * A capture from before the list carries a free text name; it is matched
+ * against the list regardless of case, and dropped if nothing matches.
+ */
+async function captureCategoryIds(capture: Capture, product: CapturedProduct): Promise<string[]> {
+  const chosen = product.categoryIds ?? [];
+  const legacy = product.category?.trim() ?? '';
+  if (chosen.length === 0 && legacy === '') return [];
+
+  const { categories } = await api.categories.list(requestOwner(capture));
+  const ids = chosen.filter((id) => categories.some((entry) => entry.id === id));
+
+  const named = categories.find((entry) => entry.name.toLowerCase() === legacy.toLowerCase());
+  if (legacy !== '' && named !== undefined && !ids.includes(named.id)) ids.push(named.id);
+
+  return ids;
 }
 
 /**
