@@ -157,6 +157,10 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
       unten gezogen, erscheint ein kleines Aktualisieren-Symbol, das mit der
       Zugweite deutlicher wird; ab 64 px geladener Strecke lädt das Loslassen
       Liste und Kategorien neu (`web/src/components/PullToRefresh.tsx`)
+- [x] **[M]** Review der Katalog-Ziehgeste: Deaktivierung und Mehrfinger-Abbruch
+      vollständig zurücksetzen, horizontale und außerhalb beginnende Gesten
+      freigeben, nicht abbrechbare Browser-Bewegungen ignorieren und sofort gegen
+      doppelte Aktualisierungen sperren; sieben Regressionstests ergänzen (2026-10-03)
 - [ ] **[S]** Die Ziehgeste auf einem echten iPhone gegenprüfen: im Safari-Tab
       muss `overscroll-behavior-y: contain` das eingebaute Neuladen
       unterdrücken, in der Web-App vom Home-Bildschirm darf das Gummiband der

@@ -20,8 +20,8 @@ import { strings } from '@/lib/strings';
  *
  * The page itself is the scroll container here - the shell is only as tall as
  * the screen and the document scrolls - so the gesture hangs on `window` and
- * starts only while `scrollY` is at zero. Everything below that is ordinary
- * scrolling and stays untouched.
+ * starts inside the catalogue only while `scrollY` is at zero. Everything
+ * below that is ordinary scrolling and stays untouched.
  *
  * The indicator sits above the content and the content moves down with the
  * finger, so the drag has something to hold on to. The distance is damped: the
@@ -86,7 +86,8 @@ export function PullToRefresh({ onRefresh, disabled = false, children }: PullToR
   // The gesture lives in refs, not in state: `touchmove` fires far more often
   // than the screen is painted, and every one of these values is read inside
   // the handler rather than rendered.
-  const startY = useRef<number | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const startTouch = useRef<{ x: number; y: number; id: number } | null>(null);
   const active = useRef(false);
   const distance = useRef(0);
   const phaseRef = useRef<Phase>('idle');
@@ -96,13 +97,33 @@ export function PullToRefresh({ onRefresh, disabled = false, children }: PullToR
   // Updated after the commit rather than during the render: the handlers below
   // only ever run on a touch, which is long after React is done painting.
   useEffect(() => {
-    phaseRef.current = phase;
     disabledRef.current = disabled;
     onRefreshRef.current = onRefresh;
   });
 
+  // Touch events can arrive before React commits the next render. Keep the
+  // imperative lock current immediately rather than waiting for an effect.
+  const changePhase = useCallback((next: Phase): void => {
+    phaseRef.current = next;
+    setPhase(next);
+  }, []);
+
+  const resetGesture = useCallback((): void => {
+    startTouch.current = null;
+    active.current = false;
+    distance.current = 0;
+  }, []);
+
+  const cancelGesture = useCallback((): void => {
+    resetGesture();
+    if (phaseRef.current === 'pulling') {
+      setPull(0);
+      changePhase('idle');
+    }
+  }, [changePhase, resetGesture]);
+
   const runRefresh = useCallback(async (): Promise<void> => {
-    setPhase('refreshing');
+    changePhase('refreshing');
     setPull(REST);
 
     const started = Date.now();
@@ -119,79 +140,81 @@ export function PullToRefresh({ onRefresh, disabled = false, children }: PullToR
     }
 
     setPull(0);
-    setPhase('idle');
-  }, []);
+    changePhase('idle');
+  }, [changePhase]);
 
   useEffect(() => {
-    const reset = (): void => {
-      startY.current = null;
-      active.current = false;
-      distance.current = 0;
-    };
-
     const onTouchStart = (event: TouchEvent): void => {
-      reset();
+      // A second finger cancels both the visual pull and its release action.
+      cancelGesture();
       if (disabledRef.current || phaseRef.current === 'refreshing') return;
-      // Two fingers are a zoom, not a pull.
       if (event.touches.length !== 1 || !atTop()) return;
+      // The document scrolls, but header/navigation gestures are not catalogue
+      // gestures. Only starts inside this component may claim later moves.
+      if (!(event.target instanceof Node) || !rootRef.current?.contains(event.target)) return;
 
-      startY.current = event.touches[0]?.clientY ?? null;
+      const touch = event.touches[0];
+      if (touch !== undefined) {
+        startTouch.current = { x: touch.clientX, y: touch.clientY, id: touch.identifier };
+      }
     };
 
     const onTouchMove = (event: TouchEvent): void => {
-      const start = startY.current;
-      if (start === null || event.touches.length !== 1) return;
-
+      const start = startTouch.current;
+      if (start === null) return;
       const touch = event.touches[0];
-      if (touch === undefined) return;
+      if (
+        disabledRef.current ||
+        event.touches.length !== 1 ||
+        touch === undefined ||
+        touch.identifier !== start.id ||
+        !event.cancelable ||
+        !atTop()
+      ) {
+        cancelGesture();
+        return;
+      }
 
-      const delta = touch.clientY - start;
+      const delta = touch.clientY - start.y;
+      const horizontal = Math.abs(touch.clientX - start.x);
 
-      // Upwards, or no longer at the top because the page moved underneath:
-      // this is a scroll, and it stays one until the finger is lifted.
-      if (delta <= 0 || !atTop()) {
-        if (active.current) {
-          setPull(0);
-          setPhase('idle');
-        }
-        reset();
+      // Once this is an upward scroll or horizontal swipe, leave it to the
+      // browser until release, even if the finger changes direction later.
+      if (delta <= 0) {
+        cancelGesture();
         return;
       }
 
       if (!active.current) {
-        if (delta < SLOP) return;
+        if (Math.max(delta, horizontal) < SLOP) return;
+        if (horizontal >= delta) {
+          cancelGesture();
+          return;
+        }
         active.current = true;
-        setPhase('pulling');
+        changePhase('pulling');
       }
 
-      // Taking over the gesture: without this the page rubber-bands, and in a
-      // browser tab iOS would start its own reload on top of this one.
-      if (event.cancelable) event.preventDefault();
-
+      // Only claim a cancellable downward drag; otherwise the browser is
+      // already handling it and moving the content too would fight its scroll.
+      event.preventDefault();
       distance.current = Math.min((delta - SLOP) * RESISTANCE, MAX_PULL);
       setPull(distance.current);
     };
 
-    const onTouchEnd = (): void => {
-      const reached = active.current && distance.current >= THRESHOLD;
-      reset();
-      if (!reached) {
-        if (phaseRef.current === 'pulling') {
-          setPull(0);
-          setPhase('idle');
-        }
-        return;
-      }
-
-      void runRefresh();
+    const onTouchEnd = (event: TouchEvent): void => {
+      const reached =
+        !disabledRef.current &&
+        event.touches.length === 0 &&
+        atTop() &&
+        active.current &&
+        distance.current >= THRESHOLD;
+      cancelGesture();
+      if (reached) void runRefresh();
     };
 
     const onTouchCancel = (): void => {
-      reset();
-      if (phaseRef.current === 'pulling') {
-        setPull(0);
-        setPhase('idle');
-      }
+      cancelGesture();
     };
 
     // `touchmove` has to be able to cancel the browser's own scrolling, which a
@@ -207,15 +230,13 @@ export function PullToRefresh({ onRefresh, disabled = false, children }: PullToR
       window.removeEventListener('touchend', onTouchEnd);
       window.removeEventListener('touchcancel', onTouchCancel);
     };
-  }, [runRefresh]);
+  }, [cancelGesture, changePhase, runRefresh]);
 
-  // A gesture that is switched off mid-pull still has to put the page back.
+  // Disabling cancels the stored gesture too: re-enabling before release must
+  // never revive a pull which the interface already returned to rest.
   useEffect(() => {
-    if (disabled && phase === 'pulling') {
-      setPull(0);
-      setPhase('idle');
-    }
-  }, [disabled, phase]);
+    if (disabled) cancelGesture();
+  }, [cancelGesture, disabled]);
 
   const ready = phase === 'pulling' && pull >= THRESHOLD;
   const refreshing = phase === 'refreshing';
@@ -234,6 +255,7 @@ export function PullToRefresh({ onRefresh, disabled = false, children }: PullToR
 
   return (
     <div
+      ref={rootRef}
       className="pull-refresh"
       style={
         {
