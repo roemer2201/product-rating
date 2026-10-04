@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { accountName, updateProductSchema } from '@product-rating/shared';
 import { ErrorNotice, ErrorScreen, SkeletonBlock } from '@/components/Feedback';
+import { EditIcon } from '@/components/icons';
 import { PhotoManager } from '@/components/PhotoManager';
 import { PriceHistory } from '@/components/PriceHistory';
 import { ProductForm, type ProductFormValues } from '@/components/ProductForm';
@@ -125,20 +126,39 @@ export function ProductPage() {
 
   return (
     <section>
-      <h1 className="page__title">{detail.name}</h1>
-      {/* The variant leads: it is what distinguishes this product from the
-          others of the same line, and the name above already said the rest. */}
-      <p className="page__intro">
-        {[
-          detail.variant,
-          detail.brand ?? strings.product.noBrand,
-          detail.categories.length === 0
-            ? strings.product.noCategory
-            : detail.categories.map((entry) => entry.name).join(', '),
-        ]
-          .filter((entry) => entry !== null)
-          .join(' · ')}
-      </p>
+      {/* The pencil beside the name is the short way into the form; the
+          labelled button at the end of the page stays for whoever has
+          scrolled down through ratings and photos. */}
+      <div className="page__head">
+        <div className="page__head-text">
+          <h1 className="page__title">{detail.name}</h1>
+          {/* The variant leads: it is what distinguishes this product from the
+              others of the same line, and the name above already said the rest. */}
+          <p className="page__intro">
+            {[
+              detail.variant,
+              detail.brand ?? strings.product.noBrand,
+              detail.categories.length === 0
+                ? strings.product.noCategory
+                : detail.categories.map((entry) => entry.name).join(', '),
+            ]
+              .filter((entry) => entry !== null)
+              .join(' · ')}
+          </p>
+        </div>
+
+        <button
+          type="button"
+          className="button button--quiet page__head-action"
+          onClick={() => {
+            setEditing(true);
+          }}
+          aria-label={strings.product.editTitle}
+          title={strings.product.editTitle}
+        >
+          <EditIcon className="button__icon" />
+        </button>
+      </div>
 
       {detail.primaryPhotoId !== null ? (
         <img

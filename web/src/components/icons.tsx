@@ -101,6 +101,15 @@ export function CloseIcon({ className }: IconProps) {
   );
 }
 
+/** Opens the product form, next to the name of the product. */
+export function EditIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M15.2 5.3l3.5 3.5M4.5 19.5l1-4.2L16 4.8a1.5 1.5 0 0 1 2.1 0l1.1 1.1a1.5 1.5 0 0 1 0 2.1L8.7 18.5z" />
+    </svg>
+  );
+}
+
 export function TrashIcon({ className }: IconProps) {
   return (
     <svg {...base} className={className}>
