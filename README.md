@@ -157,7 +157,7 @@ ohnehin der Server, der jede dieser Routen mit `403` beantwortet.
 der Liste der Verwaltung gewählt, mehrere je Produkt
 (`web/src/components/CategoryPicker.tsx`). Die als „häufig genutzt“
 markierten stehen immer als Checkboxen da; alle übrigen bietet eine
-Auswahlliste „Kategorie hinzufügen …“ an – ein natives `<select>`, das auf dem
+Auswahlliste „Kategorie auswählen“ an – ein natives `<select>`, das auf dem
 iPhone das Auswahlrad öffnet. Was dort gewählt wurde, erscheint als Chip mit
 einem ×, das die Kategorie wieder abnimmt. Eine Kategorie, die eine
 Administratorin gelöscht hat, während das Formular offen war, wird beim

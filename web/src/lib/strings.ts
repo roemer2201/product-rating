@@ -300,7 +300,7 @@ export const strings = {
       'Häufige Kategorien zum Ankreuzen, alle weiteren über die Auswahl darunter. Mehrere sind möglich.',
     categoriesFrequent: 'Häufig genutzt',
     categoryAdd: 'Weitere Kategorie',
-    categoryAddPlaceholder: 'Kategorie hinzufügen …',
+    categoryAddPlaceholder: 'Kategorie auswählen',
     categoryRemove: (name: string) => `${name} entfernen`,
     categoriesLoading: 'Kategorien werden geladen …',
     categoriesUnavailable: 'Die Kategorien lassen sich gerade nicht laden.',

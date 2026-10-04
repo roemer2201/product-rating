@@ -5,6 +5,15 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-04 – Beschriftung der Kategorieauswahl
+
+Die Auswahlliste im Produktformular heißt jetzt „Kategorie auswählen“ statt
+„Kategorie hinzufügen …“ – auf Wunsch des Projektinhabers. Nur der Text in
+`web/src/lib/strings.ts` und die Erwähnung in README 2.1; das Verhalten bleibt
+gleich.
+
+---
+
 ## 2026-10-03 – Verwaltung mit eigenen Ansichten, Kategorien als vorgegebene Liste
 
 **Anlass**
