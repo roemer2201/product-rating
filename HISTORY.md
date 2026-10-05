@@ -5,6 +5,45 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-04 – Bearbeiten-Symbol neben dem Produktnamen
+
+**Anlass**
+
+In der Produktansicht stand der Weg ins Bearbeitungsformular nur als
+Schaltfläche am Ende der Seite, unter Bewertungen, Preisen und Fotos. Rechts
+neben Name und Meta-Zeile war Platz, der sich für einen direkten Zugang anbot.
+
+**Umsetzung**
+
+- Neues `EditIcon` (Stift) in `web/src/components/icons.tsx`, gezeichnet wie
+  die übrigen Symbole.
+- `ProductPage.tsx`: Name und Meta-Zeile stehen in einem Kopfbereich
+  `.page__head`; rechts daneben eine stille Schaltfläche mit dem Stift, die
+  dasselbe Formular öffnet wie die Schaltfläche unten. `aria-label` und
+  `title` nutzen den vorhandenen Text „Produkt bearbeiten“.
+- `app.css`: Der Textblock nimmt die restliche Breite und darf umbrechen
+  (`min-width: 0`, `overflow-wrap: anywhere`), die Schaltfläche schrumpft
+  nicht und hat die volle Tippfläche (`--tap-target`). Der Selektor
+  `.button.page__head-action` trägt zwei Klassen, weil `.button--quiet` weiter
+  unten in der Datei steht und Höhe und Innenabstand sonst wieder auf 2rem
+  zurücksetzen würde.
+- Ein Test öffnet das Formular über den Stift und prüft, dass die Schaltfläche
+  am Seitenende weiterhin da ist.
+
+**Entscheidungen**
+
+- Die Schaltfläche „Bearbeiten“ am Seitenende bleibt (Wunsch des
+  Projektinhabers): Wer durch Bewertungen und Fotos nach unten gescrollt hat,
+  soll nicht wieder hochmüssen.
+- Kein neuer Oberflächentext; „Produkt bearbeiten“ ist zugleich die Überschrift
+  des Formulars, das sich öffnet.
+- Geprüft mit einem Bildschirmfoto in iPhone-Breite (390 px), mit kurzem und
+  mit dreizeiligem Produktnamen: Der Stift bleibt oben rechts stehen, der Name
+  bricht links davon um. Lint, Typecheck, `format:check` und die Testsuite
+  (711 Tests in 64 Dateien) liefen durch.
+
+---
+
 ## 2026-10-03 – Verwaltung mit eigenen Ansichten, Kategorien als vorgegebene Liste
 
 **Anlass**

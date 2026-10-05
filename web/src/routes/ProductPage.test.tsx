@@ -111,6 +111,25 @@ describe('ProductPage', () => {
     });
   });
 
+  it('opens the form from the pencil beside the name', async () => {
+    const user = userEvent.setup();
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      { path: '/products/prod-1', body: { product: makeProductDetail() } },
+    ]);
+
+    renderProduct();
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+
+    // Both ways in stay: the pencil at the top, the labelled button at the end.
+    expect(screen.getByRole('button', { name: strings.common.edit })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: strings.product.editTitle }));
+
+    expect(screen.getByRole('heading', { name: strings.product.editTitle })).toBeInTheDocument();
+    expect(screen.getByLabelText(new RegExp(strings.fields.name))).toHaveValue('Apfelsaft');
+  });
+
   it('corrects the shared catalogue without asking for a role', async () => {
     const user = userEvent.setup();
     const fetchMock = mockFetch([
