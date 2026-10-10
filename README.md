@@ -5,8 +5,9 @@ eingeben – oder ohne Barcode erfassen, auch Selbstgekochtes –, Foto hinterle
 0–10 Sterne vergeben. Die App läuft als PWA und lässt
 sich unter iOS zum Home-Bildschirm hinzufügen.
 
-> **Status:** Version 0.1.0, der MVP aus Abschnitt 1 ist gebaut – Server,
-> Oberfläche, Docker-Image und Debian-Paket. Was noch offen ist und was als
+> **Status:** Der MVP aus Abschnitt 1 ist gebaut – Server, Oberfläche,
+> Docker-Image und Debian-Paket. Die Version steigt mit jedem Merge und steht in
+> `package.json`, `product-rating version` nennt sie. Was noch offen ist und was als
 > Nächstes kommt, steht in [TODO.md](TODO.md); was wann warum entschieden wurde,
 > in [HISTORY.md](HISTORY.md). Die `1.0.0` bekommt die erste Installation, die
 > im Alltag läuft (Abschnitt 9.1).

@@ -5,6 +5,21 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-10 – Version 0.3.0
+
+Erster Versionssprung nach der neuen Regel (ein Merge, eine neue Version).
+MINOR, weil seit 0.2.3 neue Funktionen mit Migrationen dazugekommen sind: die
+Kategorienliste mit eigener Verwaltung (M16, Migration 0009), die Einträge
+ohne EAN (M17, Migration 0010), der Barcode-Scan in der Katalogsuche und das
+Neuladen des Katalogs durch Herunterziehen. Kein Tag, kein GitHub-Release.
+
+`npm version` bricht auf einem Node vor 22.22.2 an `engine-strict` ab, nachdem
+es die Manifeste schon geändert hat, aber bevor die Workspace-Einträge im
+Lockfile nachgezogen sind (bekannter Punkt in TODO M14). Mit
+`--engine-strict=false` läuft es vollständig durch.
+
+---
+
 ## 2026-10-10 – Docker-Image real getestet, Server-Argumente richtig dokumentiert
 
 Bisher war das Image nie mit einem Docker-Daemon gebaut und gestartet worden
