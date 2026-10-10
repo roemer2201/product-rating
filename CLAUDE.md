@@ -116,6 +116,15 @@ Sie steht in den vier `package.json` **und** in `packaging/debian/changelog`;
 `server/src/version.test.ts` besteht darauf, dass alle dasselbe sagen. Der
 vollständige Ablauf eines Release steht in README 9.1.
 
+**Jeder Merge nach `main` erhöht die Version** (abgestimmt mit dem
+Projektinhaber am 10.10.2026), damit jedes aus `main` gebaute Paket eine neue
+Nummer trägt: MINOR bei neuen Funktionen oder Migrationen, PATCH bei
+Fehlerbehebungen und reiner Doku, MAJOR nur nach Rücksprache (README 9.1). Der
+Sprung gehört als letzter Commit auf den Branch, mit neuem Eintrag oben in
+`packaging/debian/changelog`. Ein Tag entsteht dabei nicht automatisch – den
+setzt nur ein Release. Der Job „Version raised“ in `ci.yml` lässt jeden Pull
+Request auf `main` scheitern, dessen Version nicht höher ist als die dort.
+
 ---
 
 ## 5. Verbindliche technische Regeln

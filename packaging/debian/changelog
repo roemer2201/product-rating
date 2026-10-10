@@ -1,3 +1,23 @@
+product-rating (0.3.0) unstable; urgency=medium
+
+  * Entries without an EAN: dishes and recipes as well as products without
+    a barcode (bakery, counter, market) can be added from the scan page,
+    rated, photographed and given a price, which means cost per portion
+    for a dish. The catalogue marks them and filters by kind; a product
+    without a barcode can get its EAN once, later.
+  * Migration 0010 rebuilds the products table. A snapshot of the database
+    is written before migrations run, and they are rolled back as a whole
+    if a reference would break.
+  * Categories are a list of their own, kept in the administration, instead
+    of free text on each product. Migration 0009 takes over the existing
+    values, merging spellings that differ only in case.
+  * The catalogue search can scan a barcode, and the catalogue reloads when
+    it is pulled down. The scanner starts the camera from inside its field.
+  * Export format version 3 carries the kind and the id of every entry.
+  * No change to the installation layout or to the configuration.
+
+ -- roemer2201 <roemer2201@users.noreply.github.com>  Sat, 10 Oct 2026 00:00:00 +0000
+
 product-rating (0.2.3) unstable; urgency=medium
 
   * The header no longer cuts off the account name on a narrow screen. The

@@ -5,8 +5,9 @@ eingeben – oder ohne Barcode erfassen, auch Selbstgekochtes –, Foto hinterle
 0–10 Sterne vergeben. Die App läuft als PWA und lässt
 sich unter iOS zum Home-Bildschirm hinzufügen.
 
-> **Status:** Version 0.1.0, der MVP aus Abschnitt 1 ist gebaut – Server,
-> Oberfläche, Docker-Image und Debian-Paket. Was noch offen ist und was als
+> **Status:** Der MVP aus Abschnitt 1 ist gebaut – Server, Oberfläche,
+> Docker-Image und Debian-Paket. Die Version steigt mit jedem Merge und steht in
+> `package.json`, `product-rating version` nennt sie. Was noch offen ist und was als
 > Nächstes kommt, steht in [TODO.md](TODO.md); was wann warum entschieden wurde,
 > in [HISTORY.md](HISTORY.md). Die `1.0.0` bekommt die erste Installation, die
 > im Alltag läuft (Abschnitt 9.1).
@@ -1057,8 +1058,9 @@ Start das Administratorkonto an und können danach entfallen.
 - **Entrypoint** (`docker/entrypoint.sh`): Verzeichnisse anlegen, Secret
   erzeugen, Migrationen ausführen, dann den Server als PID 1 starten – alles
   idempotent, ein Neustart wiederholt nur, was fehlt. `--help` erklärt die
-  Schalter, `docker compose run --rm app --log-level debug` reicht Argumente an
-  den Server durch.
+  Schalter. Argumente für den Server stehen hinter `--`, etwa
+  `docker compose run --rm app -- --log-level debug`; eine Option ohne `--`
+  davor, die der Entrypoint nicht kennt, lehnt er mit Exit-Code 2 ab.
 - **`HEALTHCHECK`** auf `/healthz`, mit `start_period`, die den Migrationen Zeit
   lässt.
 - **Reverse Proxy:** Die Compose-Datei veröffentlicht den Port nur auf
@@ -1603,6 +1605,21 @@ Bis zur ersten abgenommenen Installation bleibt die Reihe bei `0.x`; `1.0.0`
 vergibt der Projektinhaber, wenn eine Installation produktiv läuft. In der
 `0.x`-Reihe steht MINOR für alles, was sonst MAJOR wäre.
 
+**Jeder Merge nach `main` erhöht die Version**, auch ohne Release. Sonst trägt
+ein Paket, das jemand nach `git pull` selbst baut, dieselbe Nummer wie das
+vorige, und weder `dpkg` noch `/healthz` können die beiden unterscheiden. Der
+Branch hebt die Version deshalb vor dem Merge an – Schritt 1 und 2 unten,
+ohne Tag:
+
+```bash
+npm version minor --workspaces --include-workspace-root --no-git-tag-version   # oder patch
+# dazu ein neuer Eintrag oben in packaging/debian/changelog
+```
+
+Die CI prüft das bei jedem Pull Request auf `main` (Abschnitt 9.2). Ein
+direkter Push auf `main` umgeht die Prüfung; verhindern lässt sich das nur
+mit einem Branch-Schutz in den GitHub-Einstellungen des Repositorys.
+
 **Quelle der Wahrheit sind die `package.json`-Dateien.** Daraus liest
 `product-rating version` und `/healthz` (über `server/package.json`) und
 `packaging/build-deb.sh` (über die Datei im Wurzelverzeichnis). Die
@@ -1640,7 +1657,9 @@ Zwei Workflows unter `.github/workflows/`:
 - **`ci.yml`** läuft bei jedem Push und jedem Pull Request auf `main` und auf
   `claude/**`: `npm ci`, `format:check`, `lint`, `typecheck`, `test`, `build`.
   Dazu ein zweiter Job, der das Debian-Paket baut und mit `lintian` prüft, und
-  ein dritter, der das Container-Image baut (ohne es zu veröffentlichen). Damit
+  ein dritter, der das Container-Image baut (ohne es zu veröffentlichen). Bei
+  Pull Requests kommt der Job „Version raised“ hinzu: Er scheitert, wenn die
+  Version nach dem Merge nicht höher wäre als die auf `main` (9.1). Damit
   ist genau das abgedeckt, was CLAUDE.md vor jedem Commit verlangt – nur eben
   auch dann, wenn es jemand vergisst.
 - **`release.yml`** läuft auf einen Tag `v*`: baut das Debian-Paket für `amd64`
