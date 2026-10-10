@@ -23,6 +23,48 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Every merge into main has to produce a new version (README 9.1), otherwise
+  # a package built from main carries the number of the one before and an
+  # installation cannot tell them apart. Only pull requests are checked: a
+  # push onto a working branch is allowed to leave the version alone until the
+  # branch is ready.
+  version:
+    name: Version raised
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      # A pull request checks out the merge result, so the version here is
+      # what main would carry after the merge.
+      - uses: actions/checkout@v4
+
+      - name: Compare with the base branch
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin "${BASE_REF}"
+          base="$(git show FETCH_HEAD:package.json | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).version')"
+          head="$(node -p 'require("./package.json").version')"
+          # Plain MAJOR.MINOR.PATCH only; server/src/version.test.ts rejects
+          # anything else, so there is no pre-release ordering to handle.
+          node -e '
+            const [base, head] = process.argv.slice(1);
+            const parse = (v) => {
+              if (!/^\d+\.\d+\.\d+$/.test(v)) throw new Error(`not MAJOR.MINOR.PATCH: ${v}`);
+              return v.split(".").map(Number);
+            };
+            const [b, h] = [parse(base), parse(head)];
+            const order = h[0] - b[0] || h[1] - b[1] || h[2] - b[2];
+            if (order <= 0) {
+              console.error(`version ${head} is not higher than ${base} on the base branch`);
+              console.error("raise it before merging, see README 9.1:");
+              console.error("  npm version <minor|patch> --workspaces --include-workspace-root --no-git-tag-version");
+              console.error("  and a new entry at the top of packaging/debian/changelog");
+              process.exit(1);
+            }
+            console.log(`version ${base} -> ${head}`);
+          ' "${base}" "${head}"
+
   checks:
     name: Format, lint, types, tests, build
     runs-on: ubuntu-24.04

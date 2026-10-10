@@ -5,6 +5,28 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-10 – Neue Version bei jedem Merge
+
+Nach dem Merge von M17 baute der Projektinhaber auf einem Testsystem nach
+`git pull` das Debian-Paket neu und erhielt wieder `0.2.3`: Seit dem letzten
+Versionssprung hatte niemand die Nummer angehoben. Ein solches Paket lässt
+sich weder über `dpkg` noch über `/healthz` vom vorigen unterscheiden.
+
+Abgestimmt: Jeder Merge nach `main` erhöht die Version, MINOR bei neuen
+Funktionen oder Migrationen, PATCH bei Fehlerbehebungen und Doku. MAJOR
+bleibt eine Entscheidung des Projektinhabers. Ein Tag und damit ein
+GitHub-Release entsteht dabei weiterhin nur auf ausdrücklichen Wunsch.
+
+Die Regel steht in CLAUDE.md (Abschnitt 4) und README 9.1. Weil nicht jeder
+Beitragende CLAUDE.md liest, prüft der neue Job „Version raised“ in `ci.yml`
+jeden Pull Request auf `main`: Er vergleicht die Version im Merge-Ergebnis mit
+der auf dem Zielbranch und scheitert, wenn sie nicht höher ist. Verglichen
+wird nur `MAJOR.MINOR.PATCH`; Vorabversionen lehnt `version.test.ts` ohnehin
+ab. Ein direkter Push auf `main` umgeht die Prüfung, das verhindert nur ein
+Branch-Schutz in den GitHub-Einstellungen.
+
+---
+
 ## 2026-10-10 – Review PR #43: Import nach dem Nachtragen einer EAN
 
 Ein ohne EAN importiertes Produkt behält die Kennung der Quelldatei. Bekam es

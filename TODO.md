@@ -287,6 +287,7 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [x] **[S]** Sicherheitsdurchsicht vor dem ersten Release: Header, Cookies, Limits, Dateirechte
 - [x] **[S]** Content-Security-Policy und die übrigen Sicherheits-Header setzen – README 4 nennt sie unter „Härtung“, umgesetzt ist bisher keiner; seit M10 liefert die Anwendung das HTML selbst aus, also gehört die Regel in den Server und nicht nur in die Proxy-Beispiele
 - [x] **[S]** Installationsanleitung anhand einer Neuinstallation gegenprüfen
+- [x] **[S]** Jeder Merge nach `main` erhöht die Version (MINOR oder PATCH), geprüft vom CI-Job „Version raised“ bei jedem Pull Request. Anlass am 10.10.2026: Nach dem Merge von M17 baute `git pull` erneut ein Paket `0.2.3`
 - [ ] **[S]** `1.0.0` vergeben, sobald die erste Installation produktiv läuft. M14 hat `0.1.0` gesetzt, weil bis dahin niemand die Anwendung im Alltag benutzt hat
 - [ ] **[S]** Ratenbegrenzung für Uploads nachrüsten oder endgültig verwerfen. README nannte sie unter „Härtung“, gebaut war sie nie; die Durchsicht hat den Text auf den Stand gebracht (Größenlimit, eine Datei je Anfrage, 100-Megapixel-Grenze). Ein angemeldetes Konto gehört zum Haushalt, deshalb ist der Nutzen gering – wenn, dann als Schutz gegen ein Skript, das eine Platte vollschreibt
 - [ ] **[S]** Die 100-Megapixel-Grenze der Bildverarbeitung ist ungetestet: ein Testbild dieser Größe zu erzeugen kostet mehr Speicher, als ein Testlauf haben sollte. Geprüft ist nur, dass die Option gesetzt wird
