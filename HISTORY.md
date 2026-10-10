@@ -5,6 +5,25 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-10 – Review PR #43: Import nach dem Nachtragen einer EAN
+
+Ein ohne EAN importiertes Produkt behält die Kennung der Quelldatei. Bekam es
+in der Quelle später einen Barcode, suchte der nächste Import nur noch nach
+der EAN und legte einen zweiten Eintrag samt Bewertungen an.
+
+Der Import prüft bei solchen Einträgen zusätzlich die Kennung. Ein passendes
+Produkt ohne EAN wird wiederverwendet; `--update` trägt den Barcode nach,
+ohne diesen Schalter bleiben seine Daten erhalten. Bewertungen, Fotos und
+Preise werden weiter dem bisherigen Eintrag zugeordnet. Widersprüche zwischen
+Kennung und EAN werden gemeldet und übersprungen, damit keine getrennten
+Einträge zusammenfallen und kein Gericht versehentlich einen Barcode bekommt.
+
+Regressionstests prüfen die Folge Export ohne EAN → Import → EAN nachtragen →
+erneuter Export und Import, mit und ohne `--update`, sowie Konflikte mit einer
+belegten EAN, einer abweichenden EAN und einem Gericht.
+
+---
+
 ## 2026-10-10 – Review PR #43: Migration bei defekten Verweisen zurückrollen
 
 Die Fremdschlüsselprüfung lief bisher nach dem Commit. Bei einem Verstoß

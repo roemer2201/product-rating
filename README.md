@@ -1484,6 +1484,14 @@ jedem Lauf neu an. Versionen 1 und 2 liest der Import weiter, ihre Einträge
 sind alle Produkte. In `products.csv` steht die Art in der Spalte `kind`, die
 EAN-Spalte bleibt bei Einträgen ohne leer.
 
+Bekommt ein zuvor ohne EAN importiertes Produkt später einen Barcode, erkennt
+der nächste Import es auch mit EAN an seiner bisherigen Kennung wieder.
+`--update` trägt die EAN nach; ohne diesen Schalter bleibt der Eintrag
+unverändert, Bewertungen werden weiterhin demselben Eintrag zugeordnet.
+Verweisen Kennung und EAN auf verschiedene vorhandene Einträge oder gehört die
+Kennung zu einem Gericht bzw. zu einer anderen EAN, wird der Import dieser
+Zeile mit einer Meldung übersprungen.
+
 **CSV** ist RFC 4180 mit Byte Order Mark, damit ein Tabellenprogramm
 „Getränke“ liest und nicht „GetrÃ¤nke“. Es ist ein reines Ausgabeformat;
 eingelesen wird die JSON-Datei.

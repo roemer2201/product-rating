@@ -877,6 +877,21 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
     let existing: ProductRow | undefined;
     if (ean !== null) {
       existing = db.select().from(products).where(eq(products.ean, ean)).get();
+      if (entry.id !== undefined) {
+        const byId = db.select().from(products).where(eq(products.id, entry.id)).get();
+        if (byId !== undefined && byId.id !== existing?.id) {
+          // A previous import may have kept this identifier before the source
+          // assigned an EAN. Reuse it, but never combine two different rows or
+          // assign a barcode to a dish or a differently scanned product.
+          if (existing !== undefined || byId.kind !== 'product' || byId.ean !== null) {
+            result.problems.push(
+              `${label}: its identifier and EAN refer to different entries here, skipped`,
+            );
+            continue;
+          }
+          existing = byId;
+        }
+      }
     } else if (entry.id !== undefined) {
       // Without an EAN, the identifier is the only thing that says "this is
       // the entry an earlier run of the same file created".
@@ -921,6 +936,9 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
             // Only without an EAN may the kind change; with one it stays a
             // product, and the file said so too or it would have been skipped.
             kind: entry.kind,
+            // A previously barcode-free product may gain its EAN on an update;
+            // the identity checks above refuse reassignment and collisions.
+            ean,
             name: entry.name,
             variant: entry.variant ?? null,
             brand: entry.brand ?? null,
