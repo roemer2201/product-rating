@@ -360,12 +360,12 @@ Gerichten bedeutet der Preis „Kosten pro Portion“.
       einschalten. Ohne das nimmt jeder Neubau von `products` über die
       Kaskade Bewertungen, Fotos, Preise und Kategoriezuordnungen mit (siehe
       HISTORY zu 0009)
-- [ ] **[M]** Migration `0010`: `products.ean` darf `NULL` sein (`UNIQUE`
+- [x] **[M]** Migration `0010`: `products.ean` darf `NULL` sein (`UNIQUE`
       bleibt), neue Spalte `kind` (`product` | `dish`, Standard `product`),
       `CHECK (kind = 'product' OR ean IS NULL)`. Neubau der Tabelle mit
       übernommener `rowid` – die Volltextsuche hängt daran –, Such-Trigger neu
       mit `coalesce(ean, '')`. Test von 0009 aus mit Bestandsdaten
-- [ ] **[M]** API: `kind` beim Anlegen, EAN bei Produkten optional, bei
+- [x] **[M]** API: `kind` beim Anlegen, EAN bei Produkten optional, bei
       Gerichten verboten; Duplikat- und Papierkorbprüfung nur mit EAN;
       Katalogfilter `kind`; EAN nachträglich setzen, solange keine da ist
       (mit Konfliktprüfung); Export/Import mit `kind`, Einträge ohne EAN über

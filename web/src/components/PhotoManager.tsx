@@ -45,8 +45,11 @@ import { strings } from '@/lib/strings';
 
 interface PhotoManagerProps {
   productId: string;
-  /** Identifies the product for a picture that is written down offline. */
-  ean: string;
+  /**
+   * Identifies the product for a picture that is written down offline; `null`
+   * for an entry without one, which the queue cannot take.
+   */
+  ean: string | null;
   productName: string;
   photos: Photo[];
   user: User;
@@ -246,16 +249,20 @@ export function PhotoManager({ productId, ean, productName, photos, user }: Phot
                 bytes as they are and uploads them when there is a line. */}
             <OfflineCapture
               error={upload.error}
-              onKeep={() => {
-                capture.mutate(
-                  {
-                    ean,
-                    label: productName,
-                    photos: [{ blob: picked.blob, filename: picked.filename }],
-                  },
-                  { onSuccess: clearPick },
-                );
-              }}
+              onKeep={
+                ean === null
+                  ? null
+                  : () => {
+                      capture.mutate(
+                        {
+                          ean,
+                          label: productName,
+                          photos: [{ blob: picked.blob, filename: picked.filename }],
+                        },
+                        { onSuccess: clearPick },
+                      );
+                    }
+              }
               kept={capture.isSuccess}
               pending={capture.isPending}
             />

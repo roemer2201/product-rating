@@ -3,7 +3,12 @@ import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
-import { normaliseEan, RATING_MAX_STARS, RATING_MIN_STARS } from '@product-rating/shared';
+import {
+  normaliseEan,
+  PRODUCT_KINDS,
+  RATING_MAX_STARS,
+  RATING_MIN_STARS,
+} from '@product-rating/shared';
 import type { AppConfig } from '../config/index.js';
 import type { AppDatabase, DbHandle } from '../db/index.js';
 import {
@@ -32,7 +37,9 @@ import { photoFilePath, storePhoto } from './photos.js';
  * application. What is here is the readable form of the same content: products,
  * verdicts and pictures, addressed by EAN and by user name instead of by
  * identifier, so it survives a move to a fresh installation, a different host,
- * or a spreadsheet: products, ratings, recorded prices and pictures.
+ * or a spreadsheet: products, ratings, recorded prices and pictures. Entries
+ * without an EAN — dishes, bread from the baker — have nothing else to be
+ * recognised by, so they travel with their identifier.
  *
  * Accounts travel as names, roles and e-mail addresses — never as password
  * hashes. A file somebody mails to themselves must not be a set of credentials.
@@ -65,8 +72,13 @@ export const EXPORT_FORMAT = 'product-rating-export';
  * version 1 would have taken the missing `category` for "none" and, with
  * `--update`, cleared it; refusing the file is the better answer. Version 1
  * files are still read.
+ *
+ * Version 3 added entries without an EAN, together with `kind` and `id` on
+ * every product. A version 2 reader would reject such an entry with a message
+ * about a missing string; the version number lets it say what is actually the
+ * matter. Versions 1 and 2 are still read; all their entries are products.
  */
-export const EXPORT_VERSION = 2;
+export const EXPORT_VERSION = 3;
 
 /** Owner only: a catalogue is personal data, and the photos are of a home. */
 const PRIVATE_MODE = 0o700;
@@ -113,8 +125,22 @@ const exportedCategorySchema = z.object({
   frequent: z.boolean().default(false),
 });
 
+/**
+ * The layout `randomUUID()` produces. Checked strictly because the identifier
+ * of a product names its directory under `paths.uploads`: whatever a file
+ * says here ends up in a path.
+ */
+const productIdSchema = z
+  .string()
+  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+
 const exportedProductSchema = z.object({
-  ean: z.string().min(1),
+  /** Version 3: how an entry without an EAN is found again on the next run. */
+  id: productIdSchema.optional(),
+  /** Version 3; earlier files only knew scanned products. */
+  kind: z.enum(PRODUCT_KINDS).default('product'),
+  /** `null` since version 3 for a dish and for goods bought without a barcode. */
+  ean: z.string().min(1).nullish(),
   name: z.string().min(1),
   variant: z.string().nullish(),
   brand: z.string().nullish(),
@@ -247,7 +273,8 @@ function collectProducts(db: DbHandle, includeTrash: boolean): ExportedProduct[]
     .select()
     .from(products)
     .where(includeTrash ? undefined : isNull(products.deletedAt))
-    .orderBy(asc(products.ean))
+    // Entries without an EAN come first (NULL sorts low), by name.
+    .orderBy(asc(products.ean), asc(products.name), asc(products.id))
     .all();
 
   const assigned = new Map<string, string[]>();
@@ -268,6 +295,8 @@ function collectProducts(db: DbHandle, includeTrash: boolean): ExportedProduct[]
     .all();
 
   return productRows.map((product) => ({
+    id: product.id,
+    kind: product.kind,
     ean: product.ean,
     name: product.name,
     variant: product.variant,
@@ -460,6 +489,7 @@ function productsCsv(exported: ExportedProduct[]): string {
   const rows: (string | number | null)[][] = [
     [
       'ean',
+      'kind',
       'name',
       'variant',
       'brand',
@@ -482,7 +512,8 @@ function productsCsv(exported: ExportedProduct[]): string {
         : Math.round((product.ratings.reduce((sum, r) => sum + r.stars, 0) / count) * 100) / 100;
 
     rows.push([
-      product.ean,
+      product.ean ?? null,
+      product.kind,
       product.name,
       product.variant ?? null,
       product.brand ?? null,
@@ -510,7 +541,7 @@ function ratingsCsv(exported: ExportedProduct[]): string {
   for (const product of exported) {
     for (const rating of product.ratings) {
       rows.push([
-        product.ean,
+        product.ean ?? null,
         product.name,
         rating.user,
         rating.stars,
@@ -551,7 +582,7 @@ function pricesCsv(exported: ExportedProduct[]): string {
   for (const product of exported) {
     for (const price of product.prices) {
       rows.push([
-        product.ean,
+        product.ean ?? null,
         product.name,
         price.user,
         price.cents,
@@ -824,26 +855,50 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
   ];
 
   for (const entry of file.products) {
-    const ean = normaliseEan(entry.ean);
-    if (ean === null) {
-      result.problems.push(`${entry.ean}: not a valid EAN, skipped`);
+    const given = entry.ean?.trim() ?? '';
+    const ean = given === '' ? null : normaliseEan(given);
+    if (given !== '' && ean === null) {
+      result.problems.push(`${given}: not a valid EAN, skipped`);
       continue;
     }
+    if (entry.kind === 'dish' && ean !== null) {
+      result.problems.push(`${given}: a dish cannot carry an EAN, skipped`);
+      continue;
+    }
+    // What the messages below call the entry: its EAN, or its name without one.
+    const label = ean ?? entry.name;
 
     const owner = resolve(entry.createdBy);
     if (owner === undefined) {
-      result.problems.push(`${ean}: no account to attribute it to, skipped`);
+      result.problems.push(`${label}: no account to attribute it to, skipped`);
       continue;
     }
 
-    const existing = db.select().from(products).where(eq(products.ean, ean)).get();
-    const productId = existing?.id ?? randomUUID();
+    let existing: ProductRow | undefined;
+    if (ean !== null) {
+      existing = db.select().from(products).where(eq(products.ean, ean)).get();
+    } else if (entry.id !== undefined) {
+      // Without an EAN, the identifier is the only thing that says "this is
+      // the entry an earlier run of the same file created".
+      existing = db.select().from(products).where(eq(products.id, entry.id)).get();
+      if (existing !== undefined && existing.ean !== null) {
+        result.problems.push(
+          `${label}: its identifier belongs to a product with an EAN here, skipped`,
+        );
+        continue;
+      }
+    }
+    // A scanned product gets a fresh identifier, as it always did: the EAN
+    // finds it again. An entry without one keeps the identifier of the file,
+    // which is what makes a second run of the import find it.
+    const productId = existing?.id ?? (ean === null ? entry.id : undefined) ?? randomUUID();
 
     if (existing === undefined) {
       result.productsCreated += 1;
       if (!dryRun) {
         const row: ProductRow = {
           id: productId,
+          kind: entry.kind,
           ean,
           name: entry.name,
           variant: entry.variant ?? null,
@@ -863,6 +918,9 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
       if (!dryRun) {
         db.update(products)
           .set({
+            // Only without an EAN may the kind change; with one it stays a
+            // product, and the file said so too or it would have been skipped.
+            kind: entry.kind,
             name: entry.name,
             variant: entry.variant ?? null,
             brand: entry.brand ?? null,
@@ -893,7 +951,7 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
     for (const rating of entry.ratings) {
       const userId = resolve(rating.user);
       if (userId === undefined) {
-        result.problems.push(`${ean}: rating of "${rating.user}" has no account, skipped`);
+        result.problems.push(`${label}: rating of "${rating.user}" has no account, skipped`);
         continue;
       }
 
@@ -927,7 +985,7 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
     for (const price of entry.prices) {
       const userId = resolve(price.user);
       if (userId === undefined) {
-        result.problems.push(`${ean}: price of "${price.user}" has no account, skipped`);
+        result.problems.push(`${label}: price of "${price.user}" has no account, skipped`);
         continue;
       }
 
@@ -974,7 +1032,7 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
     for (const photo of entry.photos) {
       const userId = resolve(photo.user);
       if (userId === undefined) {
-        result.problems.push(`${ean}: photo of "${photo.user}" has no account, skipped`);
+        result.problems.push(`${label}: photo of "${photo.user}" has no account, skipped`);
         continue;
       }
 
@@ -1005,7 +1063,7 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
         data = await readFile(imagePath);
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-        result.problems.push(`${ean}: image file ${photo.file} is missing, skipped`);
+        result.problems.push(`${label}: image file ${photo.file} is missing, skipped`);
         continue;
       }
 
@@ -1018,7 +1076,7 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
       }
     }
 
-    onProgress?.(`${ean} ${entry.name}`);
+    onProgress?.(ean === null ? entry.name : `${ean} ${entry.name}`);
   }
 
   return result;

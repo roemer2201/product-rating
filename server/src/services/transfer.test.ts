@@ -153,8 +153,8 @@ describe('exporting', () => {
 
     // Byte order mark first, otherwise a spreadsheet mangles the umlauts.
     expect(products.startsWith('\uFEFF')).toBe(true);
-    expect(products).toContain('ean,name,variant,brand,categories');
-    expect(products).toContain('4260000000011,Apfelsaft,naturtrüb,Bio Hof,Bio; Getränke');
+    expect(products).toContain('ean,kind,name,variant,brand,categories');
+    expect(products).toContain('4260000000011,product,Apfelsaft,naturtrüb,Bio Hof,Bio; Getränke');
     // The average of five and three stars, next to the count.
     expect(products).toMatch(/4260000000011.*,2,4,/);
     expect(ratings).toContain('"trüb, wie er soll"');
@@ -221,7 +221,7 @@ describe('categories in an export', () => {
       products: { ean: string; categories: string[]; category?: string }[];
     };
 
-    expect(file.version).toBe(2);
+    expect(file.version).toBe(3);
     expect(file.categories).toEqual([
       { name: 'Bio', frequent: false },
       { name: 'Getränke', frequent: false },
@@ -337,6 +337,93 @@ describe('prices in an export', () => {
     const here = listProductPrices(target.database.db, productIdOf(target, '4260000000011'));
     expect(here).toHaveLength(1);
     expect(here[0]).toMatchObject({ cents: 199, currency: 'EUR', shop: 'Bioladen' });
+  });
+});
+
+describe('entries without an EAN in an export', () => {
+  const DISH_ID = '0b4c8e2a-6f1d-4c3b-9a7e-5d2f1e0c9b8a';
+
+  beforeEach(() => {
+    seedDatabase(source.database.db, {
+      products: [
+        {
+          id: DISH_ID,
+          kind: 'dish',
+          ean: null,
+          name: 'Spaghetti',
+          variant: 'Bolognese',
+          brand: 'nach Oma',
+          createdBy: ANNA,
+        },
+      ],
+      ratings: [{ productId: DISH_ID, userId: BERT, stars: 9, comment: 'wie früher' }],
+    });
+  });
+
+  it('travels with its kind and identifier, and arrives once', async () => {
+    await exportCatalogue({
+      db: source.database.db,
+      config: source.config,
+      target: directory,
+      format: 'both',
+    });
+
+    const csv = readFileSync(join(directory, EXPORT_PRODUCTS_CSV), 'utf8');
+    expect(csv).toContain('\r\n,dish,Spaghetti,Bolognese,nach Oma,');
+
+    const first = await importCatalogue({
+      db: target.database.db,
+      config: target.config,
+      source: directory,
+    });
+    expect(first.productsCreated).toBe(3);
+
+    const second = await importCatalogue({
+      db: target.database.db,
+      config: target.config,
+      source: directory,
+    });
+    expect(second).toMatchObject({ productsCreated: 0, productsSkipped: 3, ratingsSkipped: 3 });
+
+    const dishes = listProducts(target.database.db, BERT, {
+      kind: 'dish',
+      sort: 'updated',
+      limit: 25,
+    }).products;
+    expect(dishes).toHaveLength(1);
+    expect(dishes[0]).toMatchObject({
+      id: DISH_ID,
+      kind: 'dish',
+      ean: null,
+      variant: 'Bolognese',
+      brand: 'nach Oma',
+    });
+    expect(dishes[0]?.ownRating?.stars).toBe(9);
+  });
+
+  it('skips a dish with an EAN and refuses an identifier that is no UUID', async () => {
+    mkdirSync(directory, { recursive: true });
+    const write = (products: unknown[]): void => {
+      writeFileSync(
+        join(directory, EXPORT_JSON_FILE),
+        JSON.stringify({ format: 'product-rating-export', version: 3, products }),
+      );
+    };
+
+    write([{ kind: 'dish', ean: '4006381333931', name: 'Gulasch', createdBy: 'anna' }]);
+    const skipped = await importCatalogue({
+      db: target.database.db,
+      config: target.config,
+      source: directory,
+    });
+    expect(skipped.productsCreated).toBe(0);
+    expect(skipped.problems).toEqual(['4006381333931: a dish cannot carry an EAN, skipped']);
+
+    // The identifier names a directory under the uploads; it has to be one.
+    write([{ id: '../../etc', kind: 'dish', name: 'Gulasch', createdBy: 'anna' }]);
+    await expect(
+      importCatalogue({ db: target.database.db, config: target.config, source: directory }),
+    ).rejects.toThrow(ValidationError);
   });
 });
 

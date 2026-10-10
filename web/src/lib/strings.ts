@@ -209,6 +209,8 @@ export const strings = {
     assign: 'Das ist meine Erfassung – meinem Konto zuordnen',
     offer:
       'Das ließ sich nicht speichern – das Gerät hat gerade keine Verbindung. Soll die Eingabe gemerkt und später übertragen werden?',
+    unavailable:
+      'Das ließ sich nicht speichern – das Gerät hat gerade keine Verbindung. Einträge ohne Barcode lassen sich noch nicht offline merken; bitte später noch einmal speichern.',
     keep: 'Offline merken',
     keeping: 'Wird gemerkt …',
     kept: 'Gemerkt. Wird übertragen, sobald wieder eine Verbindung besteht.',

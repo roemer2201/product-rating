@@ -30,8 +30,11 @@ import { strings } from '@/lib/strings';
 
 interface PriceHistoryProps {
   productId: string;
-  /** Identifies the product for a price that is written down offline. */
-  ean: string;
+  /**
+   * Identifies the product for a price that is written down offline; `null`
+   * for an entry without one, which the queue cannot take.
+   */
+  ean: string | null;
   productName: string;
   prices: Price[];
   user: User;
@@ -172,20 +175,24 @@ export function PriceHistory({ productId, ean, productName, prices, user }: Pric
 
       <OfflineCapture
         error={add.error}
-        onKeep={() => {
-          const cents = parseAmount(amount);
-          if (cents === null) return;
-          capture.mutate({
-            ean,
-            label: productName,
-            price: {
-              cents,
-              shop: shop.trim() === '' ? null : shop.trim(),
-              note: note.trim() === '' ? null : note.trim(),
-              purchasedAt: date === '' ? todayAsInputValue() : date,
-            },
-          });
-        }}
+        onKeep={
+          ean === null
+            ? null
+            : () => {
+                const cents = parseAmount(amount);
+                if (cents === null) return;
+                capture.mutate({
+                  ean,
+                  label: productName,
+                  price: {
+                    cents,
+                    shop: shop.trim() === '' ? null : shop.trim(),
+                    note: note.trim() === '' ? null : note.trim(),
+                    purchasedAt: date === '' ? todayAsInputValue() : date,
+                  },
+                });
+              }
+        }
         kept={capture.isSuccess}
         pending={capture.isPending}
       />
