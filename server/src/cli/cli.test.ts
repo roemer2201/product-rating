@@ -336,7 +336,9 @@ describe('export and import', () => {
     expect(exported.code).toBe(0);
     expect(exported.out).toBe(target);
     expect(readFileSync(join(target, 'export.json'), 'utf8')).toContain('product-rating-export');
-    expect(readFileSync(join(target, 'products.csv'), 'utf8')).toContain('ean,name,variant,brand');
+    expect(readFileSync(join(target, 'products.csv'), 'utf8')).toContain(
+      'ean,kind,name,variant,brand',
+    );
 
     expect(readFileSync(join(target, 'users.csv'), 'utf8')).toContain(
       'username,display_name,role,email',

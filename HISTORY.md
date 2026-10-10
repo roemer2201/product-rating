@@ -5,6 +5,123 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-10 – Review PR #43: Import nach dem Nachtragen einer EAN
+
+Ein ohne EAN importiertes Produkt behält die Kennung der Quelldatei. Bekam es
+in der Quelle später einen Barcode, suchte der nächste Import nur noch nach
+der EAN und legte einen zweiten Eintrag samt Bewertungen an.
+
+Der Import prüft bei solchen Einträgen zusätzlich die Kennung. Ein passendes
+Produkt ohne EAN wird wiederverwendet; `--update` trägt den Barcode nach,
+ohne diesen Schalter bleiben seine Daten erhalten. Bewertungen, Fotos und
+Preise werden weiter dem bisherigen Eintrag zugeordnet. Widersprüche zwischen
+Kennung und EAN werden gemeldet und übersprungen, damit keine getrennten
+Einträge zusammenfallen und kein Gericht versehentlich einen Barcode bekommt.
+
+Regressionstests prüfen die Folge Export ohne EAN → Import → EAN nachtragen →
+erneuter Export und Import, mit und ohne `--update`, sowie Konflikte mit einer
+belegten EAN, einer abweichenden EAN und einem Gericht.
+
+---
+
+## 2026-10-10 – Review PR #43: Migration bei defekten Verweisen zurückrollen
+
+Die Fremdschlüsselprüfung lief bisher nach dem Commit. Bei einem Verstoß
+brach zwar dieser Start ab, der nächste übersprang die bereits protokollierte
+Migration aber und konnte mit defekten Verweisen starten.
+
+Der Migrator liest weiter Drizzles SQL-Dateien samt Hashes und Zeitstempeln,
+führt sie aber in einer eigenen Transaktion mit demselben Journalformat aus.
+`PRAGMA foreign_key_check` läuft vor dem Commit; ein Fehler rollt sowohl Daten
+als auch Journaleinträge zurück. Fremdschlüssel sind danach wieder aktiv.
+Snapshots bleiben als zusätzliche Sicherung erhalten.
+
+Regressionstests prüfen einen erneuten Start nach dem Fehler und ein Upgrade
+mit mehreren ausstehenden Migrationen: Bestandsdaten und altes Schema bleiben
+erhalten, die Migrationen bleiben ausstehend. Die Tests für Migration 0010
+prüfen weiterhin Bewertungen, Fotos, Preise, Kategorien und Suchindex.
+
+---
+
+## 2026-10-10 – Einträge ohne EAN: Gerichte, Rezepte, lose Ware (M17)
+
+**Anlass**
+
+Der Projektinhaber möchte auch Rezepte und selbst gekochte Gerichte bewerten,
+zu denen jedes Konto eine Meinung hat, außerdem gekaufte Ware ohne Barcode
+(Bäcker, Theke, Markt). Bisher hing alles an der EAN: Pflichtfeld, eindeutiger
+Schlüssel, Grundlage von Scan, Duplikatprüfung, Papierkorb-Rückholung,
+Offline-Warteschlange und Export.
+
+Abgestimmt: Bewertet wird das Gericht bzw. Rezept, nicht der einzelne
+Kochabend. Je Konto eine Bewertung mit Freitextnotiz, dazu Fotos. Bei
+Gerichten ist der Preis „Kosten pro Portion“. Marke und Sorte bleiben auch für
+Gerichte: die Marke heißt dort „Quelle“ („nach Oma“, „Thermomix“, „Kochbuch
+XY“), die Sorte trennt etwa „Spaghetti“ in „Bolognese“ und „Tomatensoße“.
+
+**Umsetzung**
+
+- Migrator (`server/src/db/migrate.ts`): Fremdschlüssel werden für den
+  Migrationslauf außerhalb der Transaktion abgeschaltet, danach prüft
+  `PRAGMA foreign_key_check`. Bei einem Verstoß bricht der Start mit Hinweis
+  auf den Snapshot ab. Ein Test zeigt, dass ohne diese Änderung schon der
+  Neubau einer Elterntabelle die Kindzeilen löscht.
+- Migration `0010_product_kind.sql`: `products.ean` darf `NULL` sein, neue
+  Spalte `kind` (`product` | `dish`, Standard `product`), zwei CHECKs (gültige
+  Art; Gericht ohne EAN), Index auf `kind`. Neubau der Tabelle mit
+  übernommener `rowid`, Suchindex neu befüllt, Trigger mit `coalesce(ean, '')`.
+  Getestet von 0009 aus mit Bestandsdaten inklusive Lücke in den rowids.
+- API: `kind` beim Anlegen, EAN bei Produkten optional, bei Gerichten
+  verboten. Duplikat- und Papierkorblogik nur mit EAN. `PATCH` nimmt `ean`
+  genau einmal für ein Produkt ohne EAN an. Listenfilter `kind`.
+- Export/Import: Dateiformat Version 3 mit `kind` und `id`, EAN darf `null`
+  sein; Einträge ohne EAN werden über die Kennung wiedergefunden und behalten
+  sie beim Import. CSV-Spalte `kind`.
+- Weboberfläche: „Ohne Barcode erfassen“ auf der Scan-Seite (Gericht oder
+  Rezept / Produkt ohne Barcode), Formular mit artabhängigen Beschriftungen
+  und dem Hinweis „Gibt es das schon?“ (`SimilarEntries`), EAN-Feld beim
+  Bearbeiten eines Produkts ohne EAN, Kennzeichnung auf Produktseite, Karte
+  und im Papierkorb, Katalogfilter „Art“, Preisbereich „Kosten pro Portion“
+  ohne Einkaufsort. Der Katalog zählt jetzt „Einträge“ statt „Produkte“.
+- Scan-Seite nach Rückmeldung des Projektinhabers umgebaut: „Kamera starten“
+  steht im Kamerafeld unter dem Kamerasymbol statt in einer eigenen Zeile
+  darunter – sobald das Bild läuft, ist der Button ohnehin weg, und die Seite
+  wird kürzer. „Anhalten“ und „Licht“ stehen weiter unter dem Bild, weil das
+  Kamerabild frei bleiben soll. „Ohne Barcode erfassen“ steht zwischen
+  Kamerafeld und Eingabe von Hand, mit kurzem Einleitungssatz und den beiden
+  Schaltflächen „Gericht/Rezept“ und „Produkt ohne Barcode“ gleich breit
+  nebeneinander (`.scan-alternatives`); was nicht in eine Zeile passt, bricht
+  im Button um.
+- Geprüft mit dem gebauten Bundle in Chromium bei 390 px Breite: Gericht
+  anlegen, bewerten, Kosten erfassen, zweites Gericht mit Hinweis auf das
+  erste, Produkt ohne Barcode anlegen und bearbeiten, Katalog.
+
+**Entscheidungen**
+
+- Eine Tabelle mit Spalte `kind` statt eigener Tabelle für Gerichte:
+  Bewertungen, Fotos, Preise, Kategorien, Papierkorb, Suche und Export
+  funktionieren unverändert weiter; eine zweite Tabelle hätte polymorphe
+  Fremdschlüssel oder doppelte Logik bedeutet.
+- Keine Pseudo-EAN aus dem GS1-Bereich 20–29: Den nutzt der Handel für
+  Waagen- und Preisetiketten, ein Scan an der Theke hätte zufällig ein Gericht
+  treffen können.
+- drizzle-kit erzeugte für den Neubau ein `INSERT … SELECT "kind" FROM
+  products`, also aus einer Spalte, die es dort noch nicht gibt. Die Kopie ist
+  von Hand korrigiert und kommentiert.
+- Die Kennung aus einer Importdatei wird streng als UUID geprüft, weil sie
+  das Verzeichnis eines Produkts unter `paths.uploads` benennt
+  (`services/photos.ts`); ein `../` in der Datei wäre sonst ein Pfad.
+- Offline bleiben Einträge ohne EAN zunächst außen vor; die Oberfläche erklärt
+  das. Eine geräteseitig erzeugte Kennung ist als eigener Punkt in M17
+  vermerkt, ebenso das Zuordnen eines gescannten Barcodes zu einem
+  vorhandenen Eintrag ohne EAN.
+- Eine einmal gesetzte EAN ist nicht änderbar: Scanner und Warteschlange
+  finden das Produkt darüber.
+- Docker und Debian-Paket brauchen nichts: kein neuer Konfigurationsschlüssel,
+  die Migration läuft wie jede andere beim Start (mit Snapshot vorher).
+
+---
+
 ## 2026-10-04 – Bearbeiten-Symbol neben dem Produktnamen
 
 **Anlass**

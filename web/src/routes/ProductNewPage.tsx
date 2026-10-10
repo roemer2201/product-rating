@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router';
-import { createProductSchema, normaliseEan } from '@product-rating/shared';
+import { createProductSchema, normaliseEan, type ProductKind } from '@product-rating/shared';
 import { ErrorNotice } from '@/components/Feedback';
 import { OfflineCapture } from '@/components/OfflineCapture';
 import { PhotoPreview, PhotoSources, usePhotoPick } from '@/components/PhotoPicker';
@@ -12,11 +12,14 @@ import { scrollToBottomEdge } from '@/lib/scroll';
 import { strings } from '@/lib/strings';
 
 /**
- * Adding a product, reached from a scan of an EAN the catalogue does not know.
+ * Adding a product, reached from a scan of an EAN the catalogue does not know —
+ * or from "Ohne Barcode erfassen" on the scan screen, for a dish or for goods
+ * that never had a barcode.
  *
- * The EAN comes in through the address so the screen survives a reload and can
- * be shared as a link. Anything that is not a valid EAN sends the visitor back
- * to the scanner rather than into a form that could not be saved.
+ * What is being added comes in through the address (`?ean=…`, or `?kind=dish`
+ * and `?kind=product` without one) so the screen survives a reload and can be
+ * shared as a link. Anything else sends the visitor back to the scanner rather
+ * than into a form that could not be saved.
  *
  * The photo is part of this screen and not only of the product page, because
  * this is the one moment the product is in hand: somebody is standing at the
@@ -41,7 +44,12 @@ import { strings } from '@/lib/strings';
  * screen is most often reached in: somebody is standing in a shop. What was
  * typed is then kept as a capture and resolved later against the EAN — as a new
  * product, or as an addition to the one that turns out to exist. The picture
- * goes into the queue with it; that is what it is for.
+ * goes into the queue with it; that is what it is for. Without an EAN there is
+ * nothing to resolve against, so that offer is replaced by an explanation.
+ *
+ * Without an EAN the database cannot refuse a duplicate either. The form shows
+ * entries with a similar name instead, so the second "Gulasch" is a decision
+ * and not an accident.
  */
 export function ProductNewPage() {
   const [params] = useSearchParams();
@@ -64,8 +72,26 @@ export function ProductNewPage() {
   // As constants, because the narrowing has to survive into the callbacks.
   const { picked, preview } = pick;
 
-  const ean = normaliseEan(params.get('ean') ?? '');
-  if (ean === null) return <Navigate to="/scan" replace />;
+  const given = params.get('ean');
+  const asked = params.get('kind');
+  const ean = given === null ? null : normaliseEan(given);
+  const kind: ProductKind | null =
+    given !== null ? 'product' : asked === 'dish' || asked === 'product' ? asked : null;
+  if (kind === null || (given !== null && ean === null)) return <Navigate to="/scan" replace />;
+
+  const dish = kind === 'dish';
+  const title =
+    ean !== null
+      ? strings.product.newTitle
+      : dish
+        ? strings.product.newDishTitle
+        : strings.product.newLooseTitle;
+  const intro =
+    ean !== null
+      ? strings.product.newIntro
+      : dish
+        ? strings.product.newDishIntro
+        : strings.product.newLooseIntro;
 
   /** The picture in the shape the offline queue stores it in. */
   const capturedPhotos = picked === null ? [] : [{ blob: picked.blob, filename: picked.filename }];
@@ -110,6 +136,7 @@ export function ProductNewPage() {
 
   const onSubmit = (values: ProductFormValues): void => {
     const parsed = createProductSchema.safeParse({
+      kind,
       ean,
       name: values.name,
       variant: emptyToNull(values.variant),
@@ -154,12 +181,14 @@ export function ProductNewPage() {
 
   return (
     <section>
-      <h1 className="page__title">{strings.product.newTitle}</h1>
-      <p className="page__intro">{strings.product.newIntro}</p>
+      <h1 className="page__title">{title}</h1>
+      <p className="page__intro">{intro}</p>
 
-      <p className="product__ean">
-        <span className="product__ean-label">{strings.product.eanLabel}</span> {ean}
-      </p>
+      {ean !== null && (
+        <p className="product__ean">
+          <span className="product__ean-label">{strings.product.eanLabel}</span> {ean}
+        </p>
+      )}
 
       {conflictId !== null && (
         <div className="notice" role="alert">
@@ -174,37 +203,43 @@ export function ProductNewPage() {
         <>
           <OfflineCapture
             error={create.error}
-            onKeep={() => {
-              if (values === null) return;
-              capture.mutate(
-                {
-                  ean,
-                  label: values.name,
-                  product: {
-                    name: values.name,
-                    variant: emptyToNull(values.variant),
-                    brand: emptyToNull(values.brand),
-                    categoryIds: values.categoryIds,
-                    notes: emptyToNull(values.notes),
-                  },
-                  photos: capturedPhotos,
-                },
-                {
-                  onSuccess: () => {
-                    // There is no product to go to yet; the catalogue is where
-                    // the notice about the queue lives.
-                    void navigate('/', { replace: true });
-                  },
-                },
-              );
-            }}
+            onKeep={
+              ean === null
+                ? null
+                : () => {
+                    if (values === null) return;
+                    capture.mutate(
+                      {
+                        ean,
+                        label: values.name,
+                        product: {
+                          name: values.name,
+                          variant: emptyToNull(values.variant),
+                          brand: emptyToNull(values.brand),
+                          categoryIds: values.categoryIds,
+                          notes: emptyToNull(values.notes),
+                        },
+                        photos: capturedPhotos,
+                      },
+                      {
+                        onSuccess: () => {
+                          // There is no product to go to yet; the catalogue is
+                          // where the notice about the queue lives.
+                          void navigate('/', { replace: true });
+                        },
+                      },
+                    );
+                  }
+            }
             kept={capture.isSuccess}
             pending={capture.isPending}
           />
 
           <ProductForm
+            kind={kind}
+            showSimilar={ean === null}
             onSubmit={onSubmit}
-            submitLabel={strings.product.create}
+            submitLabel={dish ? strings.product.createDish : strings.product.create}
             pendingLabel={strings.product.creating}
             pending={create.isPending}
             errors={errors}
@@ -271,12 +306,16 @@ export function ProductNewPage() {
               finds it again by its EAN and adds the photo to it. */}
           <OfflineCapture
             error={upload.error}
-            onKeep={() => {
-              capture.mutate(
-                { ean, label: values?.name ?? ean, photos: capturedPhotos },
-                { onSuccess: () => toProduct(created) },
-              );
-            }}
+            onKeep={
+              ean === null
+                ? null
+                : () => {
+                    capture.mutate(
+                      { ean, label: values?.name ?? ean, photos: capturedPhotos },
+                      { onSuccess: () => toProduct(created) },
+                    );
+                  }
+            }
             kept={capture.isSuccess}
             pending={capture.isPending}
           />

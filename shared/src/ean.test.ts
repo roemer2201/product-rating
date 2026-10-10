@@ -113,6 +113,7 @@ describe('createProductSchema', () => {
     });
 
     expect(parsed).toEqual({
+      kind: 'product',
       ean: '0000096385074',
       name: 'Haferflocken',
       variant: 'Kernig',
@@ -125,5 +126,23 @@ describe('createProductSchema', () => {
 
   it('requires a name', () => {
     expect(createProductSchema.safeParse({ ean: '96385074', name: '   ' }).success).toBe(false);
+  });
+
+  it('takes an entry without an EAN, and refuses one for a dish', () => {
+    for (const ean of [undefined, null, '', '   ']) {
+      expect(createProductSchema.parse({ ean, name: 'Dinkelbrot' })).toMatchObject({
+        kind: 'product',
+        ean: null,
+      });
+    }
+    expect(createProductSchema.parse({ kind: 'dish', name: 'Gulasch' }).ean).toBeNull();
+
+    const dish = createProductSchema.safeParse({ kind: 'dish', ean: '96385074', name: 'Gulasch' });
+    expect(dish.success).toBe(false);
+    expect(dish.error?.issues[0]?.path).toEqual(['ean']);
+    // A wrong code is still wrong, even where none is needed.
+    expect(createProductSchema.safeParse({ ean: '4006381333932', name: 'Brot' }).success).toBe(
+      false,
+    );
   });
 });

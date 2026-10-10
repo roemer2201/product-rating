@@ -101,12 +101,25 @@ export interface CategoryRef {
 }
 
 /**
- * A product in the shared catalogue. An EAN exists exactly once across all
+ * What an entry of the catalogue is.
+ *
+ * `product` is something bought — scanned by its EAN, or without one when the
+ * baker or the market stall has no barcode. `dish` is something cooked: a
+ * recipe or a meal, rated as such rather than per evening it was made. A dish
+ * never carries an EAN; the database enforces that with a CHECK constraint.
+ */
+export const PRODUCT_KINDS = ['product', 'dish'] as const;
+export type ProductKind = (typeof PRODUCT_KINDS)[number];
+
+/**
+ * An entry of the shared catalogue. An EAN exists at most once across all
  * users; ratings and photos are per user.
  */
 export interface Product {
   id: string;
-  ean: string;
+  kind: ProductKind;
+  /** `null` for a dish and for a product bought without a barcode. */
+  ean: string | null;
   name: string;
   /**
    * The flavour or edition within a product line: "5 Minuten Terrine" is the
