@@ -14,7 +14,7 @@ import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
 import { openDatabase } from './client.js';
-import { migrationsFolder, runMigrations } from './migrate.js';
+import { migrationsFolder, pendingMigrations, runMigrations } from './migrate.js';
 import { ratings, sessions, users } from './schema.js';
 import { createTestDatabase, seedDatabase, type TestDatabase } from './testing.js';
 
@@ -182,8 +182,62 @@ INSERT INTO child VALUES ('c1', 'nowhere');`,
         runMigrations({ db: opened.db, sqlite: opened.sqlite, databasePath: path, folder }),
       ).toThrow(/1 broken reference\(s\) \(child -> parent\)/);
       expect(opened.sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
+      // A failed migration must stay pending, including after a restart.
+      expect(pendingMigrations(opened.sqlite, folder)).toBe(1);
+      expect(
+        opened.sqlite.prepare(`select name from sqlite_master where name = 'child'`).get(),
+      ).toBeUndefined();
       opened.close();
+      const restarted = openDatabase({ path });
+      try {
+        expect(() =>
+          runMigrations({ db: restarted.db, sqlite: restarted.sqlite, databasePath: path, folder }),
+        ).toThrow(/1 broken reference/);
+      } finally {
+        restarted.close();
+      }
     } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('rolls back a failing upgrade together with earlier pending migrations', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'product-rating-rollback-'));
+    const path = join(directory, 'app.db');
+    const folder = join(directory, 'migrations');
+    const initial = { tag: '0000_parent', sql: `CREATE TABLE parent (id text PRIMARY KEY);` };
+    const opened = openDatabase({ path });
+    try {
+      writeMigrations(folder, [initial]);
+      runMigrations({ db: opened.db, sqlite: opened.sqlite, databasePath: path, folder });
+      opened.sqlite.prepare(`insert into parent values ('keep-me')`).run();
+      writeMigrations(folder, [
+        initial,
+        { tag: '0001_label', sql: `ALTER TABLE parent ADD COLUMN label text;` },
+        {
+          tag: '0002_orphan',
+          sql: `CREATE TABLE child (parent_id text REFERENCES parent(id));
+--> statement-breakpoint
+DELETE FROM parent;--> statement-breakpoint
+INSERT INTO child VALUES ('nowhere');`,
+        },
+      ]);
+      expect(() =>
+        runMigrations({
+          db: opened.db,
+          sqlite: opened.sqlite,
+          databasePath: path,
+          folder,
+        }),
+      ).toThrow(/migration was rolled back/);
+      expect(opened.sqlite.prepare('select * from parent').all()).toEqual([{ id: 'keep-me' }]);
+      expect(pendingMigrations(opened.sqlite, folder)).toBe(2);
+      expect(opened.sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
+      expect(
+        readdirSync(directory).filter((entry) => entry.startsWith('pre-migration-')),
+      ).toHaveLength(1);
+    } finally {
+      opened.close();
       rmSync(directory, { recursive: true, force: true });
     }
   });

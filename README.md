@@ -530,7 +530,9 @@ Tabelle deshalb neu auf – mit übernommener `rowid`, an der die Volltextsuche
 hängt, und neu angelegten Such-Triggern. Damit das `DROP TABLE` nicht über
 `ON DELETE CASCADE` Bewertungen, Fotos, Preise und Kategoriezuordnungen
 mitnimmt, schaltet der Migrator die Fremdschlüssel für den Lauf ab und prüft
-danach mit `PRAGMA foreign_key_check` (siehe `server/src/db/migrate.ts`).
+vor dem Commit mit `PRAGMA foreign_key_check` (siehe `server/src/db/migrate.ts`).
+Ein Verstoß rollt alle anstehenden Migrationen samt Journaleinträgen zurück;
+auch beim nächsten Start bleiben sie damit ausstehend.
 
 **Kategorien.** Die Liste führen Administratoren, gelesen wird sie von jedem
 Konto, weil jedes Produktformular sie zeigt:

@@ -5,6 +5,25 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-10 – Review PR #43: Migration bei defekten Verweisen zurückrollen
+
+Die Fremdschlüsselprüfung lief bisher nach dem Commit. Bei einem Verstoß
+brach zwar dieser Start ab, der nächste übersprang die bereits protokollierte
+Migration aber und konnte mit defekten Verweisen starten.
+
+Der Migrator liest weiter Drizzles SQL-Dateien samt Hashes und Zeitstempeln,
+führt sie aber in einer eigenen Transaktion mit demselben Journalformat aus.
+`PRAGMA foreign_key_check` läuft vor dem Commit; ein Fehler rollt sowohl Daten
+als auch Journaleinträge zurück. Fremdschlüssel sind danach wieder aktiv.
+Snapshots bleiben als zusätzliche Sicherung erhalten.
+
+Regressionstests prüfen einen erneuten Start nach dem Fehler und ein Upgrade
+mit mehreren ausstehenden Migrationen: Bestandsdaten und altes Schema bleiben
+erhalten, die Migrationen bleiben ausstehend. Die Tests für Migration 0010
+prüfen weiterhin Bewertungen, Fotos, Preise, Kategorien und Suchindex.
+
+---
+
 ## 2026-10-10 – Einträge ohne EAN: Gerichte, Rezepte, lose Ware (M17)
 
 **Anlass**

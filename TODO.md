@@ -356,8 +356,8 @@ einzelne Kochabend; je Konto eine Bewertung mit Notiz, dazu Fotos. Bei
 Gerichten bedeutet der Preis „Kosten pro Portion“.
 
 - [x] **[M]** Migrator: Fremdschlüssel während der Migrationen außerhalb der
-      Transaktion abschalten, danach `PRAGMA foreign_key_check` und wieder
-      einschalten. Ohne das nimmt jeder Neubau von `products` über die
+      Transaktion abschalten, vor dem Commit `PRAGMA foreign_key_check`, bei
+      Fehlern zurückrollen und danach wieder einschalten. Ohne das nimmt jeder Neubau von `products` über die
       Kaskade Bewertungen, Fotos, Preise und Kategoriezuordnungen mit (siehe
       HISTORY zu 0009)
 - [x] **[M]** Migration `0010`: `products.ean` darf `NULL` sein (`UNIQUE`
