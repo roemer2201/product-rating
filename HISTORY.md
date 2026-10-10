@@ -5,6 +5,76 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-10 – Einträge ohne EAN: Gerichte, Rezepte, lose Ware (M17)
+
+**Anlass**
+
+Der Projektinhaber möchte auch Rezepte und selbst gekochte Gerichte bewerten,
+zu denen jedes Konto eine Meinung hat, außerdem gekaufte Ware ohne Barcode
+(Bäcker, Theke, Markt). Bisher hing alles an der EAN: Pflichtfeld, eindeutiger
+Schlüssel, Grundlage von Scan, Duplikatprüfung, Papierkorb-Rückholung,
+Offline-Warteschlange und Export.
+
+Abgestimmt: Bewertet wird das Gericht bzw. Rezept, nicht der einzelne
+Kochabend. Je Konto eine Bewertung mit Freitextnotiz, dazu Fotos. Bei
+Gerichten ist der Preis „Kosten pro Portion“. Marke und Sorte bleiben auch für
+Gerichte: die Marke heißt dort „Quelle“ („nach Oma“, „Thermomix“, „Kochbuch
+XY“), die Sorte trennt etwa „Spaghetti“ in „Bolognese“ und „Tomatensoße“.
+
+**Umsetzung**
+
+- Migrator (`server/src/db/migrate.ts`): Fremdschlüssel werden für den
+  Migrationslauf außerhalb der Transaktion abgeschaltet, danach prüft
+  `PRAGMA foreign_key_check`. Bei einem Verstoß bricht der Start mit Hinweis
+  auf den Snapshot ab. Ein Test zeigt, dass ohne diese Änderung schon der
+  Neubau einer Elterntabelle die Kindzeilen löscht.
+- Migration `0010_product_kind.sql`: `products.ean` darf `NULL` sein, neue
+  Spalte `kind` (`product` | `dish`, Standard `product`), zwei CHECKs (gültige
+  Art; Gericht ohne EAN), Index auf `kind`. Neubau der Tabelle mit
+  übernommener `rowid`, Suchindex neu befüllt, Trigger mit `coalesce(ean, '')`.
+  Getestet von 0009 aus mit Bestandsdaten inklusive Lücke in den rowids.
+- API: `kind` beim Anlegen, EAN bei Produkten optional, bei Gerichten
+  verboten. Duplikat- und Papierkorblogik nur mit EAN. `PATCH` nimmt `ean`
+  genau einmal für ein Produkt ohne EAN an. Listenfilter `kind`.
+- Export/Import: Dateiformat Version 3 mit `kind` und `id`, EAN darf `null`
+  sein; Einträge ohne EAN werden über die Kennung wiedergefunden und behalten
+  sie beim Import. CSV-Spalte `kind`.
+- Weboberfläche: „Ohne Barcode erfassen“ auf der Scan-Seite (Gericht oder
+  Rezept / Produkt ohne Barcode), Formular mit artabhängigen Beschriftungen
+  und dem Hinweis „Gibt es das schon?“ (`SimilarEntries`), EAN-Feld beim
+  Bearbeiten eines Produkts ohne EAN, Kennzeichnung auf Produktseite, Karte
+  und im Papierkorb, Katalogfilter „Art“, Preisbereich „Kosten pro Portion“
+  ohne Einkaufsort. Der Katalog zählt jetzt „Einträge“ statt „Produkte“.
+- Geprüft mit dem gebauten Bundle in Chromium bei 390 px Breite: Gericht
+  anlegen, bewerten, Kosten erfassen, zweites Gericht mit Hinweis auf das
+  erste, Produkt ohne Barcode anlegen und bearbeiten, Katalog.
+
+**Entscheidungen**
+
+- Eine Tabelle mit Spalte `kind` statt eigener Tabelle für Gerichte:
+  Bewertungen, Fotos, Preise, Kategorien, Papierkorb, Suche und Export
+  funktionieren unverändert weiter; eine zweite Tabelle hätte polymorphe
+  Fremdschlüssel oder doppelte Logik bedeutet.
+- Keine Pseudo-EAN aus dem GS1-Bereich 20–29: Den nutzt der Handel für
+  Waagen- und Preisetiketten, ein Scan an der Theke hätte zufällig ein Gericht
+  treffen können.
+- drizzle-kit erzeugte für den Neubau ein `INSERT … SELECT "kind" FROM
+  products`, also aus einer Spalte, die es dort noch nicht gibt. Die Kopie ist
+  von Hand korrigiert und kommentiert.
+- Die Kennung aus einer Importdatei wird streng als UUID geprüft, weil sie
+  das Verzeichnis eines Produkts unter `paths.uploads` benennt
+  (`services/photos.ts`); ein `../` in der Datei wäre sonst ein Pfad.
+- Offline bleiben Einträge ohne EAN zunächst außen vor; die Oberfläche erklärt
+  das. Eine geräteseitig erzeugte Kennung ist als eigener Punkt in M17
+  vermerkt, ebenso das Zuordnen eines gescannten Barcodes zu einem
+  vorhandenen Eintrag ohne EAN.
+- Eine einmal gesetzte EAN ist nicht änderbar: Scanner und Warteschlange
+  finden das Produkt darüber.
+- Docker und Debian-Paket brauchen nichts: kein neuer Konfigurationsschlüssel,
+  die Migration läuft wie jede andere beim Start (mit Snapshot vorher).
+
+---
+
 ## 2026-10-04 – Bearbeiten-Symbol neben dem Produktnamen
 
 **Anlass**
