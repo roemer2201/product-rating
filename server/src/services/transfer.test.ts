@@ -1,14 +1,15 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import sharp from 'sharp';
 import { parseConfig, type AppConfig } from '../config/index.js';
 import { createTestDatabase, seedDatabase, type TestDatabase } from '../db/testing.js';
+import { products } from '../db/schema.js';
 import { createCategory, listCategories } from './categories.js';
 import { listProductPhotos, storePhoto } from './photos.js';
 import { createPrice, listProductPrices } from './prices.js';
-import { listProducts, trashProduct } from './products.js';
+import { listProducts, trashProduct, updateProduct } from './products.js';
 import { listUsers } from './users.js';
 import { ValidationError } from './errors.js';
 import {
@@ -153,8 +154,8 @@ describe('exporting', () => {
 
     // Byte order mark first, otherwise a spreadsheet mangles the umlauts.
     expect(products.startsWith('\uFEFF')).toBe(true);
-    expect(products).toContain('ean,name,variant,brand,categories');
-    expect(products).toContain('4260000000011,Apfelsaft,naturtrüb,Bio Hof,Bio; Getränke');
+    expect(products).toContain('ean,kind,name,variant,brand,categories');
+    expect(products).toContain('4260000000011,product,Apfelsaft,naturtrüb,Bio Hof,Bio; Getränke');
     // The average of five and three stars, next to the count.
     expect(products).toMatch(/4260000000011.*,2,4,/);
     expect(ratings).toContain('"trüb, wie er soll"');
@@ -221,7 +222,7 @@ describe('categories in an export', () => {
       products: { ean: string; categories: string[]; category?: string }[];
     };
 
-    expect(file.version).toBe(2);
+    expect(file.version).toBe(3);
     expect(file.categories).toEqual([
       { name: 'Bio', frequent: false },
       { name: 'Getränke', frequent: false },
@@ -338,6 +339,181 @@ describe('prices in an export', () => {
     expect(here).toHaveLength(1);
     expect(here[0]).toMatchObject({ cents: 199, currency: 'EUR', shop: 'Bioladen' });
   });
+});
+
+describe('entries without an EAN in an export', () => {
+  const DISH_ID = '0b4c8e2a-6f1d-4c3b-9a7e-5d2f1e0c9b8a';
+
+  beforeEach(() => {
+    seedDatabase(source.database.db, {
+      products: [
+        {
+          id: DISH_ID,
+          kind: 'dish',
+          ean: null,
+          name: 'Spaghetti',
+          variant: 'Bolognese',
+          brand: 'nach Oma',
+          createdBy: ANNA,
+        },
+      ],
+      ratings: [{ productId: DISH_ID, userId: BERT, stars: 9, comment: 'wie früher' }],
+    });
+  });
+
+  it('travels with its kind and identifier, and arrives once', async () => {
+    await exportCatalogue({
+      db: source.database.db,
+      config: source.config,
+      target: directory,
+      format: 'both',
+    });
+
+    const csv = readFileSync(join(directory, EXPORT_PRODUCTS_CSV), 'utf8');
+    expect(csv).toContain('\r\n,dish,Spaghetti,Bolognese,nach Oma,');
+
+    const first = await importCatalogue({
+      db: target.database.db,
+      config: target.config,
+      source: directory,
+    });
+    expect(first.productsCreated).toBe(3);
+
+    const second = await importCatalogue({
+      db: target.database.db,
+      config: target.config,
+      source: directory,
+    });
+    expect(second).toMatchObject({ productsCreated: 0, productsSkipped: 3, ratingsSkipped: 3 });
+
+    const dishes = listProducts(target.database.db, BERT, {
+      kind: 'dish',
+      sort: 'updated',
+      limit: 25,
+    }).products;
+    expect(dishes).toHaveLength(1);
+    expect(dishes[0]).toMatchObject({
+      id: DISH_ID,
+      kind: 'dish',
+      ean: null,
+      variant: 'Bolognese',
+      brand: 'nach Oma',
+    });
+    expect(dishes[0]?.ownRating?.stars).toBe(9);
+  });
+
+  it('skips a dish with an EAN and refuses an identifier that is no UUID', async () => {
+    mkdirSync(directory, { recursive: true });
+    const write = (products: unknown[]): void => {
+      writeFileSync(
+        join(directory, EXPORT_JSON_FILE),
+        JSON.stringify({ format: 'product-rating-export', version: 3, products }),
+      );
+    };
+
+    write([{ kind: 'dish', ean: '4006381333931', name: 'Gulasch', createdBy: 'anna' }]);
+    const skipped = await importCatalogue({
+      db: target.database.db,
+      config: target.config,
+      source: directory,
+    });
+    expect(skipped.productsCreated).toBe(0);
+    expect(skipped.problems).toEqual(['4006381333931: a dish cannot carry an EAN, skipped']);
+
+    // The identifier names a directory under the uploads; it has to be one.
+    write([{ id: '../../etc', kind: 'dish', name: 'Gulasch', createdBy: 'anna' }]);
+    await expect(
+      importCatalogue({ db: target.database.db, config: target.config, source: directory }),
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it('keeps the imported identity when a product later gets an EAN', async () => {
+    const loafId = '8eec39f7-8628-4599-9285-abd0d5ff12cd';
+    seedDatabase(source.database.db, {
+      products: [{ id: loafId, ean: null, name: 'Dinkelbrot', createdBy: ANNA }],
+      ratings: [{ productId: loafId, userId: BERT, stars: 8 }],
+    });
+    const exporting = { db: source.database.db, config: source.config, target: directory };
+    const importing = { db: target.database.db, config: target.config, source: directory };
+    await exportCatalogue(exporting);
+    await importCatalogue(importing);
+
+    updateProduct(source.database.db, loafId, { ean: '4260000000028' });
+    await exportCatalogue(exporting);
+    // Without --update the target's fields stay as they are, but its ratings
+    // still belong to the same entry rather than to a duplicate.
+    const unchanged = await importCatalogue(importing);
+    expect(unchanged).toMatchObject({ productsCreated: 0, productsSkipped: 4, ratingsCreated: 0 });
+    expect(
+      target.database.db.select().from(products).where(eq(products.id, loafId)).get()?.ean,
+    ).toBeNull();
+
+    const updated = await importCatalogue({ ...importing, update: true });
+    expect(updated.productsCreated).toBe(0);
+    expect(productIdOf(target, '4260000000028')).toBe(loafId);
+    expect(
+      listProducts(target.database.db, BERT, { q: 'Dinkelbrot', sort: 'name', limit: 25 }).products,
+    ).toHaveLength(1);
+    expect((await importCatalogue(importing)).productsCreated).toBe(0);
+  });
+
+  it.each(['taken-ean', 'dish', 'different-ean'] as const)(
+    'refuses to join incompatible import identities: %s',
+    async (conflict) => {
+      const id = '8eec39f7-8628-4599-9285-abd0d5ff12cd';
+      seedDatabase(target.database.db, {
+        products: [
+          {
+            id,
+            kind: conflict === 'dish' ? 'dish' : 'product',
+            ean: conflict === 'different-ean' ? '4260000000035' : null,
+            name: 'Keep me',
+            createdBy: ANNA,
+          },
+          ...(conflict === 'taken-ean'
+            ? [
+                {
+                  ean: '4260000000028',
+                  name: 'Other loaf',
+                  createdBy: ANNA,
+                },
+              ]
+            : []),
+        ],
+      });
+      mkdirSync(directory, { recursive: true });
+      writeFileSync(
+        join(directory, EXPORT_JSON_FILE),
+        JSON.stringify({
+          format: 'product-rating-export',
+          version: 3,
+          products: [
+            {
+              id,
+              ean: '4260000000028',
+              name: 'Dinkelbrot',
+              createdBy: 'anna',
+              ratings: [{ user: 'bert', stars: 8 }],
+            },
+          ],
+        }),
+      );
+
+      const result = await importCatalogue({
+        db: target.database.db,
+        config: target.config,
+        source: directory,
+        update: true,
+      });
+      expect(result).toMatchObject({ productsCreated: 0, productsUpdated: 0, ratingsCreated: 0 });
+      expect(result.problems).toEqual([
+        '4260000000028: its identifier and EAN refer to different entries here, skipped',
+      ]);
+      expect(
+        target.database.db.select().from(products).where(eq(products.id, id)).get()?.name,
+      ).toBe('Keep me');
+    },
+  );
 });
 
 describe('importing', () => {

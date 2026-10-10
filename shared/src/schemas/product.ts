@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { normaliseEan } from '../ean.js';
-import { RATING_MAX_STARS, RATING_MIN_STARS } from '../types.js';
+import { PRODUCT_KINDS, RATING_MAX_STARS, RATING_MIN_STARS } from '../types.js';
 import { categoryIdsSchema } from './category.js';
 import { SORT_ORDERS, type SortOrder } from './sort.js';
 
@@ -61,15 +61,32 @@ const notesSchema = z.string().trim().max(PRODUCT_NOTES_MAX_LENGTH);
 const optionalText = <T extends z.ZodType<string, string>>(schema: T) =>
   schema.nullish().transform((value) => (value === undefined || value === '' ? null : value));
 
-export const createProductSchema = z.object({
-  ean: eanSchema,
-  name: nameSchema,
-  variant: optionalText(variantSchema),
-  brand: optionalText(brandSchema),
-  /** Identifiers from `GET /api/v1/categories`; none at all is fine. */
-  categoryIds: categoryIdsSchema.default([]),
-  notes: optionalText(notesSchema),
-});
+/**
+ * An EAN that may be left out: absent, `null` and `""` all mean "this entry has
+ * no barcode", anything else has to be a valid one.
+ */
+const optionalEanSchema = z
+  .union([z.string().trim().length(0), eanSchema])
+  .nullish()
+  .transform((value) => (value === undefined || value === '' ? null : value));
+
+const DISH_WITHOUT_EAN = { message: 'a dish has no EAN', path: ['ean'] };
+
+export const createProductSchema = z
+  .object({
+    /** Absent means `product`, which is what every scan creates. */
+    kind: z.enum(PRODUCT_KINDS).default('product'),
+    /** Required for nothing: goods from the baker and every dish go without. */
+    ean: optionalEanSchema,
+    name: nameSchema,
+    variant: optionalText(variantSchema),
+    /** For a dish, where it comes from: "nach Oma", a cookbook, a machine. */
+    brand: optionalText(brandSchema),
+    /** Identifiers from `GET /api/v1/categories`; none at all is fine. */
+    categoryIds: categoryIdsSchema.default([]),
+    notes: optionalText(notesSchema),
+  })
+  .refine((value) => value.kind === 'product' || value.ean === null, DISH_WITHOUT_EAN);
 
 /**
  * A change to the shared catalogue. Every field is optional, but at least one
@@ -77,6 +94,12 @@ export const createProductSchema = z.object({
  */
 export const updateProductSchema = z
   .object({
+    /**
+     * Gives an entry bought without a barcode the one it turned out to have.
+     * Only once: the server refuses to change or remove an EAN that is there,
+     * because the scanner finds the product by it.
+     */
+    ean: eanSchema.optional(),
     name: nameSchema.optional(),
     variant: optionalText(variantSchema).optional(),
     brand: optionalText(brandSchema).optional(),
@@ -98,6 +121,8 @@ export const productListQuerySchema = z.object({
   q: z.string().trim().max(PRODUCT_SEARCH_MAX_LENGTH).optional(),
   /** Keeps products that carry this category, whatever else they carry. */
   categoryId: z.string().trim().max(64).optional(),
+  /** Keeps one kind of entry: bought products or dishes. */
+  kind: z.enum(PRODUCT_KINDS).optional(),
   /** Keeps products whose average rating reaches this many stars. */
   minStars: z.coerce.number().int().min(RATING_MIN_STARS).max(RATING_MAX_STARS).optional(),
   /** Restricts the list to products the caller has rated themselves. */

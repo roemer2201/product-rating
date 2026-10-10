@@ -60,7 +60,7 @@ export function registerProductRoutes(app: FastifyInstance): void {
     const { product, restored } = createProduct(app.db, user.id, input);
 
     request.log.info(
-      { productId: product.id, ean: product.ean, by: user.id, restored },
+      { productId: product.id, kind: product.kind, ean: product.ean, by: user.id, restored },
       restored ? 'product restored from the trash' : 'product created',
     );
     return reply.code(201).send({ product: product satisfies Product, restored });

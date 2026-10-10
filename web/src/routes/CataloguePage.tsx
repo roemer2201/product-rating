@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import {
   PRODUCT_SEARCH_MAX_LENGTH,
   RATING_MAX_STARS,
+  type ProductKind,
   type ProductSortField,
   type SortOrder,
 } from '@product-rating/shared';
@@ -58,6 +59,8 @@ export function CataloguePage() {
   const [scannerOpen, setScannerOpen] = useState(false);
   /** Identifier of the category filter; `''` lets every product through. */
   const [category, setCategory] = useState('');
+  /** `''` shows both kinds of entry. */
+  const [kind, setKind] = useState<ProductKind | ''>('');
   const [minStars, setMinStars] = useState('');
   const [ratedByMe, setRatedByMe] = useState(false);
   const [sort, setSort] = useState<ProductSortField>('updated');
@@ -78,6 +81,7 @@ export function CataloguePage() {
   const list = useProductList({
     ...(term === '' ? {} : { q: term }),
     ...(category === '' ? {} : { categoryId: category }),
+    ...(kind === '' ? {} : { kind }),
     ...(minStars === '' ? {} : { minStars: Number(minStars) }),
     ...(ratedByMe ? { ratedByMe: true } : {}),
     sort,
@@ -86,7 +90,7 @@ export function CataloguePage() {
 
   const products = list.data?.pages.flatMap((page) => page.products) ?? [];
   const total = list.data?.pages[0]?.total ?? 0;
-  const filtered = term !== '' || category !== '' || minStars !== '' || ratedByMe;
+  const filtered = term !== '' || category !== '' || kind !== '' || minStars !== '' || ratedByMe;
 
   const handleDetectedEan = useCallback((ean: string): void => {
     // A scan is already a complete search term, so do not make it wait for the
@@ -112,6 +116,7 @@ export function CataloguePage() {
     setTerm('');
     setScannerOpen(false);
     setCategory('');
+    setKind('');
     setMinStars('');
     setRatedByMe(false);
   };
@@ -207,6 +212,20 @@ export function CataloguePage() {
                   {strings.rating.starLabel(stars)}
                 </option>
               ))}
+            </SelectField>
+          </div>
+
+          <div className="filters__row">
+            <SelectField
+              label={strings.catalogue.kind}
+              value={kind}
+              onChange={(event) => {
+                setKind(event.target.value as ProductKind | '');
+              }}
+            >
+              <option value="">{strings.catalogue.allKinds}</option>
+              <option value="product">{strings.catalogue.kindProduct}</option>
+              <option value="dish">{strings.catalogue.kindDish}</option>
             </SelectField>
           </div>
 

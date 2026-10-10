@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import type { ProductKind } from '@product-rating/shared';
 import { openDatabase, type AppDatabase, type OpenedDatabase } from './client.js';
 import { runMigrations } from './migrate.js';
 import { categories, productCategories, products, ratings, users } from './schema.js';
@@ -57,7 +58,10 @@ export interface SeedCategory {
 
 export interface SeedProduct {
   id?: string;
-  ean: string;
+  /** `product` unless given. */
+  kind?: ProductKind;
+  /** `null` for a dish and for goods bought without a barcode. */
+  ean: string | null;
   name: string;
   variant?: string | null;
   brand?: string | null;
@@ -134,6 +138,7 @@ export function seedDatabase(db: AppDatabase, data: SeedData): SeedData {
   for (const product of data.products ?? []) {
     const row = {
       id: product.id ?? randomUUID(),
+      kind: product.kind ?? 'product',
       ean: product.ean,
       name: product.name,
       variant: product.variant ?? null,

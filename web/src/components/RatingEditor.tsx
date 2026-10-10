@@ -20,8 +20,11 @@ import { strings } from '@/lib/strings';
 
 interface RatingEditorProps {
   productId: string;
-  /** Identifies the product for a capture that is written down offline. */
-  ean: string;
+  /**
+   * Identifies the product for a capture that is written down offline; `null`
+   * for an entry without one, which the queue cannot take.
+   */
+  ean: string | null;
   productName: string;
   rating: Rating | null;
 }
@@ -52,7 +55,7 @@ export function RatingEditor({ productId, ean, productName, rating }: RatingEdit
 
   /** The verdict as it stands on screen, for the queue. */
   const keepOffline = (): void => {
-    if (stars === null) return;
+    if (stars === null || ean === null) return;
     capture.mutate({
       ean,
       label: productName,
@@ -68,7 +71,7 @@ export function RatingEditor({ productId, ean, productName, rating }: RatingEdit
 
       <OfflineCapture
         error={upsert.error}
-        onKeep={keepOffline}
+        onKeep={ean === null ? null : keepOffline}
         kept={capture.isSuccess}
         pending={capture.isPending}
       />

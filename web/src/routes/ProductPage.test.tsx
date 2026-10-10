@@ -534,6 +534,115 @@ describe('ProductPage', () => {
     expect(screen.getAllByText(strings.price.lowest)).toHaveLength(2);
   });
 
+  it('shows a dish with its source and the cost of a portion, without an EAN', async () => {
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      { path: '/prices/shops', body: { shops: [] } },
+      {
+        path: '/products/prod-1',
+        body: {
+          product: makeProductDetail({
+            kind: 'dish',
+            ean: null,
+            name: 'Spaghetti',
+            variant: 'Bolognese',
+            brand: null,
+            categories: [],
+            prices: [makePrice({ cents: 240, shop: null })],
+          }),
+        },
+      },
+    ]);
+
+    renderProduct();
+
+    const heading = await screen.findByRole('heading', { name: /Spaghetti/ });
+    expect(heading).toHaveTextContent(strings.product.dishBadge);
+    expect(screen.getByText(/Bolognese · Ohne Quelle/)).toBeInTheDocument();
+    expect(screen.queryByText(strings.product.eanLabel)).not.toBeInTheDocument();
+
+    expect(screen.getByRole('heading', { name: strings.price.dishTitle })).toBeInTheDocument();
+    expect(screen.getByText(strings.price.dishLatest).parentElement).toHaveTextContent(/2[.,]40/);
+    // Nothing is bought in a shop: neither the field nor "Ohne Ort" in the rows.
+    expect(screen.queryByLabelText(new RegExp(strings.price.shop))).not.toBeInTheDocument();
+    expect(screen.queryByText(new RegExp(strings.price.noShop))).not.toBeInTheDocument();
+    expect(screen.getByLabelText(new RegExp(strings.price.dishAmount))).toBeInTheDocument();
+  });
+
+  it('gives a product without a barcode one from the form', async () => {
+    const user = userEvent.setup();
+    const loose = makeProductDetail({ ean: null, name: 'Dinkelbrot' });
+    const fetchMock = mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      { path: '/products/prod-1', method: 'PATCH', body: { product: loose } },
+      { path: '/products/prod-1', body: { product: loose } },
+    ]);
+
+    renderProduct();
+    await screen.findByRole('heading', { name: 'Dinkelbrot' });
+    expect(screen.getByText(strings.product.eanLabel).parentElement).toHaveTextContent(
+      strings.product.noEan,
+    );
+
+    await user.click(screen.getByRole('button', { name: strings.common.edit }));
+    await user.type(screen.getByLabelText(new RegExp(strings.fields.ean)), TEST_EAN);
+    await user.click(screen.getByRole('button', { name: strings.common.save }));
+
+    await waitFor(() => {
+      const patch = fetchMock.mock.calls.find(
+        ([, init]) => (init as RequestInit)?.method === 'PATCH',
+      );
+      expect(JSON.parse(String((patch?.[1] as RequestInit).body))).toMatchObject({
+        ean: TEST_EAN,
+        name: 'Dinkelbrot',
+      });
+    });
+  });
+
+  it('offers no EAN field for a product that has one', async () => {
+    const user = userEvent.setup();
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      { path: '/products/prod-1', body: { product: makeProductDetail() } },
+    ]);
+
+    renderProduct();
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+    await user.click(screen.getByRole('button', { name: strings.common.edit }));
+
+    expect(screen.getByLabelText(new RegExp(strings.fields.name))).toBeInTheDocument();
+    expect(screen.queryByLabelText(new RegExp(`^${strings.fields.ean}`))).not.toBeInTheDocument();
+  });
+
+  it('explains instead of queueing a rating of an entry without an EAN', async () => {
+    const user = userEvent.setup();
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      { path: '/prices/shops', body: { shops: [] } },
+      { path: '/products/prod-1/rating', method: 'PUT', networkError: true },
+      {
+        path: '/products/prod-1',
+        body: { product: makeProductDetail({ kind: 'dish', ean: null, name: 'Gulasch' }) },
+      },
+    ]);
+
+    renderProduct();
+    await screen.findByRole('heading', { name: /Gulasch/ });
+
+    await user.click(screen.getByRole('radio', { name: strings.rating.starLabel(8) }));
+    await user.click(screen.getByRole('button', { name: strings.rating.save }));
+
+    expect(await screen.findByText(strings.offlineCapture.unavailable)).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: strings.offlineCapture.keep }),
+    ).not.toBeInTheDocument();
+    expect(await listCaptures()).toHaveLength(0);
+  });
+
   it('offers to keep a rating that never left the device, and queues it', async () => {
     const user = userEvent.setup();
     mockFetch([

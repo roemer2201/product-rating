@@ -57,6 +57,111 @@ describe('ProductNewPage', () => {
     expect(screen.getByText('Scannen')).toBeInTheDocument();
   });
 
+  it('sends an unknown kind back to the scanner', () => {
+    mockFetch([{ path: '/auth/me', body: { user: testUser } }]);
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/products/new" element={<ProductNewPage />} />
+        <Route path="/scan" element={<p>Scannen</p>} />
+      </Routes>,
+      { route: '/products/new?kind=drink' },
+    );
+
+    expect(screen.getByText('Scannen')).toBeInTheDocument();
+  });
+
+  it('adds a dish without an EAN and points at similar ones first', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([
+      CATEGORIES,
+      {
+        path: '/products?',
+        body: {
+          products: [
+            makeProduct({
+              id: 'prod-9',
+              kind: 'dish',
+              ean: null,
+              name: 'Spaghetti',
+              variant: 'Tomatensoße',
+              brand: 'nach Oma',
+            }),
+          ],
+          nextCursor: null,
+          total: 1,
+        },
+      },
+      {
+        path: '/products',
+        method: 'POST',
+        status: 201,
+        body: { product: makeProduct({ kind: 'dish', ean: null }) },
+      },
+    ]);
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/products/new" element={<ProductNewPage />} />
+        <Route path="/products/:id" element={<p>Produktseite</p>} />
+      </Routes>,
+      { route: '/products/new?kind=dish' },
+    );
+
+    expect(screen.getByRole('heading', { name: strings.product.newDishTitle })).toBeInTheDocument();
+    expect(screen.queryByText(strings.product.eanLabel)).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(new RegExp(strings.fields.name)), 'Spaghetti');
+    expect(await screen.findByText(strings.product.similarTitle)).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Spaghetti · Tomatensoße · nach Oma' }),
+    ).toHaveAttribute('href', '/products/prod-9');
+    const search = fetchMock.mock.calls.find(([url]) => String(url).includes('/products?'));
+    expect(String(search?.[0])).toContain('kind=dish');
+
+    await user.type(screen.getByLabelText(new RegExp(strings.fields.variant)), 'Bolognese');
+    await user.type(screen.getByLabelText(new RegExp(strings.fields.source)), 'Thermomix');
+    await user.click(screen.getByRole('button', { name: strings.product.createDish }));
+
+    expect(await screen.findByText('Produktseite')).toBeInTheDocument();
+    const post = fetchMock.mock.calls.find(([, init]) => (init as RequestInit)?.method === 'POST');
+    expect(JSON.parse(String((post?.[1] as RequestInit).body))).toMatchObject({
+      kind: 'dish',
+      ean: null,
+      name: 'Spaghetti',
+      variant: 'Bolognese',
+      brand: 'Thermomix',
+    });
+  });
+
+  it('explains instead of queueing an entry without an EAN', async () => {
+    const user = userEvent.setup();
+    mockFetch([
+      CATEGORIES,
+      { path: '/products?', body: { products: [], nextCursor: null, total: 0 } },
+      { path: '/products', method: 'POST', networkError: true },
+    ]);
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/products/new" element={<ProductNewPage />} />
+      </Routes>,
+      { route: '/products/new?kind=product' },
+    );
+
+    expect(
+      screen.getByRole('heading', { name: strings.product.newLooseTitle }),
+    ).toBeInTheDocument();
+    await user.type(screen.getByLabelText(new RegExp(strings.fields.name)), 'Dinkelbrot');
+    await user.click(screen.getByRole('button', { name: strings.product.create }));
+
+    expect(await screen.findByText(strings.offlineCapture.unavailable)).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: strings.offlineCapture.keep }),
+    ).not.toBeInTheDocument();
+    expect(await listCaptures()).toHaveLength(0);
+  });
+
   it('goes straight to the product when nothing was photographed', async () => {
     const user = userEvent.setup();
     mockFetch([

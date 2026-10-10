@@ -1,7 +1,8 @@
 # product-rating
 
 Selbst-hostbare Web-App zum Erfassen und Bewerten von Produkten: EAN scannen oder
-eingeben, Foto hinterlegen, 0–10 Sterne vergeben. Die App läuft als PWA und lässt
+eingeben – oder ohne Barcode erfassen, auch Selbstgekochtes –, Foto hinterlegen,
+0–10 Sterne vergeben. Die App läuft als PWA und lässt
 sich unter iOS zum Home-Bildschirm hinzufügen.
 
 > **Status:** Version 0.1.0, der MVP aus Abschnitt 1 ist gebaut – Server,
@@ -19,15 +20,19 @@ sich unter iOS zum Home-Bildschirm hinzufügen.
 - Anmeldung mit Benutzername und Passwort (Session-Cookie)
 - EAN per Kamera scannen (EAN-13, EAN-8, UPC-A) oder manuell eingeben
 - Produkt anlegen und bearbeiten: Name, Sorte, Marke, Kategorien, Notizen
+- Einträge ohne EAN: Gerichte und Rezepte („Spaghetti“, Sorte „Bolognese“,
+  Quelle „nach Oma“) sowie Produkte ohne Barcode (Bäcker, Theke, Markt); beim
+  Anlegen zeigt das Formular ähnlich benannte Einträge, einen Barcode kann ein
+  Produkt später bekommen
 - Kategorien aus einer Liste, die Administratoren in der Verwaltung vorgeben;
   mehrere je Produkt, „häufig genutzte“ stehen im Formular zum Ankreuzen
 - Beliebig viele Fotos pro Produkt aufnehmen oder hochladen, in fester
   Reihenfolge; das erste ist das Hauptbild
 - Bewertung von 0 bis 10 Sternen, optional mit Kommentar – die eigene ist
   änderbar, die der anderen im Haushalt sichtbar
-- Preisverlauf je Produkt mit Einkaufsort
+- Preisverlauf je Produkt mit Einkaufsort, bei Gerichten die Kosten pro Portion
 - Produktliste mit Volltextsuche (Name, Sorte, Marke, EAN) und Filter/Sortierung
-  nach Bewertung
+  nach Bewertung und Art (Produkt oder Gericht)
 - Papierkorb: Gelöschtes lässt sich zurückholen
 - Offline erfassen: Ohne Verbindung Eingetipptes wartet auf dem Gerät und geht
   später von selbst hoch, inklusive Rückfrage bei widersprüchlichen Bewertungen
@@ -95,8 +100,10 @@ mindestens 44 Pixel hoch, Ränder über `env(safe-area-inset-*)`.
 | Adresse | Ansicht |
 |---|---|
 | `/` | Katalog – Produktliste mit Suche, Filtern und Thumbnails |
-| `/scan` | Scanner, primäre Aktion; darunter die Eingabe von Hand |
+| `/scan` | Scanner, primäre Aktion („Kamera starten“ im Kamerafeld); darunter „Ohne Barcode erfassen“ und die Eingabe von Hand |
 | `/products/new?ean=…` | Anlegeformular mit vorbelegter EAN |
+| `/products/new?kind=dish` | Anlegeformular für ein Gericht oder Rezept, ohne EAN |
+| `/products/new?kind=product` | Anlegeformular für ein Produkt ohne Barcode |
 | `/products/:id` | Produkt: Foto, Durchschnitt, eigene Bewertung, Bearbeiten, Löschen |
 | `/ratings` | Eigene Bewertungen |
 | `/settings` | Konto, Anzeigename, Passwort, eigene Sitzungen, Abmelden |
@@ -290,6 +297,12 @@ die überlegte Korrektur. Die Erfassung wechselt in den Zustand `conflict` und
 stellt die Frage: „Meine Offline-Eingabe“ oder „Fassung vom Server“. Alles
 andere ist entweder anhängend (Preis, Foto) oder über die EAN idempotent.
 
+**Einträge ohne EAN bleiben vorerst außen vor.** Die Warteschlange findet alles
+über die EAN wieder; ein Gericht oder ein Brot vom Bäcker hat keine. Scheitert
+dort ein Speichern an der fehlenden Verbindung, erklärt die Oberfläche das,
+statt „Offline merken“ anzubieten. Eine vom Gerät erzeugte Kennung als
+Zuordnung steht in [TODO.md](TODO.md) (M17).
+
 **Haltbarkeit ist hier eine Zusage, kein Nebeneffekt.** Zwei Dinge, die man in
 IndexedDB leicht falsch macht und die auf dem iPhone sofort auffallen:
 
@@ -345,8 +358,12 @@ durch und setzen bewusst keine eigenen Cache-Regeln.
 
 ## 3. Datenmodell
 
-Produkte bilden einen **gemeinsamen Katalog** (eine EAN existiert genau einmal),
-Bewertungen und Fotos gehören jeweils einem Nutzer.
+Produkte bilden einen **gemeinsamen Katalog** (eine EAN existiert höchstens
+einmal), Bewertungen und Fotos gehören jeweils einem Nutzer. `kind` unterscheidet
+Gekauftes (`product`) von Selbstgekochtem (`dish`); ein Gericht hat nie eine
+EAN, ein Produkt kann ohne sein (`CHECK (kind = 'product' OR ean IS NULL)`).
+Mehrere Einträge ohne EAN vertragen sich mit dem `UNIQUE`-Index, weil SQLite –
+wie PostgreSQL – `NULL`-Werte darin als verschieden behandelt.
 
 ```
 users     (id, username, display_name, email, password_hash, role,
@@ -355,7 +372,7 @@ sessions  (id, user_id, expires_at, user_agent, created_at, last_seen_at)
 password_resets (id = SHA-256 des Tokens, user_id, created_by, expires_at,
            used_at, created_at)
 invites   (code, created_by, expires_at, used_by, used_at)
-products  (id, ean UNIQUE, name, variant, brand, notes,
+products  (id, kind, ean UNIQUE NULL, name, variant, brand, notes,
            created_by, created_at, updated_at, deleted_at, deleted_by)
 categories (id, name UNIQUE, frequent, created_at, updated_at)
 product_categories (product_id, category_id)  PRIMARY KEY (product_id, category_id)
@@ -451,11 +468,11 @@ vorbehalten, weil es fremde Bewertungen und Fotos mitnimmt.
 
 | Route | Rolle | Zweck |
 |---|---|---|
-| `POST /api/v1/products` | angemeldet | Produkt anlegen; belegte EAN → `409` mit `details.productId` |
+| `POST /api/v1/products` | angemeldet | Produkt oder Gericht anlegen (`kind`, EAN optional); belegte EAN → `409` mit `details.productId` |
 | `GET /api/v1/products` | angemeldet | Liste mit Suche, Filtern, Sortierung und Cursor-Pagination |
 | `GET /api/v1/products/by-ean/:ean` | angemeldet | Nachschlagen nach dem Scan |
 | `GET /api/v1/products/:id` | angemeldet | Produkt inklusive eigener Bewertung, Durchschnitt, Anzahl, Fotos und aller Bewertungen |
-| `PATCH /api/v1/products/:id` | angemeldet | Name, Sorte, Marke, Kategorien oder Notizen ändern |
+| `PATCH /api/v1/products/:id` | angemeldet | Name, Sorte, Marke, Kategorien oder Notizen ändern; EAN einmalig nachtragen |
 | `DELETE /api/v1/products/:id` | admin | Produkt in den Papierkorb legen (umkehrbar) |
 | `GET /api/v1/trash` | admin | Inhalt des Papierkorbs, jüngste Löschung zuerst |
 | `POST /api/v1/trash/:id/restore` | admin | Produkt aus dem Papierkorb zurückholen |
@@ -489,6 +506,33 @@ untereinander zeigt. Die Marke ist der Hersteller oder die Handelsmarke auf der
 Verpackung (bei der Terrine also „Maggi“), nicht der Laden, in dem gekauft
 wurde – der steht am Preiseintrag. Sorte und Marke sind beide freiwillig und
 werden beide durchsucht.
+
+**Gerichte und Einträge ohne EAN.** `kind` ist `product` (Standard) oder
+`dish`. Ein Produkt darf die EAN weglassen – fehlend, `null` und `""` bedeuten
+dasselbe –, ein Gericht muss es (sonst `400`). Die Felder bleiben dieselben, nur
+ihre Bedeutung verschiebt sich beim Gericht: die Marke ist die **Quelle** („nach
+Oma“, „Thermomix“, „Kochbuch XY“), die Sorte die Ausführung („Spaghetti“ –
+„Bolognese“ oder „Tomatensoße“), die Notizen haben Platz für das Rezept, und
+ein Preis ist, was eine Portion kostet. Bewertet wird das Gericht, nicht der
+einzelne Kochabend – je Konto eine Bewertung wie bei jedem Produkt.
+
+Ohne EAN gibt es nichts, woran der Server eine Doppelanlage erkennen könnte;
+jedes `POST` ist ein neuer Eintrag. Das Formular sucht deshalb beim Tippen des
+Namens nach ähnlichen Einträgen derselben Art und bietet sie als Link an. Ein
+Produkt ohne EAN bekommt per `PATCH` mit `ean` einmalig eine, mit derselben
+Konfliktprüfung wie beim Anlegen; eine vorhandene EAN lässt sich weder ändern
+noch entfernen (`400`), weil Scanner und Offline-Warteschlange das Produkt
+darüber finden.
+
+Bis zur Version 0.2.3 war `products.ean` Pflicht. SQLite kann `NOT NULL` nicht
+per `ALTER TABLE` aufheben, die Migration `0010_product_kind.sql` baut die
+Tabelle deshalb neu auf – mit übernommener `rowid`, an der die Volltextsuche
+hängt, und neu angelegten Such-Triggern. Damit das `DROP TABLE` nicht über
+`ON DELETE CASCADE` Bewertungen, Fotos, Preise und Kategoriezuordnungen
+mitnimmt, schaltet der Migrator die Fremdschlüssel für den Lauf ab und prüft
+vor dem Commit mit `PRAGMA foreign_key_check` (siehe `server/src/db/migrate.ts`).
+Ein Verstoß rollt alle anstehenden Migrationen samt Journaleinträgen zurück;
+auch beim nächsten Start bleiben sie damit ausstehend.
 
 **Kategorien.** Die Liste führen Administratoren, gelesen wird sie von jedem
 Konto, weil jedes Produktformular sie zeigt:
@@ -533,6 +577,7 @@ welches Symbol der Scanner gelesen hat, denselben Eintrag. Führende Nullen
 |---|---|---|
 | `q` | Text | Sucht in Name, Sorte und Marke, bei mindestens vier Ziffern zusätzlich als EAN-Präfix |
 | `categoryId` | Kennung | Nur Produkte, die diese Kategorie tragen – neben welchen auch immer |
+| `kind` | `product`, `dish` | Nur Gekauftes oder nur Gerichte; ohne Angabe beides |
 | `minStars` | 0–10 | Nur Produkte, deren Durchschnitt diesen Wert erreicht; unbewertete fallen heraus |
 | `ratedByMe` | `true`/`false` | Nur selbst bewertete Produkte |
 | `sort` | `name`, `created`, `updated`, `rating` | Standard `updated` |
@@ -548,7 +593,8 @@ mit `400`, statt Produkte zu überspringen oder doppelt zu liefern.
 **Trigramm-Tokenizer** (`tokenize='trigram remove_diacritics 1'`) über Name,
 Sorte, Marke und EAN. Drei Trigger auf `products` halten sie aktuell; angelegt
 und gefüllt wird sie in der Migration `0003_product_search.sql`, um die Sorte
-erweitert in `0006_product_variant.sql`.
+erweitert in `0006_product_variant.sql`; seit `0010_product_kind.sql` schreiben
+die Trigger eine fehlende EAN als leere Zeichenkette.
 
 Trigramme statt Wörtern, weil Deutsch es verlangt: „saft“ findet „Apfelsaft“,
 was ein wortbasierter Index nie täte. Groß-/Kleinschreibung und diakritische
@@ -1424,6 +1470,27 @@ mit dem früheren Einzelwert `category` liest der Import weiterhin und macht aus
 jedem Wert einen Eintrag der Liste. Eine ältere Installation lehnt eine Datei
 der Version 2 dagegen ab, statt die fehlende `category` als „keine“ zu lesen und
 sie mit `--update` zu löschen.
+
+**Einträge ohne EAN reisen mit ihrer Kennung.** Seit Version 3 trägt jedes
+Produkt `kind` und `id`, die EAN darf `null` sein. Gescannte Produkte findet der
+Import wie bisher über die EAN; einen Eintrag ohne EAN erkennt er an der
+Kennung wieder und legt ihn drüben mit derselben an – so bleibt auch hier ein
+zweiter Lauf ohne Doppelungen. Eine Kennung, die drüben einem Produkt mit EAN
+gehört, wird übersprungen und gemeldet, ebenso ein Gericht mit EAN. Weil die
+Kennung eines Produkts sein Verzeichnis unter `paths.uploads` benennt, nimmt
+der Import nur das Format einer UUID an; alles andere lehnt er als ungültige
+Datei ab. Eine von Hand geschriebene Datei ohne `id` legt Einträge ohne EAN bei
+jedem Lauf neu an. Versionen 1 und 2 liest der Import weiter, ihre Einträge
+sind alle Produkte. In `products.csv` steht die Art in der Spalte `kind`, die
+EAN-Spalte bleibt bei Einträgen ohne leer.
+
+Bekommt ein zuvor ohne EAN importiertes Produkt später einen Barcode, erkennt
+der nächste Import es auch mit EAN an seiner bisherigen Kennung wieder.
+`--update` trägt die EAN nach; ohne diesen Schalter bleibt der Eintrag
+unverändert, Bewertungen werden weiterhin demselben Eintrag zugeordnet.
+Verweisen Kennung und EAN auf verschiedene vorhandene Einträge oder gehört die
+Kennung zu einem Gericht bzw. zu einer anderen EAN, wird der Import dieser
+Zeile mit einer Meldung übersprungen.
 
 **CSV** ist RFC 4180 mit Byte Order Mark, damit ein Tabellenprogramm
 „Getränke“ liest und nicht „GetrÃ¤nke“. Es ist ein reines Ausgabeformat;

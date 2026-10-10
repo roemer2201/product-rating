@@ -100,6 +100,8 @@ async function resolveProduct(capture: Capture): Promise<string> {
   try {
     const { product } = await api.products.create(
       {
+        // The queue only ever holds scanned products: it finds them by EAN.
+        kind: 'product',
         ean: capture.ean,
         ...fields,
         categoryIds: await captureCategoryIds(capture, capture.product),

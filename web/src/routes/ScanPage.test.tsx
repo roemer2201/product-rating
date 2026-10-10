@@ -35,6 +35,20 @@ async function enterEan(value: string): Promise<void> {
 }
 
 describe('ScanPage', () => {
+  it('leads to the forms for what has no barcode', async () => {
+    const user = userEvent.setup();
+    mockFetch([]);
+
+    renderScan();
+
+    expect(screen.getByRole('link', { name: strings.scan.newLooseProduct })).toHaveAttribute(
+      'href',
+      '/products/new?kind=product',
+    );
+    await user.click(screen.getByRole('link', { name: strings.scan.newDish }));
+    expect(await screen.findByText('Neues Produkt')).toBeInTheDocument();
+  });
+
   it('goes to the product when the catalogue knows the EAN', async () => {
     const fetchMock = mockFetch([
       { path: '/products/by-ean/', body: { product: makeProductDetail() } },

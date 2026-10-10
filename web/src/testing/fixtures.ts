@@ -95,6 +95,7 @@ export const CATEGORY_LIST = [
 export function makeProduct(overrides: Partial<ProductWithRatings> = {}): ProductWithRatings {
   return {
     id: 'prod-1',
+    kind: 'product',
     ean: TEST_EAN,
     name: 'Apfelsaft',
     variant: 'naturtrüb',

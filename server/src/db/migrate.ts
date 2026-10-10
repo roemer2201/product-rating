@@ -2,7 +2,8 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type BetterSqlite3 from 'better-sqlite3';
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
+import { sql } from 'drizzle-orm';
+import { readMigrationFiles } from 'drizzle-orm/migrator';
 import type { AppDatabase } from './client.js';
 
 /** Entry of the journal drizzle-kit writes next to the generated SQL. */
@@ -155,7 +156,72 @@ export function runMigrations(options: MigrateOptions): MigrateResult {
   }
 
   onInfo?.('applying migrations', { pending });
-  migrate(db, { migrationsFolder: folder });
+  const migrations = readMigrationFiles({ migrationsFolder: folder });
+  withoutForeignKeys(sqlite, () => {
+    // Drizzle's synchronous migrator commits before it returns. Keep its
+    // journal layout and timestamp selection, but own the transaction so a
+    // failed foreign key check rolls back both the data and the journal.
+    db.transaction((tx) => {
+      tx.run(sql`CREATE TABLE IF NOT EXISTS __drizzle_migrations (
+        id SERIAL PRIMARY KEY,
+        hash text NOT NULL,
+        created_at numeric
+      )`);
+      const last = tx.get<{ created_at: number }>(
+        sql`SELECT created_at FROM __drizzle_migrations ORDER BY created_at DESC LIMIT 1`,
+      );
+      for (const migration of migrations) {
+        if (last !== undefined && Number(last.created_at) >= migration.folderMillis) continue;
+        for (const statement of migration.sql) tx.run(sql.raw(statement));
+        tx.run(sql`INSERT INTO __drizzle_migrations (hash, created_at)
+          VALUES (${migration.hash}, ${migration.folderMillis})`);
+      }
+      assertForeignKeys(sqlite, snapshot);
+    });
+  });
 
   return { applied: pending, snapshot };
+}
+
+/**
+ * Runs the migrations with foreign key enforcement switched off, the way the
+ * SQLite manual describes for schema changes ALTER TABLE cannot express
+ * (https://www.sqlite.org/lang_altertable.html, "Making Other Kinds Of Table
+ * Schema Changes").
+ *
+ * Such a change rebuilds the table: create the new one, copy the rows, drop
+ * the old one, rename. With enforcement on, the DROP is an implicit DELETE of
+ * every row, and each `on delete cascade` pointing at the table fires —
+ * rebuilding `products` would take every rating, photo and price with it. The
+ * `PRAGMA foreign_keys=OFF` drizzle-kit writes into such a migration cannot
+ * help: the migrator runs all pending files in one transaction, and inside a
+ * transaction the pragma is a no-op. So it is switched off here, before the
+ * transaction starts, and the references are checked before it commits.
+ * A violation rolls back the migrations and their journal entries, so another
+ * start cannot quietly skip the check and use an inconsistent database.
+ */
+function withoutForeignKeys(sqlite: BetterSqlite3.Database, run: () => void): void {
+  if (sqlite.inTransaction) throw new Error('migrations must run outside an existing transaction');
+  const enabled = sqlite.pragma('foreign_keys', { simple: true }) === 1;
+  if (enabled) sqlite.pragma('foreign_keys = OFF');
+
+  try {
+    run();
+  } finally {
+    if (enabled) sqlite.pragma('foreign_keys = ON');
+  }
+}
+
+/** Checks the rebuilt tables while a failure can still roll the changes back. */
+function assertForeignKeys(sqlite: BetterSqlite3.Database, snapshot: string | null): void {
+  const violations = sqlite.pragma('foreign_key_check') as { table: string; parent: string }[];
+  if (violations.length === 0) return;
+  const tables = [...new Set(violations.map((entry) => `${entry.table} -> ${entry.parent}`))];
+  throw new Error(
+    `migrations left ${violations.length} broken reference(s) (${tables.join(', ')}); ` +
+      'the migration was rolled back; ' +
+      (snapshot === null
+        ? 'no snapshot was taken because the database was empty'
+        : `the state before the migration is also in ${snapshot}`),
+  );
 }

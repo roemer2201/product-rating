@@ -8,7 +8,7 @@ import {
   text,
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
-import { RATING_MAX_STARS, RATING_MIN_STARS } from '@product-rating/shared';
+import { PRODUCT_KINDS, RATING_MAX_STARS, RATING_MIN_STARS } from '@product-rating/shared';
 
 /**
  * The complete database schema.
@@ -31,6 +31,9 @@ import { RATING_MAX_STARS, RATING_MIN_STARS } from '@product-rating/shared';
  * in the generated migration.
  */
 const starsRange = sql.raw(`between ${RATING_MIN_STARS} and ${RATING_MAX_STARS}`);
+
+/** The allowed kinds as SQL literals, for the same reason as `starsRange`. */
+const productKinds = sql.raw(PRODUCT_KINDS.map((kind) => `'${kind}'`).join(', '));
 
 /** Column helper for a required timestamp defaulting to "now". */
 const createdAt = () =>
@@ -143,8 +146,15 @@ export const products = sqliteTable(
   'products',
   {
     id: text('id').primaryKey(),
-    /** Normalised to EAN-13; UPC-A and EAN-8 are widened before writing. */
-    ean: text('ean').notNull().unique(),
+    /** See `PRODUCT_KINDS`: something bought, or something cooked. */
+    kind: text('kind', { enum: PRODUCT_KINDS }).notNull().default('product'),
+    /**
+     * Normalised to EAN-13; UPC-A and EAN-8 are widened before writing.
+     * `NULL` for a dish and for goods bought without a barcode. The unique
+     * index still holds: SQLite, like PostgreSQL, treats NULLs as distinct, so
+     * any number of entries can go without one.
+     */
+    ean: text('ean').unique(),
     name: text('name').notNull(),
     /**
      * The flavour or edition within a product line — "Spaghetti Bolognese" to
@@ -175,6 +185,9 @@ export const products = sqliteTable(
     index('products_name_idx').on(table.name),
     index('products_brand_idx').on(table.brand),
     index('products_deleted_at_idx').on(table.deletedAt),
+    index('products_kind_idx').on(table.kind),
+    check('products_kind_valid', sql`${table.kind} in (${productKinds})`),
+    check('products_dish_without_ean', sql`${table.kind} = 'product' or ${table.ean} is null`),
   ],
 );
 

@@ -8,6 +8,7 @@ import {
   type CreateProductInput,
   type Product,
   type ProductListPage,
+  type ProductKind,
   type ProductListQuery,
   type ProductSortField,
   type ProductWithRatings,
@@ -33,7 +34,7 @@ import {
   categoriesOfProducts,
   setProductCategories,
 } from './categories.js';
-import { ConflictError, NotFoundError } from './errors.js';
+import { ConflictError, NotFoundError, ValidationError } from './errors.js';
 import {
   decodeCursor,
   defaultOrderFor,
@@ -45,10 +46,15 @@ import {
 /**
  * The shared product catalogue.
  *
- * An EAN exists exactly once across all users, so creating a product is really
- * "claim this EAN or tell me who has it": a duplicate is answered with the
- * existing identifier instead of a bare error, which is what the scanner needs
- * in order to jump to the product it just found.
+ * An EAN exists at most once across all users, so creating a scanned product is
+ * really "claim this EAN or tell me who has it": a duplicate is answered with
+ * the existing identifier instead of a bare error, which is what the scanner
+ * needs in order to jump to the product it just found.
+ *
+ * Not every entry has one. Bread from the baker and everything cooked at home
+ * (`kind = 'dish'`) go without, and for them there is nothing to claim: each
+ * creation is a new entry, and finding the one that is already there is the
+ * job of the search the form runs while the name is typed.
  *
  * Reading always happens from one caller's point of view — their own rating,
  * the overall average and the number of ratings come along with every product,
@@ -122,6 +128,7 @@ export interface ProductQueryRow {
 export function toPublicProduct(row: ProductRow, categories: CategoryRef[]): Product {
   return {
     id: row.id,
+    kind: row.kind,
     ean: row.ean,
     name: row.name,
     variant: row.variant,
@@ -240,6 +247,45 @@ export interface CreatedProduct {
 }
 
 /**
+ * What `createProduct()` takes: the validated request, where the kind may be
+ * left out by callers inside the server that only ever create scanned
+ * products.
+ */
+export type NewProductInput = Omit<CreateProductInput, 'kind'> & { kind?: ProductKind };
+
+/** Writes a new row; the caller has settled that nothing else holds its EAN. */
+function insertProduct(
+  db: DbHandle,
+  userId: string,
+  input: NewProductInput,
+  now: Date,
+): ProductRow {
+  assertCategoriesExist(db, input.categoryIds);
+
+  const row: ProductRow = {
+    id: randomUUID(),
+    kind: input.kind ?? 'product',
+    ean: input.ean,
+    name: input.name,
+    variant: input.variant,
+    brand: input.brand,
+    notes: input.notes,
+    createdBy: userId,
+    createdAt: now,
+    updatedAt: now,
+    deletedAt: null,
+    deletedBy: null,
+  };
+
+  db.transaction((tx) => {
+    tx.insert(products).values(row).run();
+    setProductCategories(tx, row.id, input.categoryIds);
+  });
+
+  return row;
+}
+
+/**
  * Adds a product to the shared catalogue.
  *
  * A taken EAN is a conflict, not a failure: the response carries the existing
@@ -254,39 +300,28 @@ export interface CreatedProduct {
 export function createProduct(
   db: DbHandle,
   userId: string,
-  input: CreateProductInput,
+  input: NewProductInput,
   now: Date = new Date(),
 ): CreatedProduct {
-  const existing = findProductByEan(db, input.ean);
+  const ean = input.ean;
+  if (ean === null) {
+    const row = insertProduct(db, userId, input, now);
+    return { product: toPublicProduct(row, categoriesOfProduct(db, row.id)), restored: false };
+  }
+
+  const existing = findProductByEan(db, ean);
   if (existing !== undefined && existing.deletedAt !== null) {
     return { product: restoreWithData(db, existing, input, now), restored: true };
   }
   if (existing !== undefined) throw eanConflict(existing);
-  assertCategoriesExist(db, input.categoryIds);
 
-  const row: ProductRow = {
-    id: randomUUID(),
-    ean: input.ean,
-    name: input.name,
-    variant: input.variant,
-    brand: input.brand,
-    notes: input.notes,
-    createdBy: userId,
-    createdAt: now,
-    updatedAt: now,
-    deletedAt: null,
-    deletedBy: null,
-  };
-
+  let row: ProductRow;
   try {
-    db.transaction((tx) => {
-      tx.insert(products).values(row).run();
-      setProductCategories(tx, row.id, input.categoryIds);
-    });
+    row = insertProduct(db, userId, input, now);
   } catch (error) {
     // Two clients scanning the same new product at the same time.
     if (String(error).includes('UNIQUE')) {
-      const claimed = findProductByEan(db, input.ean);
+      const claimed = findProductByEan(db, ean);
       if (claimed !== undefined && claimed.deletedAt !== null) {
         return { product: restoreWithData(db, claimed, input, now), restored: true };
       }
@@ -302,7 +337,7 @@ export function createProduct(
 function restoreWithData(
   db: DbHandle,
   existing: ProductRow,
-  input: CreateProductInput,
+  input: NewProductInput,
   now: Date,
 ): Product {
   assertCategoriesExist(db, input.categoryIds);
@@ -348,6 +383,26 @@ function eanConflict(existing: ProductRow): ConflictError {
 }
 
 /**
+ * Checks an EAN an update brings along. Setting the one an entry already has
+ * is no change; anything else is only allowed for a product that has none yet.
+ */
+function assertEanSettable(db: DbHandle, existing: ProductRow, ean: string): void {
+  if (existing.ean === ean) return;
+  if (existing.kind === 'dish') {
+    throw new ValidationError('a dish has no EAN', { field: 'ean' });
+  }
+  if (existing.ean !== null) {
+    // The scanner and the offline queue find the product by it; changing it
+    // would quietly send both somewhere else.
+    throw new ValidationError('the EAN of a product cannot be changed once set', {
+      field: 'ean',
+    });
+  }
+  const holder = findProductByEan(db, ean);
+  if (holder !== undefined) throw eanConflict(holder);
+}
+
+/**
  * Changes a product. The catalogue is shared, so every account may correct a
  * name or add a category — ownership only matters for ratings and photos.
  */
@@ -360,8 +415,10 @@ export function updateProduct(
   const existing = findProductById(db, id);
   if (existing === undefined) throw new NotFoundError('product not found');
   if (input.categoryIds !== undefined) assertCategoriesExist(db, input.categoryIds);
+  if (input.ean !== undefined) assertEanSettable(db, existing, input.ean);
 
   const changes: Partial<ProductRow> = { updatedAt: now };
+  if (input.ean !== undefined) changes.ean = input.ean;
   if (input.name !== undefined) changes.name = input.name;
   if (input.variant !== undefined) changes.variant = input.variant;
   if (input.brand !== undefined) changes.brand = input.brand;
@@ -641,6 +698,10 @@ function filterConditions(query: ProductListQuery): SQL[] {
   const categoryId = query.categoryId?.trim();
   if (categoryId !== undefined && categoryId.length > 0) {
     conditions.push(carriesCategory(categoryId));
+  }
+
+  if (query.kind !== undefined) {
+    conditions.push(eq(products.kind, query.kind));
   }
 
   if (query.minStars !== undefined) {

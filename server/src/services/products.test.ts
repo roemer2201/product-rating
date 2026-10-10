@@ -140,6 +140,99 @@ describe('createProduct', () => {
   });
 });
 
+describe('entries without an EAN', () => {
+  const dish = {
+    kind: 'dish' as const,
+    ean: null,
+    name: 'Spaghetti',
+    variant: 'Bolognese',
+    brand: 'nach Oma',
+    categoryIds: [],
+    notes: null,
+  };
+  const bread = {
+    kind: 'product' as const,
+    ean: null,
+    name: 'Dinkelbrot',
+    variant: null,
+    brand: 'Bäckerei Huber',
+    categoryIds: [],
+    notes: null,
+  };
+
+  it('creates any number of them, each one a new entry', () => {
+    const first = createProduct(database.db, annaId, dish);
+    const second = createProduct(database.db, annaId, { ...dish, variant: 'Tomatensoße' });
+    const loaf = createProduct(database.db, annaId, bread);
+
+    expect(first.product).toMatchObject({ kind: 'dish', ean: null, brand: 'nach Oma' });
+    expect(second.product.id).not.toBe(first.product.id);
+    expect(loaf.product).toMatchObject({ kind: 'product', ean: null });
+    expect(first.restored).toBe(false);
+  });
+
+  it('defaults to a product when the kind is left out', () => {
+    const created = createProduct(database.db, annaId, {
+      ean: '4260000000011',
+      name: 'Apfelsaft',
+      variant: null,
+      brand: null,
+      categoryIds: [],
+      notes: null,
+    });
+    expect(created.product.kind).toBe('product');
+  });
+
+  it('filters the list by kind and finds dishes by their source', () => {
+    createProduct(database.db, annaId, dish);
+    createProduct(database.db, annaId, bread);
+    createProduct(database.db, annaId, { ...bread, ean: '4260000000011', name: 'Apfelsaft' });
+
+    const names = (overrides: Record<string, unknown>): string[] =>
+      listProducts(database.db, annaId, query(overrides)).products.map((entry) => entry.name);
+
+    expect(names({ kind: 'dish' })).toEqual(['Spaghetti']);
+    expect(names({ kind: 'product', sort: 'name' })).toEqual(['Apfelsaft', 'Dinkelbrot']);
+    expect(names({ q: 'oma' })).toEqual(['Spaghetti']);
+    expect(names({ q: 'Bolognese' })).toEqual(['Spaghetti']);
+  });
+
+  it('lets a product without a barcode take one, once', () => {
+    const loaf = createProduct(database.db, annaId, bread);
+    const updated = updateProduct(database.db, loaf.product.id, { ean: '4260000000028' });
+    expect(updated.ean).toBe('4260000000028');
+
+    // Sending the same one again is no change; another one is refused.
+    expect(updateProduct(database.db, loaf.product.id, { ean: '4260000000028' }).ean).toBe(
+      '4260000000028',
+    );
+    expect(() => updateProduct(database.db, loaf.product.id, { ean: '4260000000035' })).toThrow(
+      ValidationError,
+    );
+  });
+
+  it('refuses an EAN for a dish and one that another product holds', () => {
+    const cooked = createProduct(database.db, annaId, dish);
+    expect(() => updateProduct(database.db, cooked.product.id, { ean: '4260000000011' })).toThrow(
+      ValidationError,
+    );
+
+    const juice = createProduct(database.db, annaId, {
+      ...bread,
+      ean: '4260000000011',
+      name: 'Apfelsaft',
+    });
+    const loaf = createProduct(database.db, annaId, bread);
+    try {
+      updateProduct(database.db, loaf.product.id, { ean: '4260000000011' });
+      expect.unreachable('a taken EAN has to be a conflict');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ConflictError);
+      expect((error as ConflictError).details).toMatchObject({ productId: juice.product.id });
+    }
+  });
+});
+
 describe('categories of a product', () => {
   it('carries the chosen categories, alphabetically', () => {
     const drinks = createCategory(database.db, { name: 'Getränke', frequent: true });

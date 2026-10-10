@@ -45,9 +45,15 @@ export function ProductCard({ product, showOwnRating = false }: ProductCardProps
             <span className="product-card__variant">{product.variant}</span>
           )}
           <span className="product-card__brand">
-            {product.brand ?? strings.product.noBrand}
-            {product.categories.length > 0 &&
-              ` · ${product.categories.map((entry) => entry.name).join(', ')}`}
+            {/* A dish says so first; its brand field holds where it comes from. */}
+            {[
+              ...(product.kind === 'dish' ? [strings.product.dishBadge] : []),
+              product.brand ??
+                (product.kind === 'dish' ? strings.product.noSource : strings.product.noBrand),
+              ...(product.categories.length > 0
+                ? [product.categories.map((entry) => entry.name).join(', ')]
+                : []),
+            ].join(' · ')}
           </span>
 
           <span className="product-card__rating">

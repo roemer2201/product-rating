@@ -347,6 +347,43 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [ ] **[S]** Reihenfolge der Kategorien frei sortierbar machen, falls
       alphabetisch nicht reicht (bewusst zurückgestellt, siehe HISTORY)
 
+## M17 – Einträge ohne EAN: Gerichte, Rezepte, lose Ware
+
+Abgestimmt mit dem Projektinhaber am 10.10.2026: Gerichte und Rezepte sowie
+gekaufte Produkte ohne Barcode (Bäcker, Theke, Markt) stehen im selben
+Katalog wie die gescannten Produkte. Bewertet wird das Gericht, nicht der
+einzelne Kochabend; je Konto eine Bewertung mit Notiz, dazu Fotos. Bei
+Gerichten bedeutet der Preis „Kosten pro Portion“.
+
+- [x] **[M]** Migrator: Fremdschlüssel während der Migrationen außerhalb der
+      Transaktion abschalten, vor dem Commit `PRAGMA foreign_key_check`, bei
+      Fehlern zurückrollen und danach wieder einschalten. Ohne das nimmt jeder Neubau von `products` über die
+      Kaskade Bewertungen, Fotos, Preise und Kategoriezuordnungen mit (siehe
+      HISTORY zu 0009)
+- [x] **[M]** Migration `0010`: `products.ean` darf `NULL` sein (`UNIQUE`
+      bleibt), neue Spalte `kind` (`product` | `dish`, Standard `product`),
+      `CHECK (kind = 'product' OR ean IS NULL)`. Neubau der Tabelle mit
+      übernommener `rowid` – die Volltextsuche hängt daran –, Such-Trigger neu
+      mit `coalesce(ean, '')`. Test von 0009 aus mit Bestandsdaten
+- [x] **[M]** API: `kind` beim Anlegen, EAN bei Produkten optional, bei
+      Gerichten verboten; Duplikat- und Papierkorbprüfung nur mit EAN;
+      Katalogfilter `kind`; EAN nachträglich setzen, solange keine da ist
+      (mit Konfliktprüfung); Export/Import mit `kind`, Einträge ohne EAN über
+      die Kennung zugeordnet
+- [x] **[M]** Weboberfläche: „Ohne Barcode erfassen“ auf der Scan-Seite mit
+      Wahl Produkt oder Gericht; Formular ohne Pflicht-EAN, bei Gerichten
+      „Quelle“ statt „Marke“ (z. B. „nach Oma“, „Thermomix“, „Kochbuch XY“);
+      Hinweis auf ähnliche vorhandene Einträge beim Tippen des Namens;
+      Kennzeichnung und Filter im Katalog; „Kosten pro Portion“ ohne
+      Einkaufsort bei Gerichten
+- [x] **[S]** Offline: Einträge ohne EAN zunächst nur online anlegbar, mit
+      klarem Hinweis. Die Warteschlange ordnet über die EAN zu
+- [ ] **[M]** Offline-Erfassung ohne EAN über eine vom Gerät erzeugte UUID als
+      Kennung des neuen Eintrags (Server übernimmt sie, eine Wiederholung
+      trifft denselben Eintrag)
+- [ ] **[S]** Einem gescannten, unbekannten Barcode einen vorhandenen Eintrag
+      ohne EAN zuordnen können („Das ist doch das Brot vom Bäcker“)
+
 ---
 
 ## Backlog (nach dem MVP)

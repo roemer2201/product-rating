@@ -459,6 +459,19 @@ a {
   color: var(--color-danger);
 }
 
+/* The entries a form for something without an EAN may be about to duplicate.
+   Each one is a link the thumb has to hit, hence the full tap height. */
+.similar-list {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+}
+
+.similar-list a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-target);
+}
+
 .centre-screen {
   display: flex;
   flex-direction: column;
@@ -612,6 +625,8 @@ a {
   position: absolute;
   inset: 0;
   display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
   align-items: center;
   justify-content: center;
   background: var(--color-surface-muted);
@@ -639,6 +654,20 @@ a {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+/* The two ways in without a barcode, side by side and equally wide at phone
+   width; a label that does not fit on one line wraps inside its button. */
+.scan-alternatives {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.scan-alternatives .button {
+  padding: var(--space-2) var(--space-3);
+  text-align: center;
 }
 
 .scanner__cameras {

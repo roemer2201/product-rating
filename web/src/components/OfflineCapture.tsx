@@ -13,13 +13,19 @@ import { strings } from '@/lib/strings';
  * Shown only for a failure that never reached the server. A rejected value is
  * going to be rejected again in an hour, and queueing it would only postpone
  * the same message.
+ *
+ * Without an EAN there is nothing the queue could find the entry by later, so
+ * a dish or a loaf from the baker gets the explanation instead of the offer.
  */
 
 interface OfflineCaptureProps {
   /** The failure that just happened, whatever kind it is. */
   error: unknown;
-  /** Records what the screen has in hand; the screen knows what that is. */
-  onKeep: () => void;
+  /**
+   * Records what the screen has in hand; the screen knows what that is.
+   * `null` where the queue cannot take it: the entry has no EAN.
+   */
+  onKeep: (() => void) | null;
   /** True once it is in the queue, so the offer becomes a confirmation. */
   kept: boolean;
   pending?: boolean;
@@ -35,6 +41,14 @@ export function OfflineCapture({ error, onKeep, kept, pending = false }: Offline
   }
 
   if (!isApiError(error) || !error.isNetworkError) return null;
+
+  if (onKeep === null) {
+    return (
+      <p className="notice" role="status">
+        {strings.offlineCapture.unavailable}
+      </p>
+    );
+  }
 
   return (
     <div className="notice" role="status">

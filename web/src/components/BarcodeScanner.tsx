@@ -240,9 +240,20 @@ export function BarcodeScanner({
           disablePictureInPicture
         />
         {running && <div className="scanner__frame" aria-hidden="true" />}
+        {/* The start button sits in the field it is going to fill: it is
+            gone the moment the picture is there, so a row of its own below
+            would only push everything else down for nothing. */}
         {!running && (
           <div className="scanner__idle">
             <CameraIcon className="scanner__idle-icon" />
+            <button
+              type="button"
+              className="button button--primary"
+              onClick={() => void start(deviceId)}
+              disabled={starting || blocked}
+            >
+              {starting ? strings.scan.starting : strings.scan.start}
+            </button>
           </div>
         )}
       </div>
@@ -253,34 +264,25 @@ export function BarcodeScanner({
       {problem !== null && <ErrorNotice message={problemText(problem)} />}
       {torchFailed && <p className="field__hint">{strings.scan.torchFailed}</p>}
 
-      <div className="scanner__controls">
-        {running ? (
+      {running && (
+        <div className="scanner__controls">
           <button type="button" className="button" onClick={stop}>
             {strings.scan.stop}
           </button>
-        ) : (
-          <button
-            type="button"
-            className="button button--primary"
-            onClick={() => void start(deviceId)}
-            disabled={starting || blocked}
-          >
-            {starting ? strings.scan.starting : strings.scan.start}
-          </button>
-        )}
 
-        {running && torchReady && (
-          <button
-            type="button"
-            className={`button${torchOn ? ' button--primary' : ''}`}
-            onClick={() => void onToggleTorch()}
-            aria-pressed={torchOn}
-          >
-            <TorchIcon className="button__icon" />
-            {torchOn ? strings.scan.torchOff : strings.scan.torchOn}
-          </button>
-        )}
-      </div>
+          {torchReady && (
+            <button
+              type="button"
+              className={`button${torchOn ? ' button--primary' : ''}`}
+              onClick={() => void onToggleTorch()}
+              aria-pressed={torchOn}
+            >
+              <TorchIcon className="button__icon" />
+              {torchOn ? strings.scan.torchOff : strings.scan.torchOn}
+            </button>
+          )}
+        </div>
+      )}
 
       {running && devices.length > 1 && (
         <label className="scanner__cameras">

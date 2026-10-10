@@ -190,6 +190,89 @@ describe('creating products', () => {
 
     expect(response.statusCode).toBe(401);
   });
+
+  it('stores a dish and a product without an EAN', async () => {
+    const dish = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: writeHeaders(annaCookie),
+      payload: { kind: 'dish', name: 'Spaghetti', variant: 'Bolognese', brand: 'Thermomix' },
+    });
+    expect(dish.statusCode).toBe(201);
+    expect(dish.json().product).toMatchObject({ kind: 'dish', ean: null, brand: 'Thermomix' });
+
+    // An empty EAN field of the form means "no barcode".
+    const bread = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: writeHeaders(annaCookie),
+      payload: { ean: '', name: 'Dinkelbrot' },
+    });
+    expect(bread.statusCode).toBe(201);
+    expect(bread.json().product).toMatchObject({ kind: 'product', ean: null });
+
+    const list = await harness.app.inject({
+      method: 'GET',
+      url: '/api/v1/products?kind=dish',
+      headers: { cookie: annaCookie },
+    });
+    expect((list.json() as ProductListPage).products.map((entry) => entry.name)).toEqual([
+      'Spaghetti',
+    ]);
+  });
+
+  it('rejects a dish with an EAN and an unknown kind', async () => {
+    const withEan = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: writeHeaders(annaCookie),
+      payload: { kind: 'dish', ean: EAN.fresh, name: 'Gulasch' },
+    });
+    expect(withEan.statusCode).toBe(400);
+    expect(withEan.json().error.code).toBe('invalid_request');
+
+    const unknown = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: writeHeaders(annaCookie),
+      payload: { kind: 'drink', name: 'Wasser' },
+    });
+    expect(unknown.statusCode).toBe(400);
+  });
+
+  it('gives a product without a barcode one later, and refuses to change it', async () => {
+    const bread = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: writeHeaders(annaCookie),
+      payload: { name: 'Dinkelbrot' },
+    });
+    const id = bread.json().product.id as string;
+
+    const set = await harness.app.inject({
+      method: 'PATCH',
+      url: `/api/v1/products/${id}`,
+      headers: writeHeaders(annaCookie),
+      payload: { ean: SHORT_EAN },
+    });
+    expect(set.statusCode).toBe(200);
+    expect(set.json().product.ean).toBe(SHORT_EAN_NORMALISED);
+
+    const lookup = await harness.app.inject({
+      method: 'GET',
+      url: `/api/v1/products/by-ean/${SHORT_EAN}`,
+      headers: { cookie: annaCookie },
+    });
+    expect(lookup.json().product.id).toBe(id);
+
+    const changed = await harness.app.inject({
+      method: 'PATCH',
+      url: `/api/v1/products/${id}`,
+      headers: writeHeaders(annaCookie),
+      payload: { ean: EAN.fresh },
+    });
+    expect(changed.statusCode).toBe(400);
+  });
 });
 
 describe('reading products', () => {

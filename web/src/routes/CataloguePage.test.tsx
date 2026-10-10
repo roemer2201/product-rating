@@ -174,6 +174,7 @@ describe('CataloguePage', () => {
     await user.selectOptions(screen.getByLabelText(strings.catalogue.category), 'Getränke');
     await user.selectOptions(screen.getByLabelText(strings.catalogue.minStars), String(4));
     await user.click(screen.getByLabelText(strings.catalogue.ratedByMe));
+    await user.selectOptions(screen.getByLabelText(strings.catalogue.kind), 'dish');
     await user.selectOptions(screen.getByLabelText(strings.catalogue.sort), 'name');
 
     await waitFor(() => {
@@ -181,6 +182,7 @@ describe('CataloguePage', () => {
       expect(url).toContain('categoryId=cat-drinks');
       expect(url).toContain('minStars=4');
       expect(url).toContain('ratedByMe=true');
+      expect(url).toContain('kind=dish');
       expect(url).toContain('sort=name');
     });
   });
