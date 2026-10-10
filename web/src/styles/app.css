@@ -656,6 +656,20 @@ a {
   gap: var(--space-2);
 }
 
+/* The two ways in without a barcode, side by side and equally wide at phone
+   width; a label that does not fit on one line wraps inside its button. */
+.scan-alternatives {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.scan-alternatives .button {
+  padding: var(--space-2) var(--space-3);
+  text-align: center;
+}
+
 .scanner__cameras {
   display: flex;
   flex-direction: column;

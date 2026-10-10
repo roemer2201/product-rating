@@ -275,9 +275,8 @@ export const strings = {
     manualSubmit: 'Suchen',
     manualHint: '8, 12 oder 13 Ziffern, Leerzeichen und Bindestriche dürfen mit.',
     withoutBarcodeTitle: 'Ohne Barcode erfassen',
-    withoutBarcodeIntro:
-      'Für Selbstgekochtes und für Ware ohne Strichcode, etwa vom Bäcker, von der Theke oder vom Markt.',
-    newDish: 'Gericht oder Rezept',
+    withoutBarcodeIntro: 'Für selbst Gekochtes und Ware ohne Strichcode.',
+    newDish: 'Gericht/Rezept',
     newLooseProduct: 'Produkt ohne Barcode',
 
     /** One explanation per reason the camera is unavailable. */

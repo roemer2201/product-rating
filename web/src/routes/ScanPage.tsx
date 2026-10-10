@@ -99,7 +99,7 @@ export function ScanPage() {
         <h2 className="section__title">{strings.scan.withoutBarcodeTitle}</h2>
         <p className="section__intro">{strings.scan.withoutBarcodeIntro}</p>
 
-        <div className="form__actions">
+        <div className="scan-alternatives">
           <Link className="button" to="/products/new?kind=dish">
             {strings.scan.newDish}
           </Link>
