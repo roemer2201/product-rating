@@ -1,6 +1,7 @@
 import {
   cpSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
@@ -108,7 +109,107 @@ describe('runMigrations', () => {
       rmSync(directory, { recursive: true, force: true });
     }
   });
+
+  it('rebuilds a referenced table without cascading into its children', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'product-rating-rebuild-'));
+    const path = join(directory, 'app.db');
+    const folder = join(directory, 'migrations');
+    const parentAndChild = `CREATE TABLE parent (id text PRIMARY KEY NOT NULL, label text NOT NULL);
+--> statement-breakpoint
+CREATE TABLE child (
+  id text PRIMARY KEY NOT NULL,
+  parent_id text NOT NULL REFERENCES parent(id) ON DELETE cascade
+);`;
+    // What drizzle-kit generates when a column loses NOT NULL.
+    const rebuild = `PRAGMA foreign_keys=OFF;--> statement-breakpoint
+CREATE TABLE __new_parent (id text PRIMARY KEY NOT NULL, label text);--> statement-breakpoint
+INSERT INTO __new_parent (id, label) SELECT id, label FROM parent;--> statement-breakpoint
+DROP TABLE parent;--> statement-breakpoint
+ALTER TABLE __new_parent RENAME TO parent;--> statement-breakpoint
+PRAGMA foreign_keys=ON;`;
+
+    try {
+      writeMigrations(folder, [{ tag: '0000_parent_and_child', sql: parentAndChild }]);
+      const opened = openDatabase({ path });
+      runMigrations({ db: opened.db, sqlite: opened.sqlite, databasePath: path, folder });
+      opened.sqlite.prepare(`insert into parent values ('p1', 'one')`).run();
+      opened.sqlite.prepare(`insert into child values ('c1', 'p1')`).run();
+
+      writeMigrations(folder, [
+        { tag: '0000_parent_and_child', sql: parentAndChild },
+        { tag: '0001_rebuild_parent', sql: rebuild },
+      ]);
+      const result = runMigrations({
+        db: opened.db,
+        sqlite: opened.sqlite,
+        databasePath: path,
+        folder,
+      });
+
+      expect(result.applied).toBe(1);
+      expect(opened.sqlite.prepare('select id, parent_id from child').all()).toEqual([
+        { id: 'c1', parent_id: 'p1' },
+      ]);
+      // Enforcement is back on for everything that follows.
+      expect(opened.sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
+      expect(() =>
+        opened.sqlite.prepare(`insert into child values ('c2', 'missing')`).run(),
+      ).toThrow(/FOREIGN KEY/);
+      opened.close();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses to carry on when a migration leaves a broken reference behind', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'product-rating-orphan-'));
+    const path = join(directory, 'app.db');
+    const folder = join(directory, 'migrations');
+
+    try {
+      writeMigrations(folder, [
+        {
+          tag: '0000_orphan',
+          sql: `CREATE TABLE parent (id text PRIMARY KEY NOT NULL);--> statement-breakpoint
+CREATE TABLE child (id text PRIMARY KEY NOT NULL, parent_id text REFERENCES parent(id));
+--> statement-breakpoint
+INSERT INTO child VALUES ('c1', 'nowhere');`,
+        },
+      ]);
+      const opened = openDatabase({ path });
+
+      expect(() =>
+        runMigrations({ db: opened.db, sqlite: opened.sqlite, databasePath: path, folder }),
+      ).toThrow(/1 broken reference\(s\) \(child -> parent\)/);
+      expect(opened.sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
+      opened.close();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
 });
+
+/** Writes a migrations folder the way drizzle-kit lays it out. */
+function writeMigrations(folder: string, migrations: { tag: string; sql: string }[]): void {
+  mkdirSync(join(folder, 'meta'), { recursive: true });
+  for (const migration of migrations) {
+    writeFileSync(join(folder, `${migration.tag}.sql`), migration.sql);
+  }
+  writeFileSync(
+    join(folder, 'meta', '_journal.json'),
+    JSON.stringify({
+      version: '7',
+      dialect: 'sqlite',
+      entries: migrations.map((migration, idx) => ({
+        idx,
+        version: '6',
+        when: 1786000000000 + idx * 1000,
+        tag: migration.tag,
+        breakpoints: true,
+      })),
+    }),
+  );
+}
 
 describe('migration 0009: categories become a list', () => {
   it('takes the free text categories over, one entry per spelling regardless of case', () => {

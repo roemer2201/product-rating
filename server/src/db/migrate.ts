@@ -155,7 +155,57 @@ export function runMigrations(options: MigrateOptions): MigrateResult {
   }
 
   onInfo?.('applying migrations', { pending });
-  migrate(db, { migrationsFolder: folder });
+  withoutForeignKeys(sqlite, snapshot, () => {
+    migrate(db, { migrationsFolder: folder });
+  });
 
   return { applied: pending, snapshot };
+}
+
+/**
+ * Runs the migrations with foreign key enforcement switched off, the way the
+ * SQLite manual describes for schema changes ALTER TABLE cannot express
+ * (https://www.sqlite.org/lang_altertable.html, "Making Other Kinds Of Table
+ * Schema Changes").
+ *
+ * Such a change rebuilds the table: create the new one, copy the rows, drop
+ * the old one, rename. With enforcement on, the DROP is an implicit DELETE of
+ * every row, and each `on delete cascade` pointing at the table fires —
+ * rebuilding `products` would take every rating, photo and price with it. The
+ * `PRAGMA foreign_keys=OFF` drizzle-kit writes into such a migration cannot
+ * help: the migrator runs all pending files in one transaction, and inside a
+ * transaction the pragma is a no-op. So it is switched off here, before the
+ * transaction starts, and the references are checked once it has committed.
+ *
+ * A violation at that point means a migration left an orphan behind. The
+ * transaction is already committed, so this cannot roll back; it refuses to
+ * carry on instead and names the snapshot that holds the state from before.
+ */
+function withoutForeignKeys(
+  sqlite: BetterSqlite3.Database,
+  snapshot: string | null,
+  run: () => void,
+): void {
+  const enabled = sqlite.pragma('foreign_keys', { simple: true }) === 1;
+  if (enabled) sqlite.pragma('foreign_keys = OFF');
+
+  try {
+    run();
+
+    const violations = sqlite.pragma('foreign_key_check') as {
+      table: string;
+      parent: string;
+    }[];
+    if (violations.length > 0) {
+      const tables = [...new Set(violations.map((entry) => `${entry.table} -> ${entry.parent}`))];
+      throw new Error(
+        `migrations left ${violations.length} broken reference(s) (${tables.join(', ')}); ` +
+          (snapshot === null
+            ? 'no snapshot was taken because the database was empty'
+            : `the state before the migration is in ${snapshot}`),
+      );
+    }
+  } finally {
+    if (enabled) sqlite.pragma('foreign_keys = ON');
+  }
 }
