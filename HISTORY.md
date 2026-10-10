@@ -45,6 +45,12 @@ XY“), die Sorte trennt etwa „Spaghetti“ in „Bolognese“ und „Tomatens
   Bearbeiten eines Produkts ohne EAN, Kennzeichnung auf Produktseite, Karte
   und im Papierkorb, Katalogfilter „Art“, Preisbereich „Kosten pro Portion“
   ohne Einkaufsort. Der Katalog zählt jetzt „Einträge“ statt „Produkte“.
+- Scan-Seite nach Rückmeldung des Projektinhabers umgebaut: „Kamera starten“
+  steht im Kamerafeld unter dem Kamerasymbol statt in einer eigenen Zeile
+  darunter – sobald das Bild läuft, ist der Button ohnehin weg, und die Seite
+  wird kürzer. „Anhalten“ und „Licht“ stehen weiter unter dem Bild, weil das
+  Kamerabild frei bleiben soll. „Ohne Barcode erfassen“ steht zwischen
+  Kamerafeld und Eingabe von Hand.
 - Geprüft mit dem gebauten Bundle in Chromium bei 390 px Breite: Gericht
   anlegen, bewerten, Kosten erfassen, zweites Gericht mit Hinweis auf das
   erste, Produkt ohne Barcode anlegen und bearbeiten, Katalog.

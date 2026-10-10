@@ -100,7 +100,7 @@ mindestens 44 Pixel hoch, Ränder über `env(safe-area-inset-*)`.
 | Adresse | Ansicht |
 |---|---|
 | `/` | Katalog – Produktliste mit Suche, Filtern und Thumbnails |
-| `/scan` | Scanner, primäre Aktion; darunter die Eingabe von Hand und „Ohne Barcode erfassen“ |
+| `/scan` | Scanner, primäre Aktion („Kamera starten“ im Kamerafeld); darunter „Ohne Barcode erfassen“ und die Eingabe von Hand |
 | `/products/new?ean=…` | Anlegeformular mit vorbelegter EAN |
 | `/products/new?kind=dish` | Anlegeformular für ein Gericht oder Rezept, ohne EAN |
 | `/products/new?kind=product` | Anlegeformular für ein Produkt ohne Barcode |
