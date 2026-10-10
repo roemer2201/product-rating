@@ -5,6 +5,40 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-10 – Docker-Image real getestet, Server-Argumente richtig dokumentiert
+
+Bisher war das Image nie mit einem Docker-Daemon gebaut und gestartet worden
+(TODO M10). Die Sitzung kidesk01 hat das auf Ubuntu 26.04 nachgeholt
+(Docker 29.1.3, Compose 2.40.3, amd64), ohne etwas zu committen:
+
+- **Update:** Image von 51a0f1d mit frischem Volume, Testdaten über die API
+  (Kategorie, zwei Produkte, Bewertungen, Preise, ein Foto), dann Image von
+  6aa6a18 auf demselben Volume. Vor Migration 0010 entstand der Snapshot
+  `/data/db/pre-migration-*.db`. Produkte, Suche und eigene Bewertungen waren
+  vorher und nachher gleich, bis auf das neue Feld `kind` (`product`). Das
+  Foto war abrufbar, `foreign_key_check` leer, `integrity_check` ok, die
+  bestehende Sitzung blieb gültig.
+- **Einträge ohne EAN (M17):** Gericht und Produkt ohne Barcode anlegen,
+  bewerten, Preis, Filter `kind`, EAN einmalig nachtragen; Gericht mit EAN und
+  ein zweites Ändern der EAN lehnt der Server mit 400 ab. Die Oberfläche
+  blieb ungetestet, weil kein Browser lief.
+- **M10:** `docker compose up -d --build` mit frischem Volume, Neustart mit
+  vorhandenem Volume (Daten, Secret und Sitzung bleiben), `--help`, Prozess
+  als uid 1000. Image 125 MB laut `docker image inspect`, 536 MB entpackt.
+
+Gefunden wurde ein Dokumentationsfehler: README 7.1 und der Kommentar im
+Dockerfile behaupteten, `docker compose run --rm app --log-level debug` reiche
+die Option an den Server durch. Der Entrypoint lehnt unbekannte Optionen aber
+mit Exit-Code 2 ab; seine eigene Hilfe nennt bereits die richtige Form
+`-- --log-level debug`. Korrigiert wurde die Doku, nicht der Entrypoint: Dass
+er unbekannte Optionen ablehnt, verhindert, dass ein vertippter
+Entrypoint-Schalter still beim Server landet.
+
+Offen bleiben der Scan in der Oberfläche gegen den Container und das Update
+per `docker compose pull` aus der GHCR (neuer Punkt in TODO M10).
+
+---
+
 ## 2026-10-10 – Neue Version bei jedem Merge
 
 Nach dem Merge von M17 baute der Projektinhaber auf einem Testsystem nach

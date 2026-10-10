@@ -193,14 +193,15 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [x] **[S]** Multi-Arch-Build für `linux/amd64` und `linux/arm64` dokumentieren
 - [x] **[S]** Compose-Beispiel mit Caddy als vorgelagertem TLS-Proxy
 - [x] **[M]** Auslieferung der gebauten Oberfläche durch den Server selbst (`server.static_dir`, `@fastify/static`, App-Shell-Fallback, Cache-Regeln) – ohne sie wäre das Image nur die API, während README 2 „API und Frontend in einem Prozess“ zusagt
-- [ ] **[M]** Image real bauen und starten: `docker build`, `docker compose up`, Anmeldung, Scan, Foto-Upload, Neustart mit vorhandenem Volume, `docker compose pull && up -d` als Update – in der Entwicklungsumgebung stand kein Docker-Daemon zur Verfügung, geprüft wurde bisher nur der Laufzeitpfad ohne Container (Entrypoint, gebautes Bundle, Auslieferung, `npm prune --omit=dev`)
+- [x] **[M]** Image real bauen und starten: `docker build`, `docker compose up`, Anmeldung, Scan, Foto-Upload, Neustart mit vorhandenem Volume, `docker compose pull && up -d` als Update – in der Entwicklungsumgebung stand kein Docker-Daemon zur Verfügung, geprüft wurde bisher nur der Laufzeitpfad ohne Container (Entrypoint, gebautes Bundle, Auslieferung, `npm prune --omit=dev`). Erledigt am 10.10.2026 durch die Sitzung kidesk01 (Docker 29.1.3, Compose 2.40.3, amd64): `docker compose up -d --build` mit frischem Volume, Anmeldung, Produkt anlegen und Foto-Upload über die API, Neustart mit vorhandenem Volume, Update von 51a0f1d auf 6aa6a18 mit demselben Volume samt Migration 0010; Prozess läuft als uid 1000
+- [ ] **[S]** Was der Docker-Test vom 10.10.2026 nicht abdeckt: Scan und Erfassung in der Oberfläche gegen den Container (dort lief kein Browser) und das Update per `docker compose pull && up -d` aus der GHCR statt mit einem lokal gebauten Image
 - [ ] **[S]** Multi-Arch-Bau auf `linux/arm64` einmal durchführen und die Prebuilds von `better-sqlite3` und `sharp` bestätigen
 - [ ] **[S]** `linux/arm/v7` (`armhf`) als weitere Zielarchitektur für den
       Multi-Arch-Build ergänzen, analog zum Debian-Paket (M14), das `armhf`
       bereits unterstützt. `better-sqlite3` hat dort keinen Prebuild und wird
       bei jedem Bau übersetzt (mehrere Minuten); Release-Workflow und
       Dokumentation (README 7.2) entsprechend nachziehen
-- [ ] **[S]** Image-Größe prüfen: `npm prune --omit=dev` lässt auch die Laufzeitabhängigkeiten des Web-Workspaces (React, Router, `zxing-wasm`) im Baum, obwohl das Image nur das gebaute Bundle braucht; dazu die Frage, ob die Sourcemaps in der Laufzeitstufe bleiben
+- [ ] **[S]** Image-Größe prüfen: `npm prune --omit=dev` lässt auch die Laufzeitabhängigkeiten des Web-Workspaces (React, Router, `zxing-wasm`) im Baum, obwohl das Image nur das gebaute Bundle braucht; dazu die Frage, ob die Sourcemaps in der Laufzeitstufe bleiben. Gemessen am 10.10.2026 (amd64): `docker image inspect` nennt 125 MB, entpackt im containerd-Store 536 MB
 
 ## M11 – Debian-Paket
 

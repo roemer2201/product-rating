@@ -1057,8 +1057,9 @@ Start das Administratorkonto an und können danach entfallen.
 - **Entrypoint** (`docker/entrypoint.sh`): Verzeichnisse anlegen, Secret
   erzeugen, Migrationen ausführen, dann den Server als PID 1 starten – alles
   idempotent, ein Neustart wiederholt nur, was fehlt. `--help` erklärt die
-  Schalter, `docker compose run --rm app --log-level debug` reicht Argumente an
-  den Server durch.
+  Schalter. Argumente für den Server stehen hinter `--`, etwa
+  `docker compose run --rm app -- --log-level debug`; eine Option ohne `--`
+  davor, die der Entrypoint nicht kennt, lehnt er mit Exit-Code 2 ab.
 - **`HEALTHCHECK`** auf `/healthz`, mit `start_period`, die den Migrationen Zeit
   lässt.
 - **Reverse Proxy:** Die Compose-Datei veröffentlicht den Port nur auf

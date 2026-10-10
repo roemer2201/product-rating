@@ -108,7 +108,8 @@ VOLUME ["/data"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD node -e "fetch(process.env.PRODUCT_RATING_HEALTH_URL).then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
 
-# Arguments of "docker run" are passed to the server, for example
-# "--log-level debug".
+# Arguments of "docker run" go to the entrypoint first; everything after "--"
+# is passed to the server, for example "-- --log-level debug". The entrypoint
+# rejects options it does not know, so a mistyped switch is not handed on.
 ENTRYPOINT ["/usr/local/bin/product-rating-entrypoint"]
 CMD []
