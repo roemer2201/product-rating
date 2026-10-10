@@ -4,6 +4,7 @@ import {
   createPriceSchema,
   PRICE_LIST_LIMIT,
   type Price,
+  type ProductKind,
   type User,
 } from '@product-rating/shared';
 import { ErrorNotice } from '@/components/Feedback';
@@ -26,9 +27,15 @@ import { strings } from '@/lib/strings';
  * Recording is open to every account, because what things cost is a fact about
  * the household. Removing an entry stays with whoever wrote it down, the same
  * rule photos follow.
+ *
+ * For a dish the same list holds what a portion costs. Nothing is bought in a
+ * shop there, so the shop field and the shop in each row are left out, and the
+ * date is the day of the calculation rather than of a purchase.
  */
 
 interface PriceHistoryProps {
+  /** `dish` turns the purchases into the cost of a portion. */
+  kind: ProductKind;
   productId: string;
   /**
    * Identifies the product for a price that is written down offline; `null`
@@ -40,8 +47,18 @@ interface PriceHistoryProps {
   user: User;
 }
 
-export function PriceHistory({ productId, ean, productName, prices, user }: PriceHistoryProps) {
+export function PriceHistory({
+  kind,
+  productId,
+  ean,
+  productName,
+  prices,
+  user,
+}: PriceHistoryProps) {
   const shopListId = useId();
+  const dish = kind === 'dish';
+  /** What a row says after the amount: the shop, or nothing for a dish. */
+  const whereOf = (price: Price): string[] => (dish ? [] : [price.shop ?? strings.price.noShop]);
 
   const [amount, setAmount] = useState('');
   const [shop, setShop] = useState('');
@@ -100,32 +117,28 @@ export function PriceHistory({ productId, ean, productName, prices, user }: Pric
 
   return (
     <section className="section">
-      <h2 className="section__title">{strings.price.title}</h2>
+      <h2 className="section__title">{dish ? strings.price.dishTitle : strings.price.title}</h2>
 
       {prices.length === 0 ? (
-        <p className="section__intro">{strings.price.empty}</p>
+        <p className="section__intro">{dish ? strings.price.dishEmpty : strings.price.empty}</p>
       ) : (
         <>
           <dl className="product__facts">
             <div className="product__fact">
-              <dt>{strings.price.latest}</dt>
+              <dt>{dish ? strings.price.dishLatest : strings.price.latest}</dt>
               <dd>
                 {latest === null
                   ? '–'
-                  : `${formatAmount(latest.cents, latest.currency)} · ${
-                      latest.shop ?? strings.price.noShop
-                    }`}
+                  : [formatAmount(latest.cents, latest.currency), ...whereOf(latest)].join(' · ')}
               </dd>
             </div>
 
             <div className="product__fact">
-              <dt>{strings.price.lowest}</dt>
+              <dt>{dish ? strings.price.dishLowest : strings.price.lowest}</dt>
               <dd>
                 {lowest === null
                   ? '–'
-                  : `${formatAmount(lowest.cents, lowest.currency)} · ${
-                      lowest.shop ?? strings.price.noShop
-                    }`}
+                  : [formatAmount(lowest.cents, lowest.currency), ...whereOf(lowest)].join(' · ')}
               </dd>
             </div>
           </dl>
@@ -137,12 +150,17 @@ export function PriceHistory({ productId, ean, productName, prices, user }: Pric
                   <span className="price__amount">
                     {formatAmount(price.cents, price.currency)}
                     {lowest !== null && price.id === lowest.id && prices.length > 1 && (
-                      <span className="badge badge--primary">{strings.price.lowest}</span>
+                      <span className="badge badge--primary">
+                        {dish ? strings.price.dishLowest : strings.price.lowest}
+                      </span>
                     )}
                   </span>
                   <span className="price__meta">
-                    {formatDate(price.purchasedAt)} · {price.shop ?? strings.price.noShop} ·{' '}
-                    {strings.price.recordedBy(accountName(price) ?? strings.price.unknownUser)}
+                    {[
+                      formatDate(price.purchasedAt),
+                      ...whereOf(price),
+                      strings.price.recordedBy(accountName(price) ?? strings.price.unknownUser),
+                    ].join(' · ')}
                   </span>
                   {price.note !== null && <span className="price__note">{price.note}</span>}
                 </div>
@@ -199,7 +217,7 @@ export function PriceHistory({ productId, ean, productName, prices, user }: Pric
 
       <div className="form">
         <Field
-          label={strings.price.amount}
+          label={dish ? strings.price.dishAmount : strings.price.amount}
           name="amount"
           // `decimal` rather than `numeric`: it is the keyboard with the comma
           // on it, which is the character a German price is typed with.
@@ -208,39 +226,43 @@ export function PriceHistory({ productId, ean, productName, prices, user }: Pric
           onChange={(event) => {
             setAmount(event.target.value);
           }}
-          hint={strings.price.amountHint}
+          hint={dish ? strings.price.dishAmountHint : strings.price.amountHint}
           error={amountError}
           required
         />
 
-        <Field
-          label={strings.price.shop}
-          name="shop"
-          value={shop}
-          onChange={(event) => {
-            setShop(event.target.value);
-          }}
-          hint={strings.price.shopHint}
-          list={shopListId}
-          maxLength={120}
-          optional
-        />
+        {!dish && (
+          <>
+            <Field
+              label={strings.price.shop}
+              name="shop"
+              value={shop}
+              onChange={(event) => {
+                setShop(event.target.value);
+              }}
+              hint={strings.price.shopHint}
+              list={shopListId}
+              maxLength={120}
+              optional
+            />
 
-        <datalist id={shopListId} aria-label={strings.price.shopList}>
-          {(shops.data ?? []).map((entry) => (
-            <option value={entry} key={entry} />
-          ))}
-        </datalist>
+            <datalist id={shopListId} aria-label={strings.price.shopList}>
+              {(shops.data ?? []).map((entry) => (
+                <option value={entry} key={entry} />
+              ))}
+            </datalist>
+          </>
+        )}
 
         <Field
-          label={strings.price.date}
+          label={dish ? strings.price.dishDate : strings.price.date}
           name="purchasedAt"
           type="date"
           value={date}
           onChange={(event) => {
             setDate(event.target.value);
           }}
-          hint={strings.price.dateHint}
+          hint={dish ? strings.price.dishDateHint : strings.price.dateHint}
           max={todayAsInputValue()}
         />
 
@@ -251,7 +273,7 @@ export function PriceHistory({ productId, ean, productName, prices, user }: Pric
           onChange={(event) => {
             setNote(event.target.value);
           }}
-          hint={strings.price.noteHint}
+          hint={dish ? strings.price.dishNoteHint : strings.price.noteHint}
           maxLength={200}
           optional
         />
@@ -262,7 +284,7 @@ export function PriceHistory({ productId, ean, productName, prices, user }: Pric
           onClick={onSubmit}
           disabled={add.isPending || amount.trim() === ''}
         >
-          {add.isPending ? strings.price.adding : strings.price.add}
+          {add.isPending ? strings.price.adding : dish ? strings.price.dishAdd : strings.price.add}
         </button>
       </div>
     </section>

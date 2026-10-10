@@ -370,13 +370,13 @@ Gerichten bedeutet der Preis „Kosten pro Portion“.
       Katalogfilter `kind`; EAN nachträglich setzen, solange keine da ist
       (mit Konfliktprüfung); Export/Import mit `kind`, Einträge ohne EAN über
       die Kennung zugeordnet
-- [ ] **[M]** Weboberfläche: „Ohne Barcode erfassen“ auf der Scan-Seite mit
+- [x] **[M]** Weboberfläche: „Ohne Barcode erfassen“ auf der Scan-Seite mit
       Wahl Produkt oder Gericht; Formular ohne Pflicht-EAN, bei Gerichten
       „Quelle“ statt „Marke“ (z. B. „nach Oma“, „Thermomix“, „Kochbuch XY“);
       Hinweis auf ähnliche vorhandene Einträge beim Tippen des Namens;
       Kennzeichnung und Filter im Katalog; „Kosten pro Portion“ ohne
       Einkaufsort bei Gerichten
-- [ ] **[S]** Offline: Einträge ohne EAN zunächst nur online anlegbar, mit
+- [x] **[S]** Offline: Einträge ohne EAN zunächst nur online anlegbar, mit
       klarem Hinweis. Die Warteschlange ordnet über die EAN zu
 - [ ] **[M]** Offline-Erfassung ohne EAN über eine vom Gerät erzeugte UUID als
       Kennung des neuen Eintrags (Server übernimmt sie, eine Wiederholung

@@ -459,6 +459,19 @@ a {
   color: var(--color-danger);
 }
 
+/* The entries a form for something without an EAN may be about to duplicate.
+   Each one is a link the thumb has to hit, hence the full tap height. */
+.similar-list {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+}
+
+.similar-list a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-target);
+}
+
 .centre-screen {
   display: flex;
   flex-direction: column;

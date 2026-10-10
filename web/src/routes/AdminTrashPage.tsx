@@ -55,7 +55,12 @@ export function AdminTrashPage() {
                     )}`}{' '}
                   · {strings.admin.trashContents(entry.ratings, entry.photos)}
                 </span>
-                <span className="admin-row__note">{entry.product.ean}</span>
+                <span className="admin-row__note">
+                  {entry.product.ean ??
+                    (entry.product.kind === 'dish'
+                      ? strings.product.dishBadge
+                      : strings.product.noEan)}
+                </span>
               </div>
 
               <div className="admin-row__actions">

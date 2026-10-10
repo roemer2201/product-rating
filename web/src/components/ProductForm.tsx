@@ -5,10 +5,12 @@ import {
   PRODUCT_NOTES_MAX_LENGTH,
   PRODUCT_VARIANT_MAX_LENGTH,
   type CategoryRef,
+  type ProductKind,
 } from '@product-rating/shared';
 import { CategoryPicker } from '@/components/CategoryPicker';
 import { Field, TextAreaField } from '@/components/Field';
 import { ErrorNotice } from '@/components/Feedback';
+import { SimilarEntries } from '@/components/SimilarEntries';
 import type { FieldErrors } from '@/lib/forms';
 import { useCategories } from '@/lib/queries';
 import { strings } from '@/lib/strings';
@@ -31,9 +33,17 @@ import { strings } from '@/lib/strings';
  *
  * Between the fields and the buttons there is room for whatever else belongs
  * to the same save. The screen for a new product puts the photo there.
+ *
+ * A dish uses the same fields under other names: the brand is where the recipe
+ * comes from ("nach Oma", a cookbook, a kitchen machine), the notes are room
+ * for the recipe itself. An entry without an EAN gets no protection from
+ * duplicates by the database, so its form shows similar names while the name
+ * is typed, and a product bought without a barcode may get one later.
  */
 
 export interface ProductFormValues {
+  /** Empty unless the form offers the field (`eanEditable`). */
+  ean: string;
   name: string;
   variant: string;
   brand: string;
@@ -43,6 +53,12 @@ export interface ProductFormValues {
 }
 
 interface ProductFormProps {
+  /** Decides the labels and hints; `product` unless given. */
+  kind?: ProductKind;
+  /** Offers the EAN field: for a product that has none yet. */
+  eanEditable?: boolean;
+  /** Shows entries with a similar name below the name field. */
+  showSimilar?: boolean;
   initial?: Partial<ProductFormValues>;
   /** The categories the product carries, with names, for when the list is not there. */
   initialCategories?: CategoryRef[];
@@ -70,6 +86,9 @@ interface ProductFormProps {
 }
 
 export function ProductForm({
+  kind = 'product',
+  eanEditable = false,
+  showSimilar = false,
   initial,
   initialCategories,
   onSubmit,
@@ -82,6 +101,7 @@ export function ProductForm({
   children,
   actionsRef,
 }: ProductFormProps) {
+  const [ean, setEan] = useState(initial?.ean ?? '');
   const [name, setName] = useState(initial?.name ?? '');
   const [variant, setVariant] = useState(initial?.variant ?? '');
   const [brand, setBrand] = useState(initial?.brand ?? '');
@@ -102,8 +122,10 @@ export function ProductForm({
       list === undefined
         ? categoryIds
         : categoryIds.filter((id) => list.some((entry) => entry.id === id));
-    onSubmit({ name, variant, brand, categoryIds: chosen, notes });
+    onSubmit({ ean: eanEditable ? ean : '', name, variant, brand, categoryIds: chosen, notes });
   };
+
+  const dish = kind === 'dish';
 
   return (
     <form className="form" onSubmit={handleSubmit} noValidate>
@@ -115,11 +137,13 @@ export function ProductForm({
         value={name}
         onChange={(event) => setName(event.target.value)}
         maxLength={PRODUCT_NAME_MAX_LENGTH}
-        hint={strings.product.nameHint}
+        hint={dish ? strings.product.dishNameHint : strings.product.nameHint}
         error={errors.name}
         autoComplete="off"
         required
       />
+
+      {showSimilar && <SimilarEntries name={name} kind={kind} />}
 
       <Field
         label={strings.fields.variant}
@@ -127,23 +151,38 @@ export function ProductForm({
         value={variant}
         onChange={(event) => setVariant(event.target.value)}
         maxLength={PRODUCT_VARIANT_MAX_LENGTH}
-        hint={strings.product.variantHint}
+        hint={dish ? strings.product.dishVariantHint : strings.product.variantHint}
         error={errors.variant}
         autoComplete="off"
         optional
       />
 
       <Field
-        label={strings.fields.brand}
+        label={dish ? strings.fields.source : strings.fields.brand}
         name="brand"
         value={brand}
         onChange={(event) => setBrand(event.target.value)}
         maxLength={PRODUCT_BRAND_MAX_LENGTH}
-        hint={strings.product.brandHint}
+        hint={dish ? strings.product.sourceHint : strings.product.brandHint}
         error={errors.brand}
         autoComplete="off"
         optional
       />
+
+      {eanEditable && (
+        <Field
+          label={strings.fields.ean}
+          name="ean"
+          value={ean}
+          onChange={(event) => setEan(event.target.value)}
+          // Same keyboard as the manual entry on the scan screen.
+          inputMode="numeric"
+          hint={strings.product.eanAddHint}
+          error={errors.ean}
+          autoComplete="off"
+          optional
+        />
+      )}
 
       <CategoryPicker
         value={categoryIds}
@@ -158,7 +197,7 @@ export function ProductForm({
         value={notes}
         onChange={(event) => setNotes(event.target.value)}
         maxLength={PRODUCT_NOTES_MAX_LENGTH}
-        hint={strings.product.notesHint}
+        hint={dish ? strings.product.dishNotesHint : strings.product.notesHint}
         error={errors.notes}
         optional
       />

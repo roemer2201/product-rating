@@ -18,6 +18,7 @@ import type {
   Product,
   ProductDetail,
   ProductListPage,
+  ProductKind,
   ProductSortField,
   Rating,
   RatingListPage,
@@ -321,6 +322,7 @@ function uploadRequest<T>(path: string, body: FormData, options: UploadOptions =
 export type ProductListParams = {
   q?: string | undefined;
   categoryId?: string | undefined;
+  kind?: ProductKind | undefined;
   minStars?: number | undefined;
   ratedByMe?: boolean | undefined;
   sort?: ProductSortField | undefined;

@@ -27,6 +27,10 @@ import { strings } from '@/lib/strings';
  * Correcting the product data is open to everyone, because the catalogue is
  * shared and a typo at the shelf should not need an administrator. Deleting is
  * not: it takes other people's ratings and photos with it.
+ *
+ * A dish is the same screen with other words: a source instead of a brand, no
+ * EAN, and what a portion costs instead of what was paid where. A product
+ * bought without a barcode can be given one in the form, once.
  */
 export function ProductPage() {
   const { id = '' } = useParams();
@@ -57,9 +61,13 @@ export function ProductPage() {
   const detail = product.data;
   const user = session.data;
   const isAdmin = user?.role === 'admin';
+  const dish = detail.kind === 'dish';
+  const eanEditable = detail.kind === 'product' && detail.ean === null;
 
   const onSave = (values: ProductFormValues): void => {
     const parsed = updateProductSchema.safeParse({
+      // Only offered while there is none; an empty field leaves it that way.
+      ...(eanEditable && values.ean.trim() !== '' ? { ean: values.ean } : {}),
       name: values.name,
       variant: emptyToNull(values.variant),
       brand: emptyToNull(values.brand),
@@ -91,9 +99,13 @@ export function ProductPage() {
   if (editing) {
     return (
       <section>
-        <h1 className="page__title">{strings.product.editTitle}</h1>
+        <h1 className="page__title">
+          {dish ? strings.product.editDishTitle : strings.product.editTitle}
+        </h1>
 
         <ProductForm
+          kind={detail.kind}
+          eanEditable={eanEditable}
           initial={{
             name: detail.name,
             variant: detail.variant ?? '',
@@ -131,13 +143,16 @@ export function ProductPage() {
           scrolled down through ratings and photos. */}
       <div className="page__head">
         <div className="page__head-text">
-          <h1 className="page__title">{detail.name}</h1>
+          <h1 className="page__title">
+            {detail.name}
+            {dish && <span className="badge">{strings.product.dishBadge}</span>}
+          </h1>
           {/* The variant leads: it is what distinguishes this product from the
               others of the same line, and the name above already said the rest. */}
           <p className="page__intro">
             {[
               detail.variant,
-              detail.brand ?? strings.product.noBrand,
+              detail.brand ?? (dish ? strings.product.noSource : strings.product.noBrand),
               detail.categories.length === 0
                 ? strings.product.noCategory
                 : detail.categories.map((entry) => entry.name).join(', '),
@@ -153,8 +168,8 @@ export function ProductPage() {
           onClick={() => {
             setEditing(true);
           }}
-          aria-label={strings.product.editTitle}
-          title={strings.product.editTitle}
+          aria-label={dish ? strings.product.editDishTitle : strings.product.editTitle}
+          title={dish ? strings.product.editDishTitle : strings.product.editTitle}
         >
           <EditIcon className="button__icon" />
         </button>
@@ -186,10 +201,12 @@ export function ProductPage() {
           </dd>
         </div>
 
-        <div className="product__fact">
-          <dt>{strings.product.eanLabel}</dt>
-          <dd>{detail.ean}</dd>
-        </div>
+        {!dish && (
+          <div className="product__fact">
+            <dt>{strings.product.eanLabel}</dt>
+            <dd>{detail.ean ?? strings.product.noEan}</dd>
+          </div>
+        )}
       </dl>
 
       {detail.notes !== null && (
@@ -250,6 +267,7 @@ export function ProductPage() {
 
       {user !== null && user !== undefined && (
         <PriceHistory
+          kind={detail.kind}
           productId={detail.id}
           ean={detail.ean}
           productName={detail.name}

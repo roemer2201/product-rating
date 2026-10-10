@@ -134,6 +134,8 @@ export const strings = {
     name: 'Name',
     variant: 'Sorte',
     brand: 'Marke',
+    /** The brand field of a dish: where the recipe comes from. */
+    source: 'Quelle',
     category: 'Kategorie',
     categories: 'Kategorien',
     notes: 'Notizen',
@@ -272,6 +274,11 @@ export const strings = {
     manualIntro: 'Geht immer – auch ohne Kamera oder bei einem beschädigten Barcode.',
     manualSubmit: 'Suchen',
     manualHint: '8, 12 oder 13 Ziffern, Leerzeichen und Bindestriche dürfen mit.',
+    withoutBarcodeTitle: 'Ohne Barcode erfassen',
+    withoutBarcodeIntro:
+      'Für Selbstgekochtes und für Ware ohne Strichcode, etwa vom Bäcker, von der Theke oder vom Markt.',
+    newDish: 'Gericht oder Rezept',
+    newLooseProduct: 'Produkt ohne Barcode',
 
     /** One explanation per reason the camera is unavailable. */
     problem: {
@@ -293,11 +300,26 @@ export const strings = {
   product: {
     newTitle: 'Neues Produkt',
     newIntro: 'Diese EAN ist noch nicht im Katalog. Lege das Produkt an.',
+    newLooseTitle: 'Neues Produkt ohne Barcode',
+    newLooseIntro:
+      'Für Ware ohne Strichcode, etwa vom Bäcker, von der Theke oder vom Markt. Einen Barcode kannst du später beim Bearbeiten nachtragen.',
+    newDishTitle: 'Neues Gericht',
+    newDishIntro:
+      'Ein Gericht oder Rezept, das ihr selbst kocht. Bewertet wird das Gericht, nicht der einzelne Kochabend.',
     editTitle: 'Produkt bearbeiten',
+    editDishTitle: 'Gericht bearbeiten',
     nameHint: 'So, wie du das Produkt im Katalog wiederfinden möchtest.',
     variantHint:
       'Die Geschmacksrichtung oder Ausführung, zum Beispiel „Spaghetti Bolognese“ zur „5 Minuten Terrine“.',
     brandHint: 'Der Hersteller oder die Handelsmarke auf der Verpackung.',
+    dishNameHint: 'Zum Beispiel „Spaghetti“ oder „Gulasch“.',
+    dishVariantHint: 'Die Ausführung, zum Beispiel „Bolognese“ oder „Tomatensoße“ zu „Spaghetti“.',
+    sourceHint: 'Woher das Rezept stammt, zum Beispiel „nach Oma“, „Thermomix“ oder „Kochbuch XY“.',
+    dishNotesHint: 'Platz für das Rezept oder alles, was du dir merken willst.',
+    eanAddHint:
+      'Hat das Produkt doch einen Barcode, trag ihn hier ein – danach findet es der Scanner. Ändern lässt er sich später nicht mehr.',
+    similarTitle: 'Gibt es das schon?',
+    similarIntro: 'Diese Einträge heißen ähnlich. Wenn einer davon passt, bewerte lieber dort.',
     categoriesHint:
       'Häufige Kategorien zum Ankreuzen, alle weiteren über die Auswahl darunter. Mehrere sind möglich.',
     categoriesFrequent: 'Häufig genutzt',
@@ -311,10 +333,13 @@ export const strings = {
     categoriesToAdmin: 'Kategorien verwalten',
     notesHint: 'Platz für alles, was du dir merken willst.',
     create: 'Produkt anlegen',
+    createDish: 'Gericht anlegen',
     creating: 'Wird angelegt …',
     createdBy: (date: string) => `Angelegt am ${date}`,
     updatedAt: (date: string) => `Zuletzt geändert am ${date}`,
     eanLabel: 'EAN',
+    noEan: 'Ohne Barcode',
+    dishBadge: 'Gericht',
     existsAlready: 'Zu dieser EAN gibt es schon ein Produkt.',
     toExisting: 'Zum vorhandenen Produkt',
     created: 'Das Produkt ist angelegt. Jetzt fehlt nur noch das Foto.',
@@ -326,6 +351,7 @@ export const strings = {
     deleted: 'Das Produkt liegt im Papierkorb.',
     adminOnlyDelete: 'Produkte löschen dürfen nur Administratoren.',
     noBrand: 'Ohne Marke',
+    noSource: 'Ohne Quelle',
     noCategory: 'Ohne Kategorie',
     notes: 'Notizen',
   },
@@ -390,6 +416,18 @@ export const strings = {
     recordedBy: (username: string) => `erfasst von ${username}`,
     unknownUser: 'Gelöschtes Konto',
     capped: 'Es werden die 50 jüngsten Einträge gezeigt.',
+
+    /* Bei einem Gericht steht hier, was eine Portion kostet. */
+    dishTitle: 'Kosten pro Portion',
+    dishEmpty: 'Noch keine Kosten erfasst.',
+    dishAdd: 'Kosten erfassen',
+    dishAmount: 'Kosten pro Portion',
+    dishAmountHint: 'Zum Beispiel 2,40 – Komma oder Punkt, beides geht.',
+    dishDate: 'Stand vom',
+    dishDateHint: 'Standard ist heute; Zutaten werden mit der Zeit teurer oder günstiger.',
+    dishNoteHint: 'Zum Beispiel „für vier Portionen gerechnet“.',
+    dishLowest: 'Günstigste Berechnung',
+    dishLatest: 'Zuletzt berechnet',
   },
 
   /* --------------------------------------------------------------- ratings */
@@ -424,7 +462,7 @@ export const strings = {
   catalogue: {
     title: 'Katalog',
     search: 'Suchen',
-    searchPlaceholder: 'Name, Sorte, Marke oder EAN',
+    searchPlaceholder: 'Name, Sorte, Marke, Quelle oder EAN',
     // Not "Scannen": that is the screen in the navigation, which creates a
     // product. This one only fills the search field, and a screen reader
     // announces both one after the other.
@@ -432,6 +470,10 @@ export const strings = {
     filters: 'Filter',
     category: 'Kategorie',
     allCategories: 'Alle Kategorien',
+    kind: 'Art',
+    allKinds: 'Alles',
+    kindProduct: 'Produkte',
+    kindDish: 'Gerichte',
     minStars: 'Mindestens',
     anyStars: 'Egal',
     ratedByMe: 'Nur von mir bewertete',
@@ -444,7 +486,8 @@ export const strings = {
     orderAsc: 'aufsteigend',
     orderDesc: 'absteigend',
     resetFilters: 'Filter zurücksetzen',
-    total: (count: number) => (count === 1 ? '1 Produkt' : `${count} Produkte`),
+    // "Einträge", not "Produkte": the catalogue holds dishes as well.
+    total: (count: number) => (count === 1 ? '1 Eintrag' : `${count} Einträge`),
     empty: 'Der Katalog ist noch leer. Scanne das erste Produkt.',
     emptyFiltered: 'Zu dieser Suche gibt es nichts. Vielleicht mit weniger Filtern?',
     photoAlt: (name: string) => `Foto von ${name}`,

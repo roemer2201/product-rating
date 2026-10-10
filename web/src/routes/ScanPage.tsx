@@ -1,5 +1,5 @@
 import { useCallback, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { eanSchema } from '@product-rating/shared';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { ErrorNotice } from '@/components/Feedback';
@@ -21,6 +21,10 @@ import { strings } from '@/lib/strings';
  * same screen as the camera because there are barcodes no camera reads: a
  * crumpled freezer bag, a bottle in a dark cellar, a phone whose camera the
  * household has switched off.
+ *
+ * Below both sits the way in for what has no barcode at all: a dish cooked at
+ * home, bread from the baker. It belongs here because this is where somebody
+ * goes to add something; the camera stays the first thing on the screen.
  */
 export function ScanPage() {
   const navigate = useNavigate();
@@ -120,6 +124,20 @@ export function ScanPage() {
             {lookup.isPending ? strings.scan.searching : strings.scan.manualSubmit}
           </button>
         </form>
+      </section>
+
+      <section className="section">
+        <h2 className="section__title">{strings.scan.withoutBarcodeTitle}</h2>
+        <p className="section__intro">{strings.scan.withoutBarcodeIntro}</p>
+
+        <div className="form__actions">
+          <Link className="button" to="/products/new?kind=dish">
+            {strings.scan.newDish}
+          </Link>
+          <Link className="button" to="/products/new?kind=product">
+            {strings.scan.newLooseProduct}
+          </Link>
+        </div>
       </section>
     </section>
   );
