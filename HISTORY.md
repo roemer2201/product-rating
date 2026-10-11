@@ -18,6 +18,11 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
   Trefferzahl und erste Seite zusammen. Keine Migration erforderlich.
 - Regressionstests sichern beide Fälle ab. Alle 746 Tests, Lint, Typprüfung,
   Formatprüfung und Produktionsbuild erfolgreich.
+- Nachreview: Beide Tests scheitern gegen den vorherigen Stand (402 statt
+  höchstens 20 Faltungen, kein Treffer für das Emoji-Wort) und belegen damit
+  die Fehler. Umbruch in README 4.1 und im Kommentar zu
+  `categoryNameContains()` geglättet; `foldForSearch` wird wie die übrigen
+  Datenbank-Helfer über `db/index.ts` importiert.
 
 ---
 

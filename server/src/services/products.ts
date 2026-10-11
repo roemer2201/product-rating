@@ -683,11 +683,13 @@ function productFieldsContain(word: string): SQL | undefined {
  * One word against the names of the categories a product carries.
  *
  * A plain `LIKE` over the folded name: the category list is kept by hand and
- * short. Find its matching IDs first, then use the category assignment index;
- * joining all assignments first would fold the same name for every product.
- * Folding drops diacritics as well as
- * case, the same way the full text index does, so "kase" finds "Käse" there as
- * it does in a product name. "thermo" finds everything in "Thermomix".
+ * short. The matching categories are found first and their products then
+ * through the index on `category_id`; joining all assignments first would
+ * fold the same name once for every product that carries it.
+ *
+ * Folding drops diacritics as well as case, the same way the full text index
+ * does, so "kase" finds "Käse" there as it does in a product name. "thermo"
+ * finds everything in "Thermomix".
  *
  * Spelt out with qualified names on purpose, see `productCountExpression` in
  * the category service: the count query has no join, and Drizzle would leave

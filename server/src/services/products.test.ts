@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { productListQuerySchema, type ProductListQuery } from '@product-rating/shared';
-import { productCategories } from '../db/index.js';
-import { FOLD_FUNCTION, foldForSearch } from '../db/client.js';
+import { FOLD_FUNCTION, foldForSearch, productCategories } from '../db/index.js';
 import { createTestDatabase, seedDatabase, type TestDatabase } from '../db/testing.js';
 import { createCategory, deleteCategory, listCategories, updateCategory } from './categories.js';
 import { ConflictError, NotFoundError, ValidationError } from './errors.js';
