@@ -461,7 +461,8 @@ export const strings = {
   catalogue: {
     title: 'Katalog',
     search: 'Suchen',
-    searchPlaceholder: 'Name, Sorte, Marke, Quelle oder EAN',
+    // Short enough for a narrow phone; variant and source are searched too.
+    searchPlaceholder: 'Name, Marke, Kategorie oder EAN',
     // Not "Scannen": that is the screen in the navigation, which creates a
     // product. This one only fills the search field, and a screen reader
     // announces both one after the other.

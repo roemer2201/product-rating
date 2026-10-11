@@ -1,6 +1,8 @@
 export {
   DEFAULT_BUSY_TIMEOUT_MS,
+  FOLD_FUNCTION,
   LOWER_FUNCTION,
+  foldForSearch,
   openDatabase,
   type AppDatabase,
   type DbHandle,

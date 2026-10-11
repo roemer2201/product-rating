@@ -1,3 +1,13 @@
+product-rating (0.4.0) unstable; urgency=medium
+
+  * The free text search of the catalogue finds products by the name of
+    their categories as well, whole or in part, ignoring case and
+    diacritics: "thermo" finds everything filed under "Thermomix".
+  * Every word of a search term is matched on its own, short words
+    included, so a brand and part of a name find their product.
+
+ -- roemer2201 <roemer2201@users.noreply.github.com>  Sun, 11 Oct 2026 00:00:00 +0000
+
 product-rating (0.3.0) unstable; urgency=medium
 
   * Entries without an EAN: dishes and recipes as well as products without

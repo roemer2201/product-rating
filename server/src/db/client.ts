@@ -40,6 +40,26 @@ export const DEFAULT_BUSY_TIMEOUT_MS = 5000;
 export const LOWER_FUNCTION = 'pr_lower';
 
 /**
+ * Name of the folding function the search applies to category names: case and
+ * diacritics, the way `remove_diacritics` folds them for the full text index.
+ */
+export const FOLD_FUNCTION = 'pr_fold';
+
+/** Combining marks left behind by the canonical decomposition. */
+const COMBINING_MARKS = /\p{M}/gu;
+
+/**
+ * Lower case without diacritics: "Käse", "KÄSE" and "kase" become one word.
+ *
+ * The canonical decomposition splits "ä" into "a" and a combining diaeresis,
+ * which is then dropped. "ß" has no decomposition and stays what it is, as it
+ * does in the index.
+ */
+export function foldForSearch(value: string): string {
+  return value.normalize('NFD').replace(COMBINING_MARKS, '').toLowerCase();
+}
+
+/**
  * Registers the SQL functions the queries rely on.
  *
  * SQLite's built-in `lower()` only folds ASCII, so "Müller" and "müller" would
@@ -51,6 +71,9 @@ export const LOWER_FUNCTION = 'pr_lower';
 function registerFunctions(sqlite: Database.Database): void {
   sqlite.function(LOWER_FUNCTION, { deterministic: true }, (value: unknown) =>
     typeof value === 'string' ? value.toLowerCase() : null,
+  );
+  sqlite.function(FOLD_FUNCTION, { deterministic: true }, (value: unknown) =>
+    typeof value === 'string' ? foldForSearch(value) : null,
   );
 }
 
