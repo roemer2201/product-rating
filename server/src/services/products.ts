@@ -663,7 +663,9 @@ export function ftsPhrase(word: string): string {
  * `FTS_MIN_TERM_LENGTH`.
  */
 function productFieldsContain(word: string): SQL | undefined {
-  if (word.length < FTS_MIN_TERM_LENGTH) {
+  // SQLite counts Unicode code points, not UTF-16 code units: an emoji is one
+  // character even though JavaScript's string.length counts it as two.
+  if (Array.from(word).length < FTS_MIN_TERM_LENGTH) {
     return or(
       containsInsensitive(products.name, word),
       containsInsensitive(products.variant, word),
@@ -680,8 +682,10 @@ function productFieldsContain(word: string): SQL | undefined {
 /**
  * One word against the names of the categories a product carries.
  *
- * A plain `LIKE` over the folded name: the list is kept by hand and short, so
- * there is nothing an index would save. Folding drops diacritics as well as
+ * A plain `LIKE` over the folded name: the category list is kept by hand and
+ * short. Find its matching IDs first, then use the category assignment index;
+ * joining all assignments first would fold the same name for every product.
+ * Folding drops diacritics as well as
  * case, the same way the full text index does, so "kase" finds "Käse" there as
  * it does in a product name. "thermo" finds everything in "Thermomix".
  *
@@ -693,9 +697,11 @@ function categoryNameContains(word: string): SQL {
   const pattern = `%${escapeLikePattern(word)}%`;
   return sql`${products.id} in (
     select "product_categories"."product_id" from "product_categories"
-    inner join "categories" on "categories"."id" = "product_categories"."category_id"
-    where ${sql.raw(FOLD_FUNCTION)}("categories"."name")
-      like ${sql.raw(FOLD_FUNCTION)}(${pattern}) escape '\\'
+    where "product_categories"."category_id" in (
+      select "categories"."id" from "categories"
+      where ${sql.raw(FOLD_FUNCTION)}("categories"."name")
+        like ${sql.raw(FOLD_FUNCTION)}(${pattern}) escape '\\'
+    )
   )`;
 }
 

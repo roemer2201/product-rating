@@ -619,7 +619,10 @@ dieselben Produkte wie der Kategorie-Filter „Thermomix“, „thermo“ ebenso
 „thermomix suppe“ findet die Suppe in dieser Kategorie. Die Kategorien stehen
 nicht in `products_fts`, sondern werden per `LIKE` über `categories` und
 `product_categories` abgefragt: Die Liste wird von Hand gepflegt und ist kurz,
-ein Index brächte nichts, und eine Umbenennung wirkt ohne Trigger sofort. Der
+zuerst werden passende Kategorien bestimmt und dann ihre Produktzuordnungen
+über den vorhandenen Kategorie-Index geladen. So wird jeder Kategoriename
+nur einmal je Suchwort und Abfrage normalisiert. Eine Umbenennung wirkt ohne
+Trigger sofort. Der
 Vergleich läuft über die Anwendungsfunktion `pr_fold()`, die neben Groß- und
 Kleinschreibung auch diakritische Zeichen entfernt – wie der Tokenizer, sodass
 „kase“ die Kategorie „Käse“ findet. Eine Migration braucht das nicht.

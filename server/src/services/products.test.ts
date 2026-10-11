@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { productListQuerySchema, type ProductListQuery } from '@product-rating/shared';
 import { productCategories } from '../db/index.js';
+import { FOLD_FUNCTION, foldForSearch } from '../db/client.js';
 import { createTestDatabase, seedDatabase, type TestDatabase } from '../db/testing.js';
 import { createCategory, deleteCategory, listCategories, updateCategory } from './categories.js';
 import { ConflictError, NotFoundError, ValidationError } from './errors.js';
@@ -59,6 +60,37 @@ afterEach(() => {
 });
 
 describe('listProducts', () => {
+  it('finds short Unicode words in a search with multiple words', () => {
+    seedDatabase(database.db, {
+      products: [{ ean: null, name: '🍎A Ei', createdBy: annaId }],
+    });
+    const page = listProducts(database.db, annaId, query({ q: '🍎A ei' }));
+    expect(page.total).toBe(1);
+    expect(page.products.map((product) => product.name)).toEqual(['🍎A Ei']);
+  });
+
+  it('folds category names per category rather than per assigned product', () => {
+    seedDatabase(database.db, {
+      products: Array.from({ length: 200 }, (_, index) => ({
+        ean: null,
+        name: `Gericht ${index}`,
+        categories: ['Thermomix'],
+        createdBy: annaId,
+      })),
+    });
+    let folds = 0;
+    database.sqlite.function(FOLD_FUNCTION, { deterministic: true }, (value: unknown) => {
+      folds += 1;
+      return typeof value === 'string' ? foldForSearch(value) : null;
+    });
+    const page = listProducts(database.db, annaId, query({ q: 'thermo' }));
+    expect(page.total).toBe(200);
+    expect(page.products).toHaveLength(25);
+    // Count and page queries may each fold the pattern and the one category,
+    // but adding assignments must not multiply the normalization work.
+    expect(folds).toBeLessThan(20);
+  });
+
   it('pages through products whose sort key is identical', () => {
     seedDatabase(database.db, {
       products: [

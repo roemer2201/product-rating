@@ -5,6 +5,22 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-11 – Review-Korrekturen zu PR #45
+
+- **Kurze Unicode-Suchwörter.** Die Grenze für den Trigramm-Index zählt nun
+  Unicode-Codepoints statt UTF-16-Codeeinheiten. Dadurch findet etwa „🍎A ei“
+  den Eintrag „🍎A Ei“ wieder; das erste Wort wurde vorher trotz nur zwei
+  Zeichen an den Index geschickt und lieferte keine Treffer.
+- **Kategorien zuerst suchen.** Der Kategorieabgleich normalisiert die kurze
+  Kategorienliste und lädt die Zuordnungen über den vorhandenen Kategorie-Index.
+  Der bisherige Join normalisierte denselben Namen für jede Produktzuordnung:
+  im Regressionstest 402 Funktionsaufrufe für 200 Produkte statt vier für
+  Trefferzahl und erste Seite zusammen. Keine Migration erforderlich.
+- Regressionstests sichern beide Fälle ab. Alle 746 Tests, Lint, Typprüfung,
+  Formatprüfung und Produktionsbuild erfolgreich.
+
+---
+
 ## 2026-10-11 – Freitextsuche über Kategorien, Version 0.4.0
 
 Wunsch des Projektinhabers: „Thermomix“ im Suchfeld soll dieselben Einträge
