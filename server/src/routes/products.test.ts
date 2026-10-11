@@ -464,6 +464,35 @@ describe('searching and filtering', () => {
     ]);
   });
 
+  it('finds by category name what the category filter finds', async () => {
+    const filtered = await listProducts(`?categoryId=${categoryIds['Frühstück'] ?? ''}&sort=name`);
+    const searched = await listProducts('?q=fr%C3%BChst%C3%BCck&sort=name');
+    expect(namesOf(searched)).toEqual(namesOf(filtered));
+    expect(namesOf(searched)).toEqual(['Haferflocken', 'Müsli Knusper']);
+  });
+
+  it('finds a category by part of its name, whatever the case and diacritics', async () => {
+    expect(namesOf(await listProducts('?q=GETR'))).toEqual(['Apfelsaft']);
+    // Folded like the full text index folds a product name.
+    expect(namesOf(await listProducts('?q=fruhst&sort=name'))).toEqual([
+      'Haferflocken',
+      'Müsli Knusper',
+    ]);
+    // Shorter than a trigram, and still found through the category.
+    expect(namesOf(await listProducts('?q=s%C3%BC'))).toEqual(['Müsli Knusper']);
+  });
+
+  it('combines a category and a word of the product', async () => {
+    expect(namesOf(await listProducts('?q=fr%C3%BChst%C3%BCck%20hafer'))).toEqual(['Haferflocken']);
+    expect((await listProducts('?q=getr%C3%A4nke%20hafer')).total).toBe(0);
+  });
+
+  it('matches every word on its own, short ones included', async () => {
+    // The brand and the start of the name are two fields; a short word used to
+    // turn the whole term into one piece of text that neither contains.
+    expect(namesOf(await listProducts('?q=k%C3%B6lln%20ha'))).toEqual(['Haferflocken']);
+  });
+
   it('finds nothing for a category nobody carries', async () => {
     const page = await listProducts('?categoryId=unknown');
     expect(page.total).toBe(0);

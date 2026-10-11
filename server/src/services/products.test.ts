@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { productListQuerySchema, type ProductListQuery } from '@product-rating/shared';
 import { productCategories } from '../db/index.js';
 import { createTestDatabase, seedDatabase, type TestDatabase } from '../db/testing.js';
-import { createCategory, deleteCategory, listCategories } from './categories.js';
+import { createCategory, deleteCategory, listCategories, updateCategory } from './categories.js';
 import { ConflictError, NotFoundError, ValidationError } from './errors.js';
 import {
   createProduct,
@@ -289,6 +289,31 @@ describe('categories of a product', () => {
 
     expect(page.total).toBe(2);
     expect(page.products.map((product) => product.name)).toEqual(['Hafermilch', 'Tofu']);
+  });
+
+  it('is found by the current name of its category, and not from the trash', () => {
+    const seeded = seedDatabase(database.db, {
+      products: [
+        { ean: '4260000000011', name: 'Gemüsebrühe', categories: ['TM'], createdBy: annaId },
+        { ean: '4260000000028', name: 'Risotto', categories: ['TM'], createdBy: annaId },
+      ],
+    });
+    const category = seeded.categories?.[0]?.id ?? '';
+    const search = (q: string) =>
+      listProducts(database.db, annaId, query({ q, sort: 'name' })).products.map(
+        (product) => product.name,
+      );
+
+    expect(search('thermo')).toEqual([]);
+    updateCategory(database.db, category, { name: 'Thermomix' });
+    expect(search('thermo')).toEqual(['Gemüsebrühe', 'Risotto']);
+    expect(search('Thermomix')).toEqual(['Gemüsebrühe', 'Risotto']);
+
+    trashProduct(database.db, seeded.products?.[1]?.id ?? '', annaId);
+    expect(search('thermomix')).toEqual(['Gemüsebrühe']);
+
+    deleteCategory(database.db, category);
+    expect(search('thermomix')).toEqual([]);
   });
 
   it('loses a deleted category, and nothing else', () => {

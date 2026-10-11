@@ -412,6 +412,9 @@ Gerichten bedeutet der Preis „Kosten pro Portion“.
       Verwaltung laufen weiter über den Benutzernamen
 - [x] Fremde Bewertungen sichtbar machen: wer im Haushalt hat wie viele Sterne vergeben – bisher liefert die API nur Durchschnitt, Anzahl und die eigene Bewertung
 - [x] FTS5-Suche nachrüsten, falls die `LIKE`-Suche mit wachsendem Katalog spürbar langsam wird
+- [x] Freitextsuche findet auch Kategorien, ganz oder als Teilwort („thermo“
+      findet „Thermomix“), ohne Rücksicht auf Groß-/Kleinschreibung und
+      Akzente; jedes Wort des Suchbegriffs wird einzeln geprüft
 - [ ] TOTP-Zweitfaktor
 - [ ] Optionale Delegation der Authentifizierung an Reverse-Proxy-SSO
 - [x] Preisverlauf und Einkaufsort je Produkt

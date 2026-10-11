@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
-import { openDatabase } from './client.js';
+import { foldForSearch, openDatabase } from './client.js';
 import { migrationsFolder, pendingMigrations, runMigrations } from './migrate.js';
 import { ratings, sessions, users } from './schema.js';
 import { createTestDatabase, seedDatabase, type TestDatabase } from './testing.js';
@@ -530,3 +530,11 @@ function migrationsBefore(directory: string, tag: string): string {
   );
   return before;
 }
+
+describe('foldForSearch', () => {
+  it('drops case and diacritics, and leaves the sharp s alone', () => {
+    expect(foldForSearch('KÄSE')).toBe('kase');
+    expect(foldForSearch('Crème brûlée')).toBe('creme brulee');
+    expect(foldForSearch('Süßes')).toBe('sußes');
+  });
+});

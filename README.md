@@ -32,7 +32,7 @@ sich unter iOS zum Home-Bildschirm hinzufügen.
 - Bewertung von 0 bis 10 Sternen, optional mit Kommentar – die eigene ist
   änderbar, die der anderen im Haushalt sichtbar
 - Preisverlauf je Produkt mit Einkaufsort, bei Gerichten die Kosten pro Portion
-- Produktliste mit Volltextsuche (Name, Sorte, Marke, EAN) und Filter/Sortierung
+- Produktliste mit Volltextsuche (Name, Sorte, Marke, EAN, Kategorie) und Filter/Sortierung
   nach Bewertung und Art (Produkt oder Gericht)
 - Papierkorb: Gelöschtes lässt sich zurückholen
 - Offline erfassen: Ohne Verbindung Eingetipptes wartet auf dem Gerät und geht
@@ -603,14 +603,26 @@ Zeichen faltet der Tokenizer selbst, „müsli“, „MÜSLI“ und „musli“ 
 dasselbe. Ziffern verhalten sich genauso – anders als früher findet auch das
 Ende eines Barcodes sein Produkt und nicht nur der Anfang.
 
-Jedes Wort des Suchbegriffs wird in Anführungszeichen gesetzt, damit ein
-Bindestrich, ein Umlaut oder ein Anführungszeichen Text bleibt und keine
-Abfragesyntax wird; mehrere Wörter verbindet FTS5 mit UND – wer „kölln müsli“
-tippt, engt ein. Ein Wort mit weniger als drei Zeichen kann ein Trigramm-Index
-nicht beantworten; solche Suchen laufen weiter über `LIKE` mit der
-Anwendungsfunktion `pr_lower()`, die – anders als SQLites eingebautes `lower()`
-– die vollen Unicode-Regeln kennt. Das Ergebnis bleibt damit in jedem Fall
-exakt, nur der Weg dorthin unterscheidet sich.
+Der Suchbegriff wird in Wörter zerlegt, und **jedes Wort muss irgendwo
+vorkommen** – wer „kölln müsli“ tippt, engt ein. Ein Wort wird in
+Anführungszeichen gesetzt, damit ein Bindestrich, ein Umlaut oder ein
+Anführungszeichen Text bleibt und keine Abfragesyntax wird. Ein Wort mit
+weniger als drei Zeichen kann ein Trigramm-Index nicht beantworten; es läuft
+über `LIKE` mit der Anwendungsfunktion `pr_lower()`, die – anders als SQLites
+eingebautes `lower()` – die vollen Unicode-Regeln kennt. Weil das je Wort
+geschieht, findet auch „kölln ha“ die Haferflocken von Kölln, obwohl Marke und
+Name in zwei Feldern stehen.
+
+**Kategorien.** Jedes Wort darf statt in Name, Sorte, Marke oder EAN auch im
+Namen einer Kategorie des Produkts stehen. „Thermomix“ im Suchfeld liefert
+dieselben Produkte wie der Kategorie-Filter „Thermomix“, „thermo“ ebenso, und
+„thermomix suppe“ findet die Suppe in dieser Kategorie. Die Kategorien stehen
+nicht in `products_fts`, sondern werden per `LIKE` über `categories` und
+`product_categories` abgefragt: Die Liste wird von Hand gepflegt und ist kurz,
+ein Index brächte nichts, und eine Umbenennung wirkt ohne Trigger sofort. Der
+Vergleich läuft über die Anwendungsfunktion `pr_fold()`, die neben Groß- und
+Kleinschreibung auch diakritische Zeichen entfernt – wie der Tokenizer, sodass
+„kase“ die Kategorie „Käse“ findet. Eine Migration braucht das nicht.
 
 ### 4.2 Routen zu Bewertungen
 

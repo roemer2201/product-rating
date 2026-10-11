@@ -1,5 +1,6 @@
 export {
   DEFAULT_BUSY_TIMEOUT_MS,
+  FOLD_FUNCTION,
   LOWER_FUNCTION,
   openDatabase,
   type AppDatabase,

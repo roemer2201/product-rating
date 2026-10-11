@@ -18,6 +18,7 @@ import {
 } from '@product-rating/shared';
 import type { DbHandle } from '../db/index.js';
 import {
+  FOLD_FUNCTION,
   LOWER_FUNCTION,
   photos,
   products,
@@ -631,59 +632,86 @@ function containsInsensitive(column: SQLiteColumn, term: string): SQL {
  */
 const FTS_MIN_TERM_LENGTH = 3;
 
-/**
- * Turns a search term into an FTS5 query.
- *
- * Every word is quoted, which is what makes a hyphen, an umlaut or a stray
- * quote a piece of text instead of query syntax — unquoted, `bio-hof` is read
- * as a column name and the query fails. Several words are combined with the
- * implicit AND of FTS5: someone typing "kölln hafer" is narrowing down, not
- * asking for either.
- *
- * Returns `null` when at least one word is too short for the index; the caller
- * falls back to `LIKE` then rather than quietly searching for something else.
- */
-export function ftsQuery(term: string): string | null {
-  const words = term.split(/\s+/).filter((word) => word !== '');
-  if (words.length === 0) return null;
-  if (words.some((word) => word.length < FTS_MIN_TERM_LENGTH)) return null;
-
-  return words.map((word) => `"${word.replace(/"/g, '""')}"`).join(' ');
+/** The words of a search term; any run of white space separates two. */
+function searchWords(term: string): string[] {
+  return term.split(/\s+/).filter((word) => word !== '');
 }
 
 /**
- * Free text search over name, variant, brand and EAN through `LIKE`, as a
- * fallback.
+ * Turns one word of a search term into an FTS5 query.
+ *
+ * The word is quoted, which is what makes a hyphen, an umlaut or a stray quote
+ * a piece of text instead of query syntax - unquoted, `bio-hof` is read as a
+ * column name and the query fails.
  */
-function likeSearchCondition(term: string): SQL | undefined {
-  return or(
-    containsInsensitive(products.name, term),
-    containsInsensitive(products.variant, term),
-    containsInsensitive(products.brand, term),
-    containsInsensitive(products.ean, term),
-  );
+export function ftsPhrase(word: string): string {
+  return `"${word.replace(/"/g, '""')}"`;
 }
 
 /**
- * Free text search over name, variant, brand and EAN.
+ * One word against name, variant, brand and EAN.
  *
- * The words go against `products_fts`, a trigram index kept up to date by
+ * The word goes against `products_fts`, a trigram index kept up to date by
  * triggers on `products`. Trigrams are what makes this useful for German: a
  * search for "saft" finds "Apfelsaft", which a word based index never would,
  * and the tokenizer folds case and diacritics, so "koelln" aside, "kölln" and
- * "KÖLLN" are the same word. Digits work the same way — the tail of a barcode
+ * "KÖLLN" are the same word. Digits work the same way - the tail of a barcode
  * finds its product, where the previous `LIKE` search could only match a
  * prefix.
  *
- * Short words are the exception, see `ftsQuery()`.
+ * A word too short for the index goes through `LIKE` instead, see
+ * `FTS_MIN_TERM_LENGTH`.
  */
-function searchCondition(term: string): SQL | undefined {
-  const query = ftsQuery(term);
-  if (query === null) return likeSearchCondition(term);
+function productFieldsContain(word: string): SQL | undefined {
+  if (word.length < FTS_MIN_TERM_LENGTH) {
+    return or(
+      containsInsensitive(products.name, word),
+      containsInsensitive(products.variant, word),
+      containsInsensitive(products.brand, word),
+      containsInsensitive(products.ean, word),
+    );
+  }
 
   return sql`${products.id} in (
-    select product_id from products_fts where products_fts match ${query}
+    select product_id from products_fts where products_fts match ${ftsPhrase(word)}
   )`;
+}
+
+/**
+ * One word against the names of the categories a product carries.
+ *
+ * A plain `LIKE` over the folded name: the list is kept by hand and short, so
+ * there is nothing an index would save. Folding drops diacritics as well as
+ * case, the same way the full text index does, so "kase" finds "Käse" there as
+ * it does in a product name. "thermo" finds everything in "Thermomix".
+ *
+ * Spelt out with qualified names on purpose, see `productCountExpression` in
+ * the category service: the count query has no join, and Drizzle would leave
+ * `id` unqualified inside this subquery.
+ */
+function categoryNameContains(word: string): SQL {
+  const pattern = `%${escapeLikePattern(word)}%`;
+  return sql`${products.id} in (
+    select "product_categories"."product_id" from "product_categories"
+    inner join "categories" on "categories"."id" = "product_categories"."category_id"
+    where ${sql.raw(FOLD_FUNCTION)}("categories"."name")
+      like ${sql.raw(FOLD_FUNCTION)}(${pattern}) escape '\\'
+  )`;
+}
+
+/**
+ * Free text search over name, variant, brand, EAN and category.
+ *
+ * Every word has to be found somewhere: in the product's own fields or in the
+ * name of one of its categories. Someone typing "kölln müsli" is narrowing
+ * down, not asking for either, and "thermomix suppe" finds the soup filed
+ * under "Thermomix" although neither word alone would.
+ */
+function searchCondition(term: string): SQL | undefined {
+  const words = searchWords(term);
+  if (words.length === 0) return undefined;
+
+  return and(...words.map((word) => or(productFieldsContain(word), categoryNameContains(word))));
 }
 
 function filterConditions(query: ProductListQuery): SQL[] {

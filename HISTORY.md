@@ -5,6 +5,38 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-11 – Freitextsuche über Kategorien, Version 0.4.0
+
+Wunsch des Projektinhabers: „Thermomix“ im Suchfeld soll dieselben Einträge
+liefern wie der Kategorie-Filter „Thermomix“, und „thermo“ soll sie auch
+finden.
+
+- **Wort für Wort.** `searchCondition()` zerlegt den Suchbegriff und verlangt
+  jedes Wort für sich: im Trigramm-Index (Name, Sorte, Marke, EAN) **oder** im
+  Namen einer Kategorie des Produkts. Bisher ging der ganze Begriff als eine
+  FTS5-Abfrage durch, und sobald ein Wort kürzer als drei Zeichen war, als ein
+  einziges `LIKE` über den ganzen Text. Dadurch fand „kölln ha“ nichts, weil
+  Marke und Name in zwei Feldern stehen; jetzt findet es die Haferflocken. Mit
+  dem Projektinhaber abgestimmt.
+- **Kategorien per `LIKE`, nicht im Index.** Die Kategorienliste ist kurz und
+  wird von Hand gepflegt. Sie in `products_fts` zu spiegeln, hätte eine
+  Migration und Trigger auf `product_categories` und `categories` gebraucht
+  (Zuordnen, Umbenennen, Löschen); eine Teilsuche über die Liste kostet
+  dagegen nichts und folgt einer Umbenennung sofort.
+- **`pr_fold()`.** Neue Anwendungsfunktion neben `pr_lower()`: Unicode-
+  Kleinschreibung und Entfernen der diakritischen Zeichen über die kanonische
+  Zerlegung, wie es `remove_diacritics` im Index tut. „kase“ findet die
+  Kategorie „Käse“, „ß“ bleibt unverändert. Bewusst nur für Kategorien: Die
+  `LIKE`-Suche kurzer Wörter in Name, Sorte, Marke und EAN bleibt bei
+  `pr_lower()`, sonst fände „ko“ neben „Schoko“ plötzlich auch „Kölln“ – eine
+  Änderung, um die niemand gebeten hat.
+- **Platzhalter** im Suchfeld gekürzt auf „Name, Marke, Kategorie oder EAN“,
+  damit er auf schmalen iPhones nicht abgeschnitten wird. Sorte und Quelle
+  werden weiter durchsucht.
+- Keine Migration. MINOR-Sprung auf 0.4.0, weil die Suche neu etwas findet.
+
+---
+
 ## 2026-10-10 – Version 0.3.0
 
 Erster Versionssprung nach der neuen Regel (ein Merge, eine neue Version).
