@@ -807,18 +807,32 @@ a {
 .product-card__name,
 .product-card__variant,
 .product-card__brand,
+.product-card__average,
 .product-card__comment {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/*
+ * Stars and the text beside them stay on one line: the stars keep their width,
+ * the text gives way and is cut rather than pushed onto a fifth line.
+ */
 .product-card__rating {
   display: flex;
-  flex-wrap: wrap;
   gap: var(--space-2);
   align-items: baseline;
+  min-width: 0;
   font-size: 0.875rem;
+}
+
+.product-card__rating .stars-display {
+  flex: none;
+}
+
+.product-card__average,
+.product-card__comment {
+  min-width: 0;
 }
 
 .load-more {

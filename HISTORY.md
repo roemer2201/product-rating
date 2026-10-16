@@ -5,6 +5,27 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-16 – Gleichförmige Produktkarten
+
+Wunsch des Projektinhabers (mit Screenshot): Die Karten in Katalog und
+„Meine Bewertungen“ sollen immer vierzeilig sein. Bisher hatte eine Karte ohne
+Sorte drei Zeilen, und ab zwei Bewertungen brach „9,0 · 2 Bewertungen“ neben den
+zehn Sternen in eine fünfte Zeile um.
+
+- **Sortenzeile bleibt stehen.** Fehlt die Sorte, steht an ihrer Stelle ein
+  geschütztes Leerzeichen, für Screenreader ausgeblendet. Bewusst kein
+  `min-height: 1lh`: Die Einheit kann Safari erst ab iOS 16.4.
+- **Kurzform „9,0 (2)“** neben den Sternen, mit dem Projektinhaber abgestimmt
+  (Alternative war „9,0 · 2×“). Screenreader lesen weiter „9,0 · 2 Bewertungen“
+  über einen `visually-hidden`-Text. Die Produktseite behält die lange Form.
+- **Kein Umbruch in der Sternzeile.** `flex-wrap` entfällt; die Sterne behalten
+  ihre Breite, der Text daneben (auch der eigene Kommentar in „Meine
+  Bewertungen“) wird notfalls mit Auslassungspunkten gekürzt.
+- Im Browser mit nachgebautem Markup bei 320 und 390 px Breite geprüft: alle
+  Karten gleich hoch, auch mit zweistelliger Bewertungszahl.
+
+---
+
 ## 2026-10-11 – Review-Korrekturen zu PR #45
 
 - **Kurze Unicode-Suchwörter.** Die Grenze für den Trigramm-Index zählt nun

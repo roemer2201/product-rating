@@ -14,6 +14,12 @@ import { strings } from '@/lib/strings';
  * variant, brand), and what did we think of it (average, and whether I rated it
  * myself). The variant gets a line of its own: where a product line has a dozen
  * flavours, it is the only thing that tells two rows apart.
+ *
+ * Every row is exactly four lines high - name, variant, brand, stars - so a
+ * list reads as an even column. A product without a variant keeps the line
+ * empty, and none of the lines wraps: long texts are cut with an ellipsis, and
+ * the average next to the stars uses the short form "9,0 (2)", which fits
+ * beside ten stars even on a narrow phone.
  */
 
 interface ProductCardProps {
@@ -41,8 +47,13 @@ export function ProductCard({ product, showOwnRating = false }: ProductCardProps
 
         <span className="product-card__body">
           <span className="product-card__name">{product.name}</span>
-          {product.variant !== null && (
+          {product.variant !== null ? (
             <span className="product-card__variant">{product.variant}</span>
+          ) : (
+            // A no-break space gives the empty line the height of a filled one.
+            <span className="product-card__variant" aria-hidden="true">
+              {'\u00a0'}
+            </span>
           )}
           <span className="product-card__brand">
             {/* A dish says so first; its brand field holds where it comes from. */}
@@ -70,8 +81,16 @@ export function ProductCard({ product, showOwnRating = false }: ProductCardProps
               <>
                 <StarDisplay stars={Math.round(product.ratings.average ?? 0)} labelled={false} />
                 <span className="product-card__average">
-                  {formatAverage(product.ratings.average)} ·{' '}
-                  {strings.rating.count(product.ratings.count)}
+                  <span aria-hidden="true">
+                    {strings.rating.averageShort(
+                      formatAverage(product.ratings.average),
+                      product.ratings.count,
+                    )}
+                  </span>
+                  <span className="visually-hidden">
+                    {formatAverage(product.ratings.average)} ·{' '}
+                    {strings.rating.count(product.ratings.count)}
+                  </span>
                 </span>
               </>
             )}

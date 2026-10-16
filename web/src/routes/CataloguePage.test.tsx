@@ -69,10 +69,18 @@ describe('CataloguePage', () => {
     expect(await screen.findByText('Apfelsaft')).toBeInTheDocument();
     expect(screen.getByText('Haferflocken')).toBeInTheDocument();
     // The variant is what tells two products of one line apart, so the row
-    // shows it; a product without one shows no empty line either.
+    // shows it; a product without one keeps the line empty, so that every row
+    // has the same four lines.
     expect(screen.getByText('naturtrüb')).toBeInTheDocument();
+    const rows = screen.getAllByRole('listitem');
+    for (const row of rows) {
+      expect(row.querySelectorAll('.product-card__variant')).toHaveLength(1);
+    }
     expect(screen.getByText(strings.catalogue.total(2))).toBeInTheDocument();
-    expect(screen.getByText(/4[.,]5/)).toBeInTheDocument();
+    // The average is shown short enough to stay beside the stars, and read out
+    // in full.
+    expect(screen.getByText(/^4[.,]5 \(2\)$/)).toBeInTheDocument();
+    expect(screen.getByText(/^4[.,]5 · 2 Bewertungen$/)).toHaveClass('visually-hidden');
     // A product nobody has rated says so rather than showing zero stars.
     expect(screen.getByText(strings.rating.averageNone)).toBeInTheDocument();
   });
