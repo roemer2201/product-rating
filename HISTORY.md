@@ -5,6 +5,17 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-17 – Löschbutton für die Katalogsuche
+
+- Kleines Kreuz rechts innerhalb des Suchfelds, sichtbar bei nicht leerer Eingabe.
+  Leert Text und aktive Suche sofort; übrige Filter bleiben erhalten.
+- Der Fokus kehrt ins Suchfeld zurück. Der Button ist per Tastatur erreichbar
+  und für Screenreader mit „Suche leeren“ beschriftet.
+- Vorhandenes Kreuz-Icon und Theme-Farben wiederverwendet; der native
+  WebKit-Löschbutton wird ausgeblendet, damit kein doppeltes Kreuz erscheint.
+
+---
+
 ## 2026-10-16 – Versionsanzeige in den Einstellungen
 
 Wunsch des Projektinhabers: oben rechts auf der Einstellungsseite die laufende

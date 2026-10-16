@@ -463,6 +463,7 @@ export const strings = {
   catalogue: {
     title: 'Katalog',
     search: 'Suchen',
+    clearSearch: 'Suche leeren',
     // Short enough for a narrow phone; variant and source are searched too.
     searchPlaceholder: 'Name, Marke, Kategorie oder EAN',
     // Not "Scannen": that is the screen in the navigation, which creates a

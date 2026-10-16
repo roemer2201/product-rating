@@ -420,6 +420,9 @@ Gerichten bedeutet der Preis „Kosten pro Portion“.
       stehen, Durchschnitt neben den Sternen in der Kurzform „9,0 (2)“
 - [x] Laufende Version oben rechts in den Einstellungen: die des App-Bundles,
       dazu die des Servers, wenn sie abweicht
+- [x] Kreuz rechts im Suchfeld des Katalogs, nur bei Eingabe sichtbar: leert
+      die Suche sofort, lässt die übrigen Filter stehen und setzt den Fokus
+      zurück ins Feld
 - [ ] TOTP-Zweitfaktor
 - [ ] Optionale Delegation der Authentifizierung an Reverse-Proxy-SSO
 - [x] Preisverlauf und Einkaufsort je Produkt

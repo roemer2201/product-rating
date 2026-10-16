@@ -1262,9 +1262,37 @@ a {
   gap: var(--space-3);
 }
 
-.filters__search .field__input {
+.filters__search-field {
+  position: relative;
+  display: flex;
   flex: 1 1 auto;
   min-width: 0;
+}
+
+/* Reserve room for the clear button without changing the field's width. */
+.filters__search-field .field__input {
+  padding-right: var(--tap-target);
+}
+
+/* Use one consistent clear control instead of a second native WebKit button. */
+.filters__search-field .field__input::-webkit-search-cancel-button {
+  /* Older Safari only honours the prefixed property on this pseudo-element. */
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.filters__clear {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  bottom: 1px;
+  width: calc(var(--tap-target) - 2px);
+  padding: 0;
+  color: var(--color-text-muted);
+}
+
+.filters__clear:hover {
+  color: var(--color-text);
 }
 
 /* A square of the tap target size: the icon is the whole label. */
