@@ -1,3 +1,13 @@
+product-rating (0.5.0) unstable; urgency=medium
+
+  * The settings screen shows the version of the app top right, and the
+    version of the server below it when the two differ.
+  * Product rows in the lists are always four lines high: an empty variant
+    keeps its line, and the average beside the stars uses the short form
+    "9,0 (2)" so it no longer wraps.
+
+ -- roemer2201 <roemer2201@users.noreply.github.com>  Fri, 16 Oct 2026 00:00:00 +0000
+
 product-rating (0.4.0) unstable; urgency=medium
 
   * The free text search of the catalogue finds products by the name of

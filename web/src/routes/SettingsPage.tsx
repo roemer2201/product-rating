@@ -12,10 +12,12 @@ import {
   useLogout,
   useOwnSessions,
   useRevokeSession,
+  useServerVersion,
   useSession,
   useUpdateProfile,
 } from '@/lib/queries';
 import { strings } from '@/lib/strings';
+import { APP_VERSION, compareVersions } from '@/lib/version';
 
 /**
  * The account: who you are, your password, your devices, and the way out.
@@ -26,12 +28,17 @@ import { strings } from '@/lib/strings';
  * The display name is the one thing about the account that changes here
  * without an administrator: it is what the others in the household see at a
  * rating, so whoever wears the name decides what it is.
+ *
+ * Top right stands the version of the app on this device. Where the server
+ * reports another one, it is named below - a newer server means the update
+ * prompt is due, and the app here is still the old one.
  */
 export function SettingsPage() {
   const navigate = useNavigate();
 
   const session = useSession();
   const sessions = useOwnSessions();
+  const serverVersion = useServerVersion();
   const changePassword = useChangePassword();
   const updateProfile = useUpdateProfile();
   const revoke = useRevokeSession();
@@ -102,9 +109,23 @@ export function SettingsPage() {
         ? strings.settings.passwordWrong
         : errorMessage(changePassword.error);
 
+  const server = serverVersion.data ?? null;
+  const serverHint =
+    server === null || compareVersions(server, APP_VERSION) === 0
+      ? null
+      : compareVersions(server, APP_VERSION) > 0
+        ? strings.settings.serverVersionNewer(server)
+        : strings.settings.serverVersion(server);
+
   return (
     <section>
-      <h1 className="page__title">{strings.settings.title}</h1>
+      <div className="page__head">
+        <h1 className="page__title">{strings.settings.title}</h1>
+        <p className="app-version">
+          <span>{strings.settings.version(APP_VERSION)}</span>
+          {serverHint !== null && <span className="app-version__server">{serverHint}</span>}
+        </p>
+      </div>
 
       {user != null && (
         <section className="section">

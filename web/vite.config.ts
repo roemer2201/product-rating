@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -26,11 +27,23 @@ function basePath(): string {
 
 const base = basePath();
 
+/**
+ * Version of the bundle, shown on the settings screen. It comes from the
+ * package manifest of this workspace, which carries the one version of the
+ * repository (`server/src/version.test.ts` holds all manifests to it).
+ */
+const { version } = JSON.parse(
+  readFileSync(fileURLToPath(new URL('./package.json', import.meta.url)), 'utf8'),
+) as { version: string };
+
 /** Escapes the path so it can stand at the front of a regular expression. */
 const baseAsPattern = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export default defineConfig({
   base,
+  define: {
+    __APP_VERSION__: JSON.stringify(version),
+  },
   plugins: [
     react(),
     VitePWA({
@@ -141,6 +154,11 @@ export default defineConfig({
         target: 'http://127.0.0.1:8080',
         changeOrigin: false,
       },
+      // The settings screen reads the server version from here.
+      '/healthz': {
+        target: 'http://127.0.0.1:8080',
+        changeOrigin: false,
+      },
     },
   },
   // The service worker only exists in a build, so `vite preview` is the only
@@ -149,6 +167,11 @@ export default defineConfig({
     port: 4173,
     proxy: {
       '/api': {
+        target: 'http://127.0.0.1:8080',
+        changeOrigin: false,
+      },
+      // The settings screen reads the server version from here.
+      '/healthz': {
         target: 'http://127.0.0.1:8080',
         changeOrigin: false,
       },

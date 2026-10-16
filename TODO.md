@@ -415,6 +415,11 @@ Gerichten bedeutet der Preis „Kosten pro Portion“.
 - [x] Freitextsuche findet auch Kategorien, ganz oder als Teilwort („thermo“
       findet „Thermomix“), ohne Rücksicht auf Groß-/Kleinschreibung und
       Akzente; jedes Wort des Suchbegriffs wird einzeln geprüft
+- [x] Produktkarten in den Listen immer vierzeilig (Name, Sorte, Marke,
+      Sterne), damit die Liste gleichförmig aussieht: leere Sortenzeile bleibt
+      stehen, Durchschnitt neben den Sternen in der Kurzform „9,0 (2)“
+- [x] Laufende Version oben rechts in den Einstellungen: die des App-Bundles,
+      dazu die des Servers, wenn sie abweicht
 - [ ] TOTP-Zweitfaktor
 - [ ] Optionale Delegation der Authentifizierung an Reverse-Proxy-SSO
 - [x] Preisverlauf und Einkaufsort je Produkt

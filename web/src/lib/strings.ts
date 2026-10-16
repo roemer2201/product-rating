@@ -437,6 +437,8 @@ export const strings = {
     average: 'Durchschnitt',
     averageNone: 'Noch keine Bewertung',
     count: (count: number) => (count === 1 ? '1 Bewertung' : `${count} Bewertungen`),
+    /* Average and count in a list row, where the long form would not fit. */
+    averageShort: (average: string, count: number) => `${average} (${count})`,
     starsLabel: 'Sterne',
     starLabel: (stars: number) => (stars === 1 ? '1 Stern' : `${stars} Sterne`),
     starsOf: (stars: number) => `${stars} von ${RATING_MAX_STARS} Sternen`,
@@ -514,6 +516,10 @@ export const strings = {
     roleAdmin: 'Administrator',
     roleUser: 'Nutzer',
     memberSince: (date: string) => `Dabei seit ${date}`,
+    /* Top right of the screen: the app on this device, and the server if it differs. */
+    version: (version: string) => `Version ${version}`,
+    serverVersion: (version: string) => `Server ${version}`,
+    serverVersionNewer: (version: string) => `Server ${version} – Aktualisierung ausstehend`,
 
     displayNameTitle: 'Anzeigename',
     displayNameIntro:

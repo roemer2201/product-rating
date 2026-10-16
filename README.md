@@ -1638,7 +1638,12 @@ mit einem Branch-Schutz in den GitHub-Einstellungen des Repositorys.
 
 **Quelle der Wahrheit sind die `package.json`-Dateien.** Daraus liest
 `product-rating version` und `/healthz` (über `server/package.json`) und
-`packaging/build-deb.sh` (über die Datei im Wurzelverzeichnis). Die
+`packaging/build-deb.sh` (über die Datei im Wurzelverzeichnis). Die Web-App
+bekommt ihre Nummer beim Bau aus `web/package.json` und zeigt sie oben rechts
+in den Einstellungen. Meldet `/healthz` eine andere, steht die Server-Version
+darunter; ist sie neuer, mit dem Hinweis, dass die Aktualisierung der App noch
+aussteht – das Telefon läuft dann noch auf dem alten, vom Service Worker
+gecachten Bundle. Die
 Änderungsgeschichte steht in [HISTORY.md](HISTORY.md) – ein eigenes `CHANGELOG`
 gibt es bewusst nicht, es liefe daneben her. `packaging/debian/changelog` ist
 kein zweites Verzeichnis der Änderungen, sondern der kurze Paketeintrag, den

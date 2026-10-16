@@ -5,6 +5,53 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-16 – Versionsanzeige in den Einstellungen
+
+Wunsch des Projektinhabers: oben rechts auf der Einstellungsseite die laufende
+Version.
+
+- **Version des Bundles, nicht des Servers.** Mit dem Projektinhaber
+  abgestimmt. Eine installierte PWA läuft bis zur Bestätigung der
+  Aktualisierungsaufforderung auf dem gecachten Bundle; die Server-Version
+  sagte also nichts darüber, welcher Code auf dem Telefon läuft. Vite schreibt
+  die Nummer aus `web/package.json` per `define` als `__APP_VERSION__` ins
+  Bundle; `vitest.config.ts` macht dasselbe für die Tests. Sie ist damit auch
+  offline sichtbar.
+- **Server-Hinweis bei Abweichung.** Die Seite fragt `/healthz` ab (unterhalb
+  von `BASE_URL`, funktioniert also auch unter einem Unterpfad) und nennt die
+  Server-Version nur, wenn sie abweicht – ist sie neuer, mit „Aktualisierung
+  ausstehend“. Ein `503` eines angeschlagenen Servers trägt die Version
+  ebenfalls und wird gelesen; eine Antwort ohne Versionsfeld (etwa eine
+  HTML-Fehlerseite eines Proxys) ergibt keinen Hinweis statt eines Fehlers.
+  Keine Serveränderung nötig.
+- `vite dev` und `vite preview` leiten `/healthz` jetzt wie `/api` an den
+  Server weiter. Die Proxy-Beispiele reichen ohnehin alle Pfade durch.
+- Im Browser bei 320 px geprüft: Die Überschrift bleibt ganz, der
+  Versionsblock bricht notfalls zwischen Wörtern um.
+
+---
+
+## 2026-10-16 – Gleichförmige Produktkarten
+
+Wunsch des Projektinhabers (mit Screenshot): Die Karten in Katalog und
+„Meine Bewertungen“ sollen immer vierzeilig sein. Bisher hatte eine Karte ohne
+Sorte drei Zeilen, und ab zwei Bewertungen brach „9,0 · 2 Bewertungen“ neben den
+zehn Sternen in eine fünfte Zeile um.
+
+- **Sortenzeile bleibt stehen.** Fehlt die Sorte, steht an ihrer Stelle ein
+  geschütztes Leerzeichen, für Screenreader ausgeblendet. Bewusst kein
+  `min-height: 1lh`: Die Einheit kann Safari erst ab iOS 16.4.
+- **Kurzform „9,0 (2)“** neben den Sternen, mit dem Projektinhaber abgestimmt
+  (Alternative war „9,0 · 2×“). Screenreader lesen weiter „9,0 · 2 Bewertungen“
+  über einen `visually-hidden`-Text. Die Produktseite behält die lange Form.
+- **Kein Umbruch in der Sternzeile.** `flex-wrap` entfällt; die Sterne behalten
+  ihre Breite, der Text daneben (auch der eigene Kommentar in „Meine
+  Bewertungen“) wird notfalls mit Auslassungspunkten gekürzt.
+- Im Browser mit nachgebautem Markup bei 320 und 390 px Breite geprüft: alle
+  Karten gleich hoch, auch mit zweistelliger Bewertungszahl.
+
+---
+
 ## 2026-10-11 – Review-Korrekturen zu PR #45
 
 - **Kurze Unicode-Suchwörter.** Die Grenze für den Trigramm-Index zählt nun

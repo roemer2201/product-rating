@@ -339,7 +339,41 @@ export type MyRatingsParams = {
   cursor?: string | undefined;
 };
 
+/**
+ * The version the server reports, or `null` when the answer does not say.
+ *
+ * Read from `/healthz`, which sits outside `/api/v1` but below `BASE_URL`, so
+ * a sub-path deployment reaches it the same way. A degraded instance answers
+ * `503` with the same body and still knows its version; anything that is not
+ * that body - a proxy that does not pass the address on, say - is no version
+ * rather than an error.
+ */
+async function serverVersion(signal?: AbortSignal): Promise<string | null> {
+  let response: Response;
+  try {
+    response = await fetch(`${import.meta.env.BASE_URL}healthz`, {
+      headers: { accept: 'application/json' },
+      credentials: 'same-origin',
+      ...(signal === undefined ? {} : { signal }),
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error;
+    throw ApiError.network(error);
+  }
+
+  try {
+    const body = (await response.json()) as { version?: unknown };
+    return typeof body.version === 'string' ? body.version : null;
+  } catch {
+    return null;
+  }
+}
+
 export const api = {
+  server: {
+    version: serverVersion,
+  },
+
   auth: {
     me: (signal?: AbortSignal) =>
       request<{ user: User }>('/auth/me', signal === undefined ? {} : { signal }),
