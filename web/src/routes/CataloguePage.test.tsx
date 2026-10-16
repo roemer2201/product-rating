@@ -169,6 +169,49 @@ describe('CataloguePage', () => {
     });
   });
 
+  it('clears the search but keeps the other filters', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([
+      CATEGORIES,
+      { path: '/products', body: makeProductPage([makeProduct()]) },
+    ]);
+
+    renderCatalogue();
+    await screen.findByText('Apfelsaft');
+
+    // Nothing to clear yet, so there is no button.
+    expect(
+      screen.queryByRole('button', { name: strings.catalogue.clearSearch }),
+    ).not.toBeInTheDocument();
+
+    // The filter is set after the search, so that the list without the term
+    // is one the screen has not asked for yet and has to be fetched.
+    const input = screen.getByLabelText(strings.catalogue.search);
+    await user.type(input, 'saft');
+    await waitFor(() => {
+      expect(lastListUrl(fetchMock.mock.calls)).toContain('q=saft');
+    });
+    await user.selectOptions(screen.getByLabelText(strings.catalogue.kind), 'dish');
+    await waitFor(() => {
+      const url = lastListUrl(fetchMock.mock.calls);
+      expect(url).toContain('q=saft');
+      expect(url).toContain('kind=dish');
+    });
+
+    await user.click(screen.getByRole('button', { name: strings.catalogue.clearSearch }));
+
+    expect(input).toHaveValue('');
+    expect(input).toHaveFocus();
+    expect(
+      screen.queryByRole('button', { name: strings.catalogue.clearSearch }),
+    ).not.toBeInTheDocument();
+    await waitFor(() => {
+      const url = lastListUrl(fetchMock.mock.calls);
+      expect(url).not.toContain('q=');
+      expect(url).toContain('kind=dish');
+    });
+  });
+
   it('turns the filters into query parameters', async () => {
     const user = userEvent.setup();
     const fetchMock = mockFetch([

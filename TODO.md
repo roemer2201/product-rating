@@ -9,10 +9,6 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 
 ---
 
-## Ergänzung – Katalogsuche leeren
-
-- [x] **[S]** Kleinen Löschbutton rechts im Suchfeld ergänzen: nur bei Eingabe sichtbar, Suche sofort leeren, andere Filter erhalten und Fokus ins Suchfeld zurücksetzen.
-
 ## M0 – Projektgerüst
 
 - [x] **[S]** `package.json` im Wurzelverzeichnis mit npm-Workspaces `server`, `web`, `shared`
@@ -424,6 +420,9 @@ Gerichten bedeutet der Preis „Kosten pro Portion“.
       stehen, Durchschnitt neben den Sternen in der Kurzform „9,0 (2)“
 - [x] Laufende Version oben rechts in den Einstellungen: die des App-Bundles,
       dazu die des Servers, wenn sie abweicht
+- [x] Kreuz rechts im Suchfeld des Katalogs, nur bei Eingabe sichtbar: leert
+      die Suche sofort, lässt die übrigen Filter stehen und setzt den Fokus
+      zurück ins Feld
 - [ ] TOTP-Zweitfaktor
 - [ ] Optionale Delegation der Authentifizierung an Reverse-Proxy-SSO
 - [x] Preisverlauf und Einkaufsort je Produkt

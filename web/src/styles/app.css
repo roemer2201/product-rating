@@ -1276,6 +1276,8 @@ a {
 
 /* Use one consistent clear control instead of a second native WebKit button. */
 .filters__search-field .field__input::-webkit-search-cancel-button {
+  /* Older Safari only honours the prefixed property on this pseudo-element. */
+  -webkit-appearance: none;
   appearance: none;
 }
 
