@@ -8,6 +8,7 @@ import { enqueueCapture, listCaptures } from '@/lib/offlineQueue';
 import { mockFetch, testUser } from '@/testing/fetchMock';
 import { makeProductDetail, makeRating, TEST_EAN } from '@/testing/fixtures';
 import { renderWithProviders } from '@/testing/render';
+import { APP_VERSION } from '@/lib/version';
 
 /** The account screen: password, devices, and the way out. */
 
@@ -52,6 +53,47 @@ function renderSettings() {
 }
 
 describe('SettingsPage', () => {
+  it('shows the version of the app and nothing more while the server agrees', async () => {
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      SESSIONS,
+      { path: '/healthz', body: { status: 'ok', version: APP_VERSION } },
+    ]);
+
+    renderSettings();
+
+    expect(await screen.findByText(strings.settings.version(APP_VERSION))).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText(/^Server /u)).not.toBeInTheDocument();
+    });
+  });
+
+  it('points out a newer server, because the app here still has to update', async () => {
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      SESSIONS,
+      // A degraded server still says which version it is.
+      { path: '/healthz', status: 503, body: { status: 'degraded', version: '999.0.0' } },
+    ]);
+
+    renderSettings();
+
+    expect(await screen.findByText(strings.settings.serverVersionNewer('999.0.0'))).toBeVisible();
+    expect(screen.getByText(strings.settings.version(APP_VERSION))).toBeInTheDocument();
+  });
+
+  it('names an older server without asking for an update', async () => {
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      SESSIONS,
+      { path: '/healthz', body: { status: 'ok', version: '0.0.1' } },
+    ]);
+
+    renderSettings();
+
+    expect(await screen.findByText(strings.settings.serverVersion('0.0.1'))).toBeVisible();
+  });
+
   it('saves a display name and says how the others will see it', async () => {
     const user = userEvent.setup();
     const fetchMock = mockFetch([

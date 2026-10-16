@@ -102,6 +102,7 @@ export const CACHE_TIMES = {
 
 export const queryKeys = {
   session: ['session'] as const,
+  serverVersion: ['server-version'] as const,
   ownSessions: ['sessions'] as const,
   products: {
     all: ['products'] as const,
@@ -604,6 +605,19 @@ export function useDeletePrice(): UseMutationResult<void, Error, DeletePriceVari
 }
 
 /* ---------------------------------------------------------------- account */
+
+/**
+ * The version of the server, for the settings screen. Not retried: offline it
+ * is simply not shown, and the version of the bundle stands on its own.
+ */
+export function useServerVersion(): UseQueryResult<string | null, Error> {
+  return useQuery({
+    queryKey: queryKeys.serverVersion,
+    queryFn: ({ signal }) => api.server.version(signal),
+    staleTime: CACHE_TIMES.session,
+    retry: false,
+  });
+}
 
 export function useOwnSessions(): UseQueryResult<SessionInfo[], Error> {
   return useQuery({

@@ -516,6 +516,10 @@ export const strings = {
     roleAdmin: 'Administrator',
     roleUser: 'Nutzer',
     memberSince: (date: string) => `Dabei seit ${date}`,
+    /* Top right of the screen: the app on this device, and the server if it differs. */
+    version: (version: string) => `Version ${version}`,
+    serverVersion: (version: string) => `Server ${version}`,
+    serverVersionNewer: (version: string) => `Server ${version} – Aktualisierung ausstehend`,
 
     displayNameTitle: 'Anzeigename',
     displayNameIntro:
