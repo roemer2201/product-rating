@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import {
   PRODUCT_SEARCH_MAX_LENGTH,
@@ -13,7 +13,7 @@ import { LoadMore } from '@/components/LoadMore';
 import { ProductCard } from '@/components/ProductCard';
 import { PullToRefresh } from '@/components/PullToRefresh';
 import { SelectField } from '@/components/Field';
-import { CameraIcon } from '@/components/icons';
+import { CameraIcon, CloseIcon } from '@/components/icons';
 import { errorMessage } from '@/lib/api';
 import { useCategories, useProductList } from '@/lib/queries';
 import { strings } from '@/lib/strings';
@@ -54,6 +54,7 @@ const SORT_LABELS: Record<ProductSortField, string> = {
 };
 
 export function CataloguePage() {
+  const searchInput = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState('');
   const [term, setTerm] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -134,18 +135,37 @@ export function CataloguePage() {
               {strings.catalogue.search}
             </label>
             <div className="filters__search">
-              <input
-                id="catalogue-search"
-                className="field__input"
-                type="search"
-                value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                }}
-                placeholder={strings.catalogue.searchPlaceholder}
-                maxLength={PRODUCT_SEARCH_MAX_LENGTH}
-                autoComplete="off"
-              />
+              <div className="filters__search-field">
+                <input
+                  ref={searchInput}
+                  id="catalogue-search"
+                  className="field__input"
+                  type="search"
+                  value={search}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                  }}
+                  placeholder={strings.catalogue.searchPlaceholder}
+                  maxLength={PRODUCT_SEARCH_MAX_LENGTH}
+                  autoComplete="off"
+                />
+                {search !== '' && (
+                  <button
+                    type="button"
+                    className="button button--quiet filters__clear"
+                    onClick={() => {
+                      // Clearing is complete immediately, including a pending search.
+                      setSearch('');
+                      setTerm('');
+                      searchInput.current?.focus();
+                    }}
+                    aria-label={strings.catalogue.clearSearch}
+                    title={strings.catalogue.clearSearch}
+                  >
+                    <CloseIcon className="button__icon" />
+                  </button>
+                )}
+              </div>
               <button
                 type="button"
                 className="button filters__scan"

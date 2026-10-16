@@ -9,6 +9,10 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 
 ---
 
+## Ergänzung – Katalogsuche leeren
+
+- [x] **[S]** Kleinen Löschbutton rechts im Suchfeld ergänzen: nur bei Eingabe sichtbar, Suche sofort leeren, andere Filter erhalten und Fokus ins Suchfeld zurücksetzen.
+
 ## M0 – Projektgerüst
 
 - [x] **[S]** `package.json` im Wurzelverzeichnis mit npm-Workspaces `server`, `web`, `shared`
