@@ -68,6 +68,7 @@ web/                    React-PWA
 shared/                 Gemeinsame Typen und Zod-Schemata für Server und Web
 config/config.example.toml
 packaging/build-deb.sh  Bauskript des Debian-Pakets (npm run package:deb)
+packaging/completion/   Bash-Vervollständigung der CLI und ihr Testskript
 packaging/debian/       control, conffiles, templates, config/postinst/prerm/postrm,
                         systemd-Unit, logrotate-Regel, ausgelieferte config.toml,
                         CLI-Aufsatz, copyright, changelog, lintian-overrides
@@ -103,7 +104,9 @@ Seit M13 ist `server/src/index.ts` die CLI: `serve`, `migrate`, `user`,
 `npx tsx server/src/index.ts <befehl>`, im Bundle `node server/dist/index.js
 <befehl>`; `npm run migrate` und `npm run fsck` sind nur noch Abkürzungen
 darauf. Neue Befehle gehören nach `server/src/cli/` und in die Tabelle in
-README 8.1.
+README 8.1; neue Befehle, Optionen und Konfigurationsschlüssel zusätzlich in
+`packaging/completion/product-rating.bash` (`server/src/cli/completion.test.ts`
+prüft das).
 
 Vor jedem Commit mindestens `npm run lint`, `npm run typecheck` und `npm test`
 laufen lassen und Fehlschläge berichten, nicht stillschweigend übergehen.

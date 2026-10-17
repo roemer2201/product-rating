@@ -1157,7 +1157,8 @@ davor.
 `/usr/bin/product-rating` ist ein dünner Aufsatz: Er beantwortet `version` aus
 der Paketversion und übergibt alles andere unverändert an das Bundle. Die
 Befehle selbst stehen in der Anwendung (8.1), damit Docker und Paket dieselben
-haben.
+haben. Dazu legt das Paket die Bash-Vervollständigung nach
+`/usr/share/bash-completion/completions/product-rating` (8.1).
 
 **Paket bauen.** `npm run package:deb` baut beide Workspaces, stellt einen
 Abhängigkeitsbaum nur aus Laufzeitpaketen zusammen, wirft die Binärdateien
@@ -1339,6 +1340,34 @@ Jeder Befehl versteht zusätzlich die Konfigurationsschalter aus 6:
 `--log-level`, `--log-format`, `--log-destination`. Damit lässt sich jeder
 Befehl auf eine zweite Instanz richten. Einzige Doppelbelegung: `fsck --uploads`
 meint die Prüfung, nicht den Pfad – dafür `--set paths.uploads=<dir>`.
+
+**Bash-Vervollständigung.** `packaging/completion/product-rating.bash`
+vervollständigt mit TAB die Befehle, die Unterbefehle von `user` und `invite`,
+die Optionen jedes Befehls samt Konfigurationsschaltern und deren Werte, soweit
+es eine feste Auswahl gibt (`--log-level`, `--format`, `--server`, `--role`,
+die Schlüssel hinter `--set` und für einige davon auch den Wert) oder es Pfade
+sind. Kontonamen und Einladungscodes bietet sie bewusst nicht an: Dafür müsste
+TAB die Datenbank der gerade konfigurierten Instanz öffnen. Voraussetzung ist
+das Paket `bash-completion` (Debian/Ubuntu und Rocky Linux gleichnamig), ab
+Version 2.7 und Bash 4.2.
+
+Das Debian-Paket installiert die Datei als
+`/usr/share/bash-completion/completions/product-rating`; sie wird beim ersten
+TAB in einer neuen Shell geladen. Ohne Paket, etwa in einem Checkout:
+
+```bash
+# für das eigene Konto
+install -D -m 0644 packaging/completion/product-rating.bash \
+  "${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion/completions/product-rating"
+# oder nur für die laufende Shell
+source packaging/completion/product-rating.bash
+```
+
+Im Container hilft sie nicht: Das Image hat weder `bash-completion` noch
+`product-rating` im `PATH`, der Aufruf läuft dort über `docker compose exec`.
+Wer einen Befehl oder eine Option ergänzt, trägt sie auch in die Completion ein;
+`server/src/cli/completion.test.ts` vergleicht deren Listen mit den Hilfetexten,
+dem Konfigurationsschema und den Proxy-Zielen und scheitert bei einer Lücke.
 
 Exit-Codes: `0` erledigt, `1` fehlgeschlagen oder Fund (`fsck`), `2` falsch
 aufgerufen. Ergebnisse gehen nach stdout, Fortschritt und Fehler nach stderr –
@@ -1677,6 +1706,8 @@ Zwei Workflows unter `.github/workflows/`:
 
 - **`ci.yml`** läuft bei jedem Push und jedem Pull Request auf `main` und auf
   `claude/**`: `npm ci`, `format:check`, `lint`, `typecheck`, `test`, `build`.
+  Für den Test der Bash-Vervollständigung installiert der Job vorher
+  `bash-completion`.
   Dazu ein zweiter Job, der das Debian-Paket baut und mit `lintian` prüft, und
   ein dritter, der das Container-Image baut (ohne es zu veröffentlichen). Bei
   Pull Requests kommt der Job „Version raised“ hinzu: Er scheitert, wenn die

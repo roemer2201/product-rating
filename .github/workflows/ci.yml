@@ -89,6 +89,11 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      # The completion test checks packaging/completion/ against the real
+      # library as well, and skips that part where it is missing.
+      - name: Install bash-completion
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes bash-completion
+
       - name: Test
         run: npm test
 
