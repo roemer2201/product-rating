@@ -5,6 +5,25 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-17 – Abmelden nur noch in den Einstellungen
+
+Wunsch des Projektinhabers: den Abmelde-Button aus der Kopfzeile in die
+Einstellungen verlegen.
+
+- Die Einstellungsseite hatte seit M8 bereits einen eigenen Abschnitt
+  „Abmelden“. Die Kopfzeile hatte den Button nur noch, weil es vor M8 keinen
+  anderen Platz dafür gab. Er ist dort jetzt entfernt, zusammen mit der
+  CSS-Regel, die ihn vor dem Schrumpfen schützte.
+- „Angemeldet als …“ bleibt in der Kopfzeile, damit man das aktive Konto
+  weiterhin auf einen Blick sieht (mit dem Projektinhaber abgestimmt).
+- Die Tests für das Abmelden, auch der Fall einer gescheiterten Anfrage, liegen
+  jetzt bei der Einstellungsseite. Der Test der Kopfzeile prüft nur noch, dass
+  es dort keinen Abmelde-Button mehr gibt.
+- PATCH-Sprung auf 0.6.1: keine neue Funktion, nur eine Umstellung der
+  Oberfläche.
+
+---
+
 ## 2026-10-17 – Löschbutton für die Katalogsuche
 
 - Kleines Kreuz rechts innerhalb des Suchfelds, sichtbar bei nicht leerer Eingabe.

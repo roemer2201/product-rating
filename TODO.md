@@ -115,7 +115,7 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [x] **[M]** Login-Seite, Registrierung mit Einladungscode, „nicht angemeldet“-Weiterleitung
 - [x] **[S]** Oberflächentexte zentral in `web/src/lib/strings.ts`
 - [x] **[S]** Grundstyling festlegen (eigenes CSS mit Custom Properties, siehe README 2), dunkles und helles Thema
-- [x] **[S]** Abmelden zusätzlich auf der Einstellungsseite anbieten – bis M8 liegt es nur in der Kopfzeile
+- [x] **[S]** Abmelden zusätzlich auf der Einstellungsseite anbieten – bis M8 liegt es nur in der Kopfzeile (seit 0.6.1 nur noch dort, siehe Backlog)
 - [ ] **[S]** Fokus nach einem Seitenwechsel auf die neue Überschrift setzen, damit Screenreader den Wechsel mitbekommen (mit dem Barrierefreiheitsdurchgang)
 
 ## M8 – Frontend-Funktionen
@@ -423,6 +423,8 @@ Gerichten bedeutet der Preis „Kosten pro Portion“.
 - [x] Kreuz rechts im Suchfeld des Katalogs, nur bei Eingabe sichtbar: leert
       die Suche sofort, lässt die übrigen Filter stehen und setzt den Fokus
       zurück ins Feld
+- [x] Abmelden nur noch auf der Einstellungsseite, nicht mehr in der
+      Kopfzeile; dort bleibt „Angemeldet als …“ stehen
 - [ ] TOTP-Zweitfaktor
 - [ ] Optionale Delegation der Authentifizierung an Reverse-Proxy-SSO
 - [x] Preisverlauf und Einkaufsort je Produkt

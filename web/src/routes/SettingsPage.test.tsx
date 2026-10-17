@@ -316,11 +316,27 @@ describe('SettingsPage', () => {
     expect(await screen.findByText(strings.settings.passwordWrong)).toBeInTheDocument();
   });
 
-  it('logs out from here as well as from the header', async () => {
+  it('logs out and returns to the login form', async () => {
     const user = userEvent.setup();
     mockFetch([
       { path: '/auth/me', body: { user: testUser } },
       { path: '/auth/logout', method: 'POST', body: { ok: true } },
+      SESSIONS,
+    ]);
+
+    renderSettings();
+    await screen.findByText('iPhone · Safari');
+
+    await user.click(screen.getByRole('button', { name: strings.common.logout }));
+
+    expect(await screen.findByText('Anmelden')).toBeInTheDocument();
+  });
+
+  it('ends the session locally even when the logout request fails', async () => {
+    const user = userEvent.setup();
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      { path: '/auth/logout', method: 'POST', networkError: true },
       SESSIONS,
     ]);
 

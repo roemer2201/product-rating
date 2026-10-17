@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router';
 import { AppLayout } from '@/components/AppLayout';
 import { strings } from '@/lib/strings';
@@ -13,7 +12,6 @@ function renderLayout() {
       <Route element={<AppLayout />}>
         <Route path="/" element={<p>Katalogansicht</p>} />
       </Route>
-      <Route path="/login" element={<p>Anmeldemaske</p>} />
     </Routes>,
   );
 }
@@ -30,34 +28,12 @@ describe('AppLayout', () => {
     expect(screen.getByRole('navigation', { name: strings.nav.label })).toBeInTheDocument();
   });
 
-  it('logs out and returns to the login form', async () => {
-    const user = userEvent.setup();
-    const fetchMock = mockFetch([
-      { path: '/auth/me', body: { user: testUser } },
-      { path: '/auth/logout', method: 'POST', body: { ok: true } },
-    ]);
+  it('leaves logging out to the settings page', async () => {
+    mockFetch([{ path: '/auth/me', body: { user: testUser } }]);
 
     renderLayout();
     await screen.findByText(strings.session.loggedInAsLabel);
 
-    await user.click(screen.getByRole('button', { name: strings.common.logout }));
-
-    expect(await screen.findByText('Anmeldemaske')).toBeInTheDocument();
-    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/auth/logout'))).toBe(true);
-  });
-
-  it('ends the session locally even when the request fails', async () => {
-    const user = userEvent.setup();
-    mockFetch([
-      { path: '/auth/me', body: { user: testUser } },
-      { path: '/auth/logout', method: 'POST', networkError: true },
-    ]);
-
-    renderLayout();
-    await screen.findByText(strings.session.loggedInAsLabel);
-
-    await user.click(screen.getByRole('button', { name: strings.common.logout }));
-
-    expect(await screen.findByText('Anmeldemaske')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: strings.common.logout })).not.toBeInTheDocument();
   });
 });

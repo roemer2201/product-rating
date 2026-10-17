@@ -112,11 +112,6 @@ a {
   font-size: 0.8125rem;
 }
 
-/* The logout button keeps its size; the text next to it gives way instead. */
-.app-header__user > .button {
-  flex-shrink: 0;
-}
-
 /*
  * "Angemeldet als" and the name are two boxes with a plain space between them,
  * which is the only place the line may break. A narrow header therefore puts
