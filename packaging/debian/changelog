@@ -2,6 +2,7 @@ product-rating (0.6.1) unstable; urgency=medium
 
   * Logging out has moved from the header to the settings screen. The
     header still shows who is logged in.
+  * Clear the local session after a failed logout attempt even while offline.
 
  -- roemer2201 <roemer2201@users.noreply.github.com>  Sat, 17 Oct 2026 00:00:00 +0000
 

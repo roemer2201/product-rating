@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { onlineManager } from '@tanstack/react-query';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router';
@@ -7,8 +8,11 @@ import { strings } from '@/lib/strings';
 import { enqueueCapture, listCaptures } from '@/lib/offlineQueue';
 import { mockFetch, testUser } from '@/testing/fetchMock';
 import { makeProductDetail, makeRating, TEST_EAN } from '@/testing/fixtures';
-import { renderWithProviders } from '@/testing/render';
+import { createTestQueryClient, renderWithProviders } from '@/testing/render';
 import { APP_VERSION } from '@/lib/version';
+import { setOnline } from '@/testing/online';
+import { captureOwner } from '@/lib/captureIdentity';
+import { createQueryClient, queryKeys } from '@/lib/queries';
 
 /** The account screen: password, devices, and the way out. */
 
@@ -41,14 +45,14 @@ const SESSIONS = {
   },
 };
 
-function renderSettings() {
+function renderSettings(client = createTestQueryClient()) {
   return renderWithProviders(
     <Routes>
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/login" element={<p>Anmelden</p>} />
       <Route path="/admin" element={<p>Verwaltung</p>} />
     </Routes>,
-    { route: '/settings' },
+    { route: '/settings', client },
   );
 }
 
@@ -316,36 +320,68 @@ describe('SettingsPage', () => {
     expect(await screen.findByText(strings.settings.passwordWrong)).toBeInTheDocument();
   });
 
-  it('logs out and returns to the login form', async () => {
+  it.each([
+    { outcome: 'success', response: { body: { ok: true } } },
+    { outcome: 'a network error', response: { networkError: true } },
+    { outcome: 'a server error', response: { status: 503 } },
+    { outcome: 'an expired session', response: { status: 401 } },
+  ])('posts the logout and clears local account data after $outcome', async ({ response }) => {
     const user = userEvent.setup();
-    mockFetch([
+    const fetchMock = mockFetch([
       { path: '/auth/me', body: { user: testUser } },
-      { path: '/auth/logout', method: 'POST', body: { ok: true } },
+      { path: '/auth/logout', method: 'POST', ...response },
+      { path: '/healthz', body: { version: APP_VERSION } },
       SESSIONS,
     ]);
+    const client = createQueryClient();
+    client.setQueryData(queryKeys.ratings.all, ['private rating']);
 
-    renderSettings();
+    renderSettings(client);
     await screen.findByText('iPhone · Safari');
 
     await user.click(screen.getByRole('button', { name: strings.common.logout }));
 
     expect(await screen.findByText('Anmelden')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching(/\/auth\/logout$/u),
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(client.getQueryData(queryKeys.session)).toBeNull();
+    expect(client.getQueryData(queryKeys.ratings.all)).toBeUndefined();
+    expect(captureOwner()).toBeNull();
   });
 
-  it('ends the session locally even when the logout request fails', async () => {
+  it('ends the session locally without waiting for the device to come online', async () => {
     const user = userEvent.setup();
-    mockFetch([
+    const fetchMock = mockFetch([
       { path: '/auth/me', body: { user: testUser } },
       { path: '/auth/logout', method: 'POST', networkError: true },
+      { path: '/healthz', body: { version: APP_VERSION } },
       SESSIONS,
     ]);
 
-    renderSettings();
+    const client = createQueryClient();
+    client.setQueryData(queryKeys.ratings.all, ['private rating']);
+    const view = renderSettings(client);
     await screen.findByText('iPhone · Safari');
 
-    await user.click(screen.getByRole('button', { name: strings.common.logout }));
+    try {
+      setOnline(false);
+      onlineManager.setOnline(false);
+      await user.click(screen.getByRole('button', { name: strings.common.logout }));
 
-    expect(await screen.findByText('Anmelden')).toBeInTheDocument();
+      expect(await screen.findByText('Anmelden')).toBeInTheDocument();
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringMatching(/\/auth\/logout$/u),
+        expect.objectContaining({ method: 'POST' }),
+      );
+      expect(client.getQueryData(queryKeys.session)).toBeNull();
+      expect(client.getQueryData(queryKeys.ratings.all)).toBeUndefined();
+      expect(captureOwner()).toBeNull();
+    } finally {
+      view.unmount();
+      onlineManager.setOnline(true);
+    }
   });
 
   it('shows the way to the administration only to administrators', async () => {

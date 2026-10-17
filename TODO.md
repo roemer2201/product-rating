@@ -425,6 +425,8 @@ Gerichten bedeutet der Preis „Kosten pro Portion“.
       zurück ins Feld
 - [x] Abmelden nur noch auf der Einstellungsseite, nicht mehr in der
       Kopfzeile; dort bleibt „Angemeldet als …“ stehen
+- [x] Lokale Abmeldung auch offline ausführen; Anfrage, Sitzungsbereinigung und
+      Navigation über die Einstellungen gemeinsam absichern (Review PR #48)
 - [ ] TOTP-Zweitfaktor
 - [ ] Optionale Delegation der Authentifizierung an Reverse-Proxy-SSO
 - [x] Preisverlauf und Einkaufsort je Produkt

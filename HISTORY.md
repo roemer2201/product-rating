@@ -5,6 +5,22 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-18 – Review der Abmeldung in den Einstellungen (PR #48)
+
+- Bereits vorhandenen Offline-Fehler in der Abmeldung behoben: TanStack Query
+  pausierte die Mutation ohne Verbindung, bevor Anfrage und lokale
+  Sitzungsbereinigung liefen. Die Abmeldung versucht die Anfrage jetzt auch
+  offline und beendet die Sitzung lokal, wenn sie fehlschlägt.
+- Regressionstest zuerst mit dem Fehler reproduziert. Die Abmelde-Tests prüfen
+  jetzt auch den POST, das Entfernen zwischengespeicherter Kontodaten und der
+  lokalen Erfassungsidentität bei Erfolg, Netzwerkfehlern und HTTP-Fehlern.
+- Navigation vom Katalog zu den Einstellungen und anschließende Abmeldung mit
+  dem tatsächlichen Sitzungsschutz und Query-Client zusammen getestet.
+- Veralteten Kommentar zur Abmeldung in der Kopfzeile in der Einstellungsseite
+  berichtigt. Die bereits für diesen PR angehobene Version bleibt bei 0.6.1.
+
+---
+
 ## 2026-10-17 – Abmelden nur noch in den Einstellungen
 
 Wunsch des Projektinhabers: den Abmelde-Button aus der Kopfzeile in die

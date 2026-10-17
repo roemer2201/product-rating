@@ -235,6 +235,9 @@ export function useLogout(): UseMutationResult<void, Error, void> {
   const client = useQueryClient();
 
   return useMutation({
+    // Logging out must also clear the local session while offline. The default
+    // network mode would pause before mutationFn and onSettled can run.
+    networkMode: 'always',
     mutationFn: async () => {
       await client.cancelQueries({ queryKey: queryKeys.session });
       confirmCaptureOwner(null);

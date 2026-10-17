@@ -22,8 +22,8 @@ import { APP_VERSION, compareVersions } from '@/lib/version';
 /**
  * The account: who you are, your password, your devices, and the way out.
  *
- * Logging out is offered here as well as in the header. The header is where it
- * has to work from anywhere; this is where people look for it.
+ * Logging out lives here alone. The bottom navigation reaches this screen
+ * from anywhere in the app; the header only names the account.
  *
  * The display name is the one thing about the account that changes here
  * without an administrator: it is what the others in the household see at a
