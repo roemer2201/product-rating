@@ -5,6 +5,72 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-18 – Review der Bash-Vervollständigung (PR #49)
+
+- Fehler bei geschützten Wortgrenzen behoben: Ein TAB nach
+  `--database="db-12:` fügte den Optionsnamen in den Dateipfad ein. Dasselbe
+  betraf `--set`, Doppelpunkte in Anführungszeichen und maskierte
+  Gleichheitszeichen. Die Completion entfernt jetzt nur den Teil, den Readline
+  tatsächlich stehen lässt, und berücksichtigt Anführungszeichen sowie
+  Backslashes auch bei festen Optionswerten und Konfigurationsschlüsseln.
+  Die Eingabe wird dabei nicht als Shell-Code ausgewertet.
+- `app.external_lookup=true` wird nicht mehr angeboten: Der Schlüssel ist
+  reserviert, das Konfigurationsschema erlaubt bislang ausschließlich `false`.
+- Die drei Workspace-Einträge im Lockfile standen noch auf 0.6.1. Sie stimmen
+  jetzt mit den Manifesten (0.7.0) überein; der Versionstest prüft fortan auch
+  das Lockfile und seine Workspace-Einträge.
+- Die ursprünglichen Fehler mit neuen Regressionstests und echten TAB-Eingaben
+  in einer interaktiven Bash reproduziert und nach der Korrektur gegengeprüft.
+  Das Bash-Testskript umfasst jetzt 59 Completion-Kontexte.
+- Validierung: 774 Projekttests, ESLint, Typprüfung und Formatprüfung
+  erfolgreich. Alle 59 Kontexte und 22 echte TAB-Eingaben mit bash-completion
+  2.11, 2.14 und 2.16 geprüft; ShellCheck ohne Befund. Debian-Paket erfolgreich
+  gebaut und die enthaltene Completion auf Inhalt und Modus 0644 geprüft.
+
+---
+
+## 2026-10-18 – Bash-Vervollständigung für die CLI
+
+Wunsch des Projektinhabers: eine bash-completion-Datei für die
+`product-rating`-Befehle.
+
+- `packaging/completion/product-rating.bash` vervollständigt Befehle, `help
+  <befehl>`, die Unterbefehle von `user` und `invite`, die Optionen jedes
+  Befehls einschließlich der Konfigurationsschalter sowie Werte mit fester
+  Auswahl (`--log-*`, `--role`, `--format`, `--server`), die Schlüssel hinter
+  `--set` und für Aufzählungs-, Wahrheits- und Pfadschlüssel auch deren Wert.
+  Pfade gehen über den Datei-Helper der Bibliothek, so dass Leerzeichen und
+  Doppelpunkte in Dateinamen und die Schreibweise `--option=wert` richtig
+  eingefügt werden. Die Datei erkennt beide Helper-Generationen von
+  bash-completion (`_init_completion` bis 2.11, `_comp_initialize` ab 2.12).
+- Die Auswertung bildet `server/src/cli/options.ts` nach: Optionen sind nach
+  dem Befehl überall erlaubt, Werte als nächstes Wort oder nach `=`, `--` beendet
+  die Optionen, eine eigene Option schlägt einen gleichnamigen
+  Konfigurationsschalter (`fsck --uploads` ist ein Schalter ohne Wert).
+- Bewusst keine Kontonamen und Einladungscodes: TAB müsste dafür die
+  Datenbank der konfigurierten Instanz öffnen. TAB löst keine Programmaktion
+  aus und startet `product-rating` nicht.
+- `server/src/cli/completion.test.ts` fragt die Completion mit einem
+  Platzhalter der Bibliothek ab und vergleicht Befehle, die Optionen aus dem
+  Abschnitt „Options:“ jedes Hilfetexts, die Unterbefehle, die Schlüssel des
+  Konfigurationsschemas, die Log-Werte und die Proxy-Ziele. Eine neue Option
+  ohne Eintrag in der Completion lässt den Test scheitern (gegengeprüft, indem
+  eine Option und ein Schlüssel entfernt wurden). Ist die echte Bibliothek
+  installiert, läuft zusätzlich `packaging/completion/test-completion.bash`
+  mit 45 simulierten TAB-Kontexten; die CI installiert dafür `bash-completion`.
+- Geprüft auf Ubuntu 24.04 mit Bash 5.2 gegen bash-completion 2.11, 2.14 und
+  2.16, jeweils mit den 45 Kontexten und elf echten TAB-Eingaben in einer
+  interaktiven Bash (Pseudo-Terminal). ShellCheck ohne Befund. Nicht geprüft:
+  Rocky Linux und eine echte Paketinstallation (als TODO-Punkt notiert).
+- Das Debian-Paket legt die Datei ohne Endung als
+  `/usr/share/bash-completion/completions/product-rating` ab, dem Namen, den
+  bash-completion beim ersten TAB in allen ausgelieferten Versionen sucht.
+  Keine neue Paketabhängigkeit: ohne `bash-completion` bleibt die Datei
+  wirkungslos. Im Docker-Image fehlt beides, `bash-completion` und
+  `product-rating` im `PATH`, deshalb gibt es dort nichts nachzuziehen.
+
+---
+
 ## 2026-10-18 – Review der Abmeldung in den Einstellungen (PR #48)
 
 - Bereits vorhandenen Offline-Fehler in der Abmeldung behoben: TanStack Query

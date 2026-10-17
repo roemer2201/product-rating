@@ -21,7 +21,7 @@
 #   4. Install the runtime dependencies of the server into a staging directory,
 #      then drop the binaries of every foreign platform from it.
 #   5. Lay out the installation tree: /opt, /etc, /usr/bin, the systemd unit,
-#      the logrotate rule and the documentation.
+#      the logrotate rule, the bash completion and the documentation.
 #   6. Fill in DEBIAN/: control with its substitutions, conffiles, templates,
 #      the maintainer scripts and md5sums.
 #   7. Build the .deb with dpkg-deb and report where it is.
@@ -32,7 +32,7 @@
 #                [--version VERSION] [-a|--arch ARCH] [--skip-build]
 #                [--skip-lintian]
 #
-# Version: 1.0.0  (2026-08-15)
+# Version: 1.1.0  (2026-10-18)
 
 # Robustness baseline: a package assembled from a half finished tree would
 # install and then fail at run time, which is the worst of both worlds.
@@ -557,6 +557,13 @@ assemble_tree() {
     sed "s|@VERSION@|${VERSION}|g" "${debian_dir}/${PACKAGE_NAME}.wrapper" \
         > "${tree}/usr/bin/${PACKAGE_NAME}"
     chmod 0755 "${tree}/usr/bin/${PACKAGE_NAME}"
+
+    # The bash completion, named after the command without a suffix: that is
+    # the name bash-completion looks for on the first TAB, in every version
+    # Debian and Ubuntu ship. Without bash-completion installed it is inert.
+    install -d -m 0755 "${tree}/usr/share/bash-completion/completions"
+    install -m 0644 "${REPO_ROOT}/packaging/completion/${PACKAGE_NAME}.bash" \
+        "${tree}/usr/share/bash-completion/completions/${PACKAGE_NAME}"
 
     # The unit goes to /usr/lib, not to /lib: on a merged-usr system the latter
     # is a symlink, and a package must not install through one.

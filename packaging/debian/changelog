@@ -1,3 +1,14 @@
+product-rating (0.7.0) unstable; urgency=medium
+
+  * Bash completion for the product-rating command, installed as
+    /usr/share/bash-completion/completions/product-rating. It completes
+    commands, subcommands, options and the values that have a fixed set
+    or are paths.
+  * Preserve quoted and escaped word breaks in completion candidates and
+    synchronize workspace versions in the lockfile.
+
+ -- roemer2201 <roemer2201@users.noreply.github.com>  Sun, 18 Oct 2026 00:00:00 +0000
+
 product-rating (0.6.1) unstable; urgency=medium
 
   * Logging out has moved from the header to the settings screen. The

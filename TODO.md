@@ -274,6 +274,9 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [x] **[S]** Strukturiertes Logging (pino) mit den Zielen stdout, Datei und syslog
 - [x] **[S]** `log.format` und `log.destination` tatsächlich anwenden – seit M1 validiert, wirksam ist bislang nur `log.level`
 - [x] **[S]** CLI-Argumente aus M1 (`--config`, `--set`, Kurzformen) in `--help` aufnehmen
+- [x] **[S]** Bash-Vervollständigung für `product-rating` (`packaging/completion/`), im Debian-Paket unter `/usr/share/bash-completion/completions/`, mit Abgleich gegen Hilfetexte und Konfigurationsschema
+- [x] **[S]** Geschützte Wortgrenzen und zitierte Werte in der Completion korrigieren; Versionsprüfung auf die Workspace-Einträge des Lockfiles erweitern (Review PR #49)
+- [ ] **[S]** Bash-Vervollständigung auf Rocky Linux 9 (bash-completion 2.11, Bash 5.1) und in einer echten Debian-Installation des Pakets gegenprüfen; getestet ist sie bislang nur auf Ubuntu 24.04 mit den Bibliotheken 2.11, 2.14 und 2.16
 - [ ] **[S]** Handbuchseite (`man 1 product-rating`) aus den Hilfetexten erzeugen und ins Paket legen; bis dahin steht dafür ein `lintian`-Override
 - [ ] **[S]** `restore` kann nicht prüfen, ob der Dienst noch läuft – SQLite gibt darüber im Leerlauf keine Auskunft. Es bleibt bei Hinweis und Vorab-Kopie; eine Sperrdatei des laufenden Servers wäre der Weg, wenn das je stört
 - [ ] **[S]** Der syslog-Weg läuft über `logger` (util-linux), weil Node keine Unix-Datagram-Sockets kann. Falls das je stört: eigenes natives Modul oder ein Dienst, der auf einem Stream-Socket lauscht
