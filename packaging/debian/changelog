@@ -1,3 +1,10 @@
+product-rating (0.6.1) unstable; urgency=medium
+
+  * Logging out has moved from the header to the settings screen. The
+    header still shows who is logged in.
+
+ -- roemer2201 <roemer2201@users.noreply.github.com>  Sat, 17 Oct 2026 00:00:00 +0000
+
 product-rating (0.6.0) unstable; urgency=medium
 
   * The search field of the catalogue has a cross on its right while it
