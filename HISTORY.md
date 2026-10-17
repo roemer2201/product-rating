@@ -5,6 +5,30 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-18 – Review der Bash-Vervollständigung (PR #49)
+
+- Fehler bei geschützten Wortgrenzen behoben: Ein TAB nach
+  `--database="db-12:` fügte den Optionsnamen in den Dateipfad ein. Dasselbe
+  betraf `--set`, Doppelpunkte in Anführungszeichen und maskierte
+  Gleichheitszeichen. Die Completion entfernt jetzt nur den Teil, den Readline
+  tatsächlich stehen lässt, und berücksichtigt Anführungszeichen sowie
+  Backslashes auch bei festen Optionswerten und Konfigurationsschlüsseln.
+  Die Eingabe wird dabei nicht als Shell-Code ausgewertet.
+- `app.external_lookup=true` wird nicht mehr angeboten: Der Schlüssel ist
+  reserviert, das Konfigurationsschema erlaubt bislang ausschließlich `false`.
+- Die drei Workspace-Einträge im Lockfile standen noch auf 0.6.1. Sie stimmen
+  jetzt mit den Manifesten (0.7.0) überein; der Versionstest prüft fortan auch
+  das Lockfile und seine Workspace-Einträge.
+- Die ursprünglichen Fehler mit neuen Regressionstests und echten TAB-Eingaben
+  in einer interaktiven Bash reproduziert und nach der Korrektur gegengeprüft.
+  Das Bash-Testskript umfasst jetzt 59 Completion-Kontexte.
+- Validierung: 774 Projekttests, ESLint, Typprüfung und Formatprüfung
+  erfolgreich. Alle 59 Kontexte und 22 echte TAB-Eingaben mit bash-completion
+  2.11, 2.14 und 2.16 geprüft; ShellCheck ohne Befund. Debian-Paket erfolgreich
+  gebaut und die enthaltene Completion auf Inhalt und Modus 0644 geprüft.
+
+---
+
 ## 2026-10-18 – Bash-Vervollständigung für die CLI
 
 Wunsch des Projektinhabers: eine bash-completion-Datei für die

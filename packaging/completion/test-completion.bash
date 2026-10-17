@@ -8,6 +8,7 @@
 #   and COMP_POINT the way Bash does on TAB, calls the completion function and
 #   compares the candidates. Works with both helper generations of the
 #   library (_init_completion up to 2.11, _comp_initialize from 2.12).
+#   Includes quoted values and protected word breaks in filenames.
 #
 #   Called by server/src/cli/completion.test.ts when a library is installed;
 #   can be run on its own as well. It sources the files it is given, so pass
@@ -28,7 +29,7 @@
 # Output is a single PASS line or the description of the failed case; there
 # is nothing to make quieter or louder, so no --silent and no --verbose.
 #
-# Version: 1.0.0  (2026-10-18)
+# Version: 1.0.1  (2026-10-18)
 
 # Explain inputs without sourcing anything.
 usage() {
@@ -86,6 +87,7 @@ trap 'rm -rf -- "${test_dir}"' EXIT
 cd -- "${test_dir}" || exit 1
 mkdir -- 'snap shots' backups || exit 1
 touch -- 'my config.toml' 'db-12:00.db' export.json || exit 1
+touch -- 'equal=sign.toml' || exit 1
 
 # Simulate Bash's context for a cursor at the end of the line. COMP_LINE is
 # given separately, because Bash splits words at '=' and ':' on its own.
@@ -229,6 +231,9 @@ expect_exact true
 run_completion 'product-rating serve --set server.port=' \
     product-rating serve --set server.port = ''
 expect_exact
+run_completion 'product-rating serve --set app.external_lookup=' \
+    product-rating serve --set app.external_lookup = ''
+expect_exact false
 run_completion 'product-rating serve --set paths.uploads=sn' \
     product-rating serve --set paths.uploads = sn
 expect_exact 'snap shots'
@@ -249,6 +254,49 @@ expect_contains export.json
 run_completion 'product-rating serve --database db-12:' \
     product-rating serve --database db-12 :
 expect_exact '00.db'
+
+# Quotes and escapes protect word breaks: Readline replaces the whole quoted
+# or escaped filename, even when it contains ':' or '='.
+run_completion 'product-rating serve --database="db-12:' \
+    product-rating serve --database = '"db-12:'
+expect_exact 'db-12:00.db'
+run_completion "product-rating serve --database='db-12:" \
+    product-rating serve --database = "'db-12:"
+expect_exact 'db-12:00.db'
+run_completion 'product-rating serve --database=db-12\:' \
+    product-rating serve --database = 'db-12\:'
+expect_exact 'db-12:00.db'
+run_completion 'product-rating serve --config=equal\=' \
+    product-rating serve --config = 'equal\='
+expect_exact 'equal=sign.toml'
+run_completion 'product-rating serve --config="equal=' \
+    product-rating serve --config = '"equal='
+expect_exact 'equal=sign.toml'
+run_completion 'product-rating serve --set paths.database="db-12:' \
+    product-rating serve --set paths.database = '"db-12:'
+expect_exact 'db-12:00.db'
+run_completion 'product-rating serve --set=paths.database="db-12:' \
+    product-rating serve --set = paths.database = '"db-12:'
+expect_exact 'db-12:00.db'
+run_completion 'product-rating serve --set="paths.database=db-12:' \
+    product-rating serve --set = '"paths.database=db-12:'
+expect_exact 'paths.database=db-12:00.db'
+run_completion 'product-rating serve --log-level="d' \
+    product-rating serve --log-level = '"d'
+expect_exact debug
+run_completion "product-rating serve --log-level='d" \
+    product-rating serve --log-level = "'d"
+expect_exact debug
+run_completion 'product-rating serve --set log.level="d' \
+    product-rating serve --set log.level = '"d'
+expect_exact debug
+run_completion 'product-rating serve --set="log.level=d' \
+    product-rating serve --set = '"log.level=d'
+expect_exact log.level=debug
+run_completion 'product-rating serve --set "log.l' \
+    product-rating serve --set '"log.l'
+expect_exact log.level=
+
 run_completion 'product-rating serve --database=db-12:0' \
     product-rating serve --database = db-12 : 0
 expect_exact '00.db'

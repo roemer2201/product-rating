@@ -16,11 +16,61 @@
 #      Source of truth: server/src/cli/ and server/src/config/cli.ts.
 #      server/src/cli/completion.test.ts fails when the lists below drift
 #      away from them.
-# Version: 1.0.0 (2026-10-18)
+# Program flow:
+#   1. Initialize the library context and decode the current shell word.
+#   2. Parse the command and completed arguments without running the CLI.
+#   3. Offer candidates and remove only the prefix Readline keeps in place.
+# Version: 1.0.1 (2026-10-18)
 #
 # Nothing here runs product-rating or reads its database: account names and
 # invite codes are not offered, because looking them up on TAB would open the
 # database of whatever instance the configuration points at.
+
+# Remove shell quotes and escapes without evaluating any input. Also return
+# the literal prefix before the last unquoted, unescaped '=' or ':' which
+# Readline keeps. Those are the only word breaks reassembled by our helpers;
+# quoted/escaped breaks belong to the filename and must not trim candidates.
+_product_rating_word()
+{
+    local input="${1}" decoded='' kept='' quote='' char next i
+    for ((i = 0; i < ${#input}; i++)); do
+        char="${input:i:1}"
+        if [[ "${quote}" == "'" ]]; then
+            if [[ "${char}" == "'" ]]; then
+                quote=''
+            else
+                decoded+="${char}"
+            fi
+        elif [[ "${char}" == "\\" ]]; then
+            next="${input:i+1:1}"
+            # Inside double quotes a backslash only protects these characters.
+            if [[ -n "${next}" ]] &&
+                [[ -z "${quote}" || "${next}" == [\$\`\"\\] || "${next}" == $'\n' ]]; then
+                ((i += 1))
+                [[ "${next}" == $'\n' ]] || decoded+="${next}"
+            else
+                decoded+="${char}"
+            fi
+        elif [[ -n "${quote}" ]]; then
+            if [[ "${char}" == "${quote}" ]]; then
+                quote=''
+            else
+                decoded+="${char}"
+            fi
+        elif [[ "${char}" == "'" || "${char}" == '"' ]]; then
+            quote="${char}"
+        else
+            decoded+="${char}"
+            if [[ "${char}" == [=:] && "${COMP_WORDBREAKS}" == *"${char}"* ]]; then
+                kept="${decoded}"
+            fi
+        fi
+    done
+    printf -v "${2}" '%s' "${decoded}"
+    if (($# > 2)); then
+        printf -v "${3}" '%s' "${kept}"
+    fi
+}
 
 # Append literal candidates matching the current prefix, preserving spaces.
 _product_rating_candidates()
@@ -45,18 +95,12 @@ _product_rating_member()
 }
 
 # Readline replaces only the text after the last word break in the current
-# word. Candidates are built for the whole word, so drop the kept prefix.
-# Only '=' and ':' are reassembled by the helpers; other breaks split anyway.
+# word. Candidates are built for the whole word, so drop the literal prefix
+# recorded before decoding quotes and escapes, rather than guessing from the
+# last ':' or '=' (which may be protected by those quotes or escapes).
 _product_rating_trim()
 {
-    local word="${1}" prefix='' i
-    if [[ "${COMP_WORDBREAKS}" == *'='* && "${COMP_WORDBREAKS}" == *':'* ]]; then
-        [[ "${word}" == *[=:]* ]] && prefix="${word%"${word##*[=:]}"}"
-    elif [[ "${COMP_WORDBREAKS}" == *'='* ]]; then
-        [[ "${word}" == *=* ]] && prefix="${word%"${word##*=}"}"
-    elif [[ "${COMP_WORDBREAKS}" == *':'* ]]; then
-        [[ "${word}" == *:* ]] && prefix="${word%"${word##*:}"}"
-    fi
+    local prefix="${1}" i
     [[ -n "${prefix}" ]] || return 0
     for i in "${!COMPREPLY[@]}"; do
         COMPREPLY[i]="${COMPREPLY[i]#"${prefix}"}"
@@ -139,8 +183,11 @@ _product_rating_set_value()
         log.level) _product_rating_candidates error warn info debug ;;
         log.format) _product_rating_candidates json pretty ;;
         log.destination) _product_rating_candidates stdout file syslog ;;
-        server.trust_proxy|uploads.strip_exif|app.external_lookup)
+        server.trust_proxy|uploads.strip_exif)
             _product_rating_candidates true false ;;
+        # The schema reserves this key but rejects enabling it until an
+        # external lookup implementation exists.
+        app.external_lookup) _product_rating_candidates false ;;
         paths.database|auth.secret_file|log.file) "${filedir}" ;;
         paths.uploads|paths.temp|server.static_dir) "${filedir}" -d ;;
         *) ;;
@@ -187,7 +234,7 @@ _product_rating()
     # Library helpers populate these locals through Bash's dynamic scoping.
     # shellcheck disable=SC2034
     local cur prev words cword comp_args
-    local filedir command_name='' subcommand='' expecting='' word full_cur
+    local filedir command_name='' subcommand='' expecting='' word trim_prefix=''
     local end_options=0 positional_count=0 equal_value=0 offer_options=0 i
     local -a flags=() valued=()
     # Commands in the order of "product-rating help". The helpers below see
@@ -213,7 +260,7 @@ _product_rating()
     else
         return 0
     fi
-    full_cur="${cur}"
+    _product_rating_word "${cur}" cur trim_prefix
 
     # The command is always the first word (server/src/cli/index.ts).
     if ((cword == 1)); then
@@ -226,7 +273,7 @@ _product_rating()
         return 0
     fi
 
-    command_name="${words[1]}"
+    _product_rating_word "${words[1]}" command_name
     case "${command_name}" in
         help|--help|-h)
             # Only the first argument is read, as the name of a command.
@@ -242,7 +289,7 @@ _product_rating()
 
     # Consume option values so they cannot be mistaken for a subcommand.
     for ((i = 2; i < cword; i++)); do
-        word="${words[i]}"
+        _product_rating_word "${words[i]}" word
         if [[ -n "${expecting}" ]]; then
             expecting=''
             continue
@@ -292,7 +339,7 @@ _product_rating()
                 COMPREPLY[i]="${expecting}=${COMPREPLY[i]}"
             done
         fi
-        _product_rating_trim "${full_cur}"
+        _product_rating_trim "${trim_prefix}"
         return 0
     fi
 

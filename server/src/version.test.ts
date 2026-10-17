@@ -51,6 +51,18 @@ describe('the version of the repository', () => {
     expect(first).toBe(`${APP_NAME} (${APP_VERSION}) unstable; urgency=medium`);
   });
 
+  it('is the same in the lockfile and its workspace packages', () => {
+    const lock = JSON.parse(repoFile('package-lock.json')) as {
+      version: string;
+      packages: Record<string, { version?: string }>;
+    };
+
+    expect(lock.version).toBe(APP_VERSION);
+    for (const workspace of ['', 'server', 'web', 'shared']) {
+      expect(lock.packages[workspace]?.version, workspace || 'root').toBe(APP_VERSION);
+    }
+  });
+
   it('is a version dpkg accepts', () => {
     // build-deb.sh checks the same thing before it labels a package.
     expect(APP_VERSION).toMatch(/^[0-9][A-Za-z0-9.+~-]*$/);
