@@ -5,6 +5,41 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-18 – Review der Abmeldung in den Einstellungen (PR #48)
+
+- Bereits vorhandenen Offline-Fehler in der Abmeldung behoben: TanStack Query
+  pausierte die Mutation ohne Verbindung, bevor Anfrage und lokale
+  Sitzungsbereinigung liefen. Die Abmeldung versucht die Anfrage jetzt auch
+  offline und beendet die Sitzung lokal, wenn sie fehlschlägt.
+- Regressionstest zuerst mit dem Fehler reproduziert. Die Abmelde-Tests prüfen
+  jetzt auch den POST, das Entfernen zwischengespeicherter Kontodaten und der
+  lokalen Erfassungsidentität bei Erfolg, Netzwerkfehlern und HTTP-Fehlern.
+- Navigation vom Katalog zu den Einstellungen und anschließende Abmeldung mit
+  dem tatsächlichen Sitzungsschutz und Query-Client zusammen getestet.
+- Veralteten Kommentar zur Abmeldung in der Kopfzeile in der Einstellungsseite
+  berichtigt. Die bereits für diesen PR angehobene Version bleibt bei 0.6.1.
+
+---
+
+## 2026-10-17 – Abmelden nur noch in den Einstellungen
+
+Wunsch des Projektinhabers: den Abmelde-Button aus der Kopfzeile in die
+Einstellungen verlegen.
+
+- Die Einstellungsseite hatte seit M8 bereits einen eigenen Abschnitt
+  „Abmelden“. Die Kopfzeile hatte den Button nur noch, weil es vor M8 keinen
+  anderen Platz dafür gab. Er ist dort jetzt entfernt, zusammen mit der
+  CSS-Regel, die ihn vor dem Schrumpfen schützte.
+- „Angemeldet als …“ bleibt in der Kopfzeile, damit man das aktive Konto
+  weiterhin auf einen Blick sieht (mit dem Projektinhaber abgestimmt).
+- Die Tests für das Abmelden, auch der Fall einer gescheiterten Anfrage, liegen
+  jetzt bei der Einstellungsseite. Der Test der Kopfzeile prüft nur noch, dass
+  es dort keinen Abmelde-Button mehr gibt.
+- PATCH-Sprung auf 0.6.1: keine neue Funktion, nur eine Umstellung der
+  Oberfläche.
+
+---
+
 ## 2026-10-17 – Löschbutton für die Katalogsuche
 
 - Kleines Kreuz rechts innerhalb des Suchfelds, sichtbar bei nicht leerer Eingabe.
