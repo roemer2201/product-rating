@@ -265,11 +265,11 @@ describe('CataloguePage', () => {
 
     expect(created).not.toBeChecked();
     expect(rated).not.toBeChecked();
-    await waitFor(() => {
-      const url = lastListUrl(fetchMock.mock.calls);
-      expect(url).not.toContain('createdByMe=');
-      expect(url).not.toContain('ratedByMe=');
-    });
+    // The unfiltered list is already cached, so a new HTTP request is optional.
+    expect(
+      screen.queryByRole('button', { name: strings.catalogue.resetFilters }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('Apfelsaft')).toBeInTheDocument();
   });
 
   it('says that a filtered list is empty for a different reason', async () => {
