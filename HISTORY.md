@@ -15,7 +15,15 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
   `createdByDisplayName`. Die Produktseite nennt den Ersteller klein in der
   Fußzeile vor dem Änderungsdatum: „Angelegt von Anna am … · Zuletzt geändert
   am …“, beim eigenen Produkt „Angelegt von dir am …“.
-- Validierung: Projekttests, ESLint, Typprüfung und Formatprüfung
+- Nach dem Review: Der Name des Erstellers wird über `findAccountNameById`
+  gelesen, das nur Benutzer- und Anzeigenamen abfragt statt der ganzen
+  Kontozeile samt Passwort-Hash. In die Antwort gelangten auch vorher nur diese
+  beiden Felder; die Änderung hält die übrigen Kontodaten schon aus der Abfrage
+  heraus. Neue Tests decken ab: ein geänderter oder entfernter Anzeigename
+  erscheint sofort beim Ersteller, über die Kennung wie über die EAN;
+  `createdByMe` liefert über alle Seiten dieselbe Auswahl, `false` filtert
+  nicht; „Filter zurücksetzen“ nimmt beide Häkchen zurück.
+- Validierung: 780 Projekttests, ESLint, Typprüfung und Formatprüfung
   erfolgreich. Katalog und Produktseite im Browser mit 320 und 390 Pixel Breite
   geprüft: Auf 390 Pixel stehen beide Checkboxen einzeilig nebeneinander, auf
   320 Pixel bricht jeder Text zweizeilig um, bleibt aber nebeneinander.
