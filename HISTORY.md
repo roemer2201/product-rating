@@ -5,6 +5,29 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-21 – Katalogfilter „von mir erstellt“ und Ersteller auf der Produktseite
+
+- Neuer Listenparameter `createdByMe` für `GET /api/v1/products`, im Katalog als
+  Checkbox „von mir erstellt“ neben der bisherigen, jetzt kürzer benannten
+  „von mir bewertet“ (vorher „Nur von mir bewertete“). Die Spalte
+  `products.created_by` gab es seit M2; neu ist nur, dass sie ausgewertet wird.
+- Die Einzelabfrage eines Produkts liefert zusätzlich `createdByUsername` und
+  `createdByDisplayName`. Die Produktseite zeigt den Ersteller als weiteren
+  Eintrag neben Durchschnitt und EAN, beim eigenen Produkt mit „Du“. Die
+  Fußzeile nennt jetzt Anlage- und Änderungsdatum.
+- Validierung: 777 Projekttests, ESLint, Typprüfung und Formatprüfung
+  erfolgreich. Katalog und Produktseite im Browser mit 320 und 390 Pixel Breite
+  geprüft: Auf 390 Pixel stehen beide Checkboxen einzeilig nebeneinander, auf
+  320 Pixel bricht jeder Text zweizeilig um, bleibt aber nebeneinander.
+
+| Thema | Entscheidung | Begründung |
+|---|---|---|
+| Beide Häkchen | UND, wie bei allen anderen Filtern | Mit dem Projektinhaber abgestimmt; „erstellt oder bewertet“ hätte als einziger Filter anders kombiniert |
+| Index auf `created_by` | Keiner, keine Migration | Bei einstelliger Nutzerzahl trifft der Filter einen großen Teil des Katalogs, ein Index brächte wenig; nachziehen, falls eine Messung es verlangt |
+| Name des Erstellers | Nur in der Einzelabfrage, nicht in der Liste | Wie bei den Bewertungen: die Kachel braucht ihn nicht, die Liste bleibt ohne zusätzlichen Join |
+
+---
+
 ## 2026-10-18 – Review der Bash-Vervollständigung (PR #49)
 
 - Fehler bei geschützten Wortgrenzen behoben: Ein TAB nach

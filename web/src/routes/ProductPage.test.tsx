@@ -387,6 +387,9 @@ describe('ProductPage', () => {
         path: '/products/prod-1',
         body: {
           product: makeProductDetail({
+            // Added by somebody else, so the only marker is the one on the verdict.
+            createdBy: 'user-carla',
+            createdByUsername: 'carla',
             ratings: { average: 3.5, count: 2 },
             ownRating: makeRating({ stars: 5 }),
             allRatings: [
@@ -445,6 +448,43 @@ describe('ProductPage', () => {
     expect(screen.getByText('carla')).toBeInTheDocument();
     // The price history follows the same rule.
     expect(screen.getByText(/erfasst von Bert vom Balkon/u)).toBeInTheDocument();
+  });
+
+  it('names who added the product', async () => {
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      {
+        path: '/products/prod-1',
+        body: {
+          product: makeProductDetail({
+            createdBy: 'user-bert',
+            createdByUsername: 'bert',
+            createdByDisplayName: 'Bert vom Balkon',
+          }),
+        },
+      },
+    ]);
+
+    renderProduct();
+
+    const creator = (await screen.findByText(strings.product.createdBy)).nextElementSibling;
+    expect(creator).toHaveTextContent('Bert vom Balkon');
+    expect(screen.queryByText(strings.product.createdByYou)).not.toBeInTheDocument();
+  });
+
+  it('marks a product the caller added', async () => {
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      { path: '/products/prod-1', body: { product: makeProductDetail() } },
+    ]);
+
+    renderProduct();
+
+    const own = (await screen.findByText(strings.product.createdBy)).nextElementSibling;
+    expect(own).toHaveTextContent(testUser.username);
+    expect(own).toHaveTextContent(strings.product.createdByYou);
   });
 
   it('records a price in cents, whatever separator was typed', async () => {

@@ -64,6 +64,7 @@ export function CataloguePage() {
   const [kind, setKind] = useState<ProductKind | ''>('');
   const [minStars, setMinStars] = useState('');
   const [ratedByMe, setRatedByMe] = useState(false);
+  const [createdByMe, setCreatedByMe] = useState(false);
   const [sort, setSort] = useState<ProductSortField>('updated');
   const [order, setOrder] = useState<SortOrder>('desc');
 
@@ -85,13 +86,15 @@ export function CataloguePage() {
     ...(kind === '' ? {} : { kind }),
     ...(minStars === '' ? {} : { minStars: Number(minStars) }),
     ...(ratedByMe ? { ratedByMe: true } : {}),
+    ...(createdByMe ? { createdByMe: true } : {}),
     sort,
     order,
   });
 
   const products = list.data?.pages.flatMap((page) => page.products) ?? [];
   const total = list.data?.pages[0]?.total ?? 0;
-  const filtered = term !== '' || category !== '' || kind !== '' || minStars !== '' || ratedByMe;
+  const filtered =
+    term !== '' || category !== '' || kind !== '' || minStars !== '' || ratedByMe || createdByMe;
 
   const handleDetectedEan = useCallback((ean: string): void => {
     // A scan is already a complete search term, so do not make it wait for the
@@ -120,6 +123,7 @@ export function CataloguePage() {
     setKind('');
     setMinStars('');
     setRatedByMe(false);
+    setCreatedByMe(false);
   };
 
   return (
@@ -276,16 +280,31 @@ export function CataloguePage() {
             </SelectField>
           </div>
 
-          <label className="checkbox">
-            <input
-              type="checkbox"
-              checked={ratedByMe}
-              onChange={(event) => {
-                setRatedByMe(event.target.checked);
-              }}
-            />
-            {strings.catalogue.ratedByMe}
-          </label>
+          {/* Side by side, and combined like every other filter: both ticked
+              leaves what the caller added and rated. */}
+          <div className="filters__row">
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={createdByMe}
+                onChange={(event) => {
+                  setCreatedByMe(event.target.checked);
+                }}
+              />
+              {strings.catalogue.createdByMe}
+            </label>
+
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={ratedByMe}
+                onChange={(event) => {
+                  setRatedByMe(event.target.checked);
+                }}
+              />
+              {strings.catalogue.ratedByMe}
+            </label>
+          </div>
 
           {filtered && (
             <button type="button" className="button button--quiet" onClick={resetFilters}>

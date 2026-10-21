@@ -722,7 +722,7 @@ function searchCondition(term: string): SQL | undefined {
   return and(...words.map((word) => or(productFieldsContain(word), categoryNameContains(word))));
 }
 
-function filterConditions(query: ProductListQuery): SQL[] {
+function filterConditions(query: ProductListQuery, userId: string): SQL[] {
   const conditions: SQL[] = [notTrashed];
 
   const term = query.q?.trim();
@@ -747,6 +747,10 @@ function filterConditions(query: ProductListQuery): SQL[] {
 
   if (query.ratedByMe === true) {
     conditions.push(sql`${ownRatings.id} is not null`);
+  }
+
+  if (query.createdByMe === true) {
+    conditions.push(eq(products.createdBy, userId));
   }
 
   return conditions;
@@ -789,7 +793,7 @@ export function listProducts(
 ): ProductListPage {
   const { sort, limit } = query;
   const order = query.order ?? defaultOrderFor(sort);
-  const filters = filterConditions(query);
+  const filters = filterConditions(query, userId);
 
   const total =
     db

@@ -338,6 +338,18 @@ describe('from an empty instance to a rated catalogue', () => {
     expect((forAnna.json().product as ProductDetail).ownRating?.stars).toBe(4);
     expect((forBert.json().product as ProductDetail).ownRating?.stars).toBe(2);
   });
+
+  it('names the account that added the product, whoever asks', async () => {
+    const response = await harness.app.inject({
+      method: 'GET',
+      url: `/api/v1/products/${productId}`,
+      headers: { cookie: bertCookie },
+    });
+
+    const detail = response.json().product as ProductDetail;
+    expect(detail.createdByUsername).toBe(ANNA.username);
+    expect(detail.createdByDisplayName).toBeNull();
+  });
 });
 
 describe('browsing the catalogue afterwards', () => {
@@ -381,6 +393,14 @@ describe('browsing the catalogue afterwards', () => {
     expect(await search('minStars=3')).toEqual(['Erdnussbutter']);
     expect(await search('minStars=4')).toEqual([]);
     expect(await search('ratedByMe=true')).toEqual(['Erdnussbutter']);
+  });
+
+  it('filters by who added a product, and combines that with who rated it', async () => {
+    // Anna added the peanut butter, Bert the oats - but Bert rated the former.
+    expect(await search('createdByMe=true')).toEqual(['Erdnussbutter']);
+    expect(await search('createdByMe=true', bertCookie)).toEqual(['Haferflocken']);
+    expect(await search('createdByMe=true&ratedByMe=true')).toEqual(['Erdnussbutter']);
+    expect(await search('createdByMe=true&ratedByMe=true', bertCookie)).toEqual([]);
   });
 
   it('sorts and pages', async () => {

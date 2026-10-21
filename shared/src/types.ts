@@ -225,6 +225,10 @@ export interface ProductWithRatings extends Product {
  * be paid for on each page.
  */
 export interface ProductDetail extends ProductWithRatings {
+  /** Name of the account that added it; `null` if that account is gone. */
+  createdByUsername: string | null;
+  /** Its display name, `null` while that account has not set one. */
+  createdByDisplayName: string | null;
   /** In the order the product carries them; the first one is the primary. */
   photos: Photo[];
   /**

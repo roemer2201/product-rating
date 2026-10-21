@@ -472,7 +472,7 @@ vorbehalten, weil es fremde Bewertungen und Fotos mitnimmt.
 | `POST /api/v1/products` | angemeldet | Produkt oder Gericht anlegen (`kind`, EAN optional); belegte EAN → `409` mit `details.productId` |
 | `GET /api/v1/products` | angemeldet | Liste mit Suche, Filtern, Sortierung und Cursor-Pagination |
 | `GET /api/v1/products/by-ean/:ean` | angemeldet | Nachschlagen nach dem Scan |
-| `GET /api/v1/products/:id` | angemeldet | Produkt inklusive eigener Bewertung, Durchschnitt, Anzahl, Fotos und aller Bewertungen |
+| `GET /api/v1/products/:id` | angemeldet | Produkt inklusive Ersteller, eigener Bewertung, Durchschnitt, Anzahl, Fotos und aller Bewertungen |
 | `PATCH /api/v1/products/:id` | angemeldet | Name, Sorte, Marke, Kategorien oder Notizen ändern; EAN einmalig nachtragen |
 | `DELETE /api/v1/products/:id` | admin | Produkt in den Papierkorb legen (umkehrbar) |
 | `GET /api/v1/trash` | admin | Inhalt des Papierkorbs, jüngste Löschung zuerst |
@@ -581,6 +581,7 @@ welches Symbol der Scanner gelesen hat, denselben Eintrag. Führende Nullen
 | `kind` | `product`, `dish` | Nur Gekauftes oder nur Gerichte; ohne Angabe beides |
 | `minStars` | 0–10 | Nur Produkte, deren Durchschnitt diesen Wert erreicht; unbewertete fallen heraus |
 | `ratedByMe` | `true`/`false` | Nur selbst bewertete Produkte |
+| `createdByMe` | `true`/`false` | Nur selbst angelegte Produkte; zusammen mit `ratedByMe` gilt beides |
 | `sort` | `name`, `created`, `updated`, `rating` | Standard `updated` |
 | `order` | `asc`, `desc` | Standard: `asc` bei `name`, sonst `desc` |
 | `limit` | 1–100 | Standard 25 |
@@ -683,6 +684,13 @@ dieses Produkts“ an.
 
 Die Liste bleibt bewusst aus dem Katalog heraus: eine Kachel zeigt eine Zahl,
 und die Bewertungen jedes Produkts mitzulesen wäre auf jeder Seite zu bezahlen.
+
+**Ersteller.** Jedes Produkt merkt sich in `created_by`, wer es angelegt hat;
+die API liefert die Kennung als `createdBy` überall mit. Die Einzelabfrage
+nennt dazu den Namen nach derselben Regel wie bei den Bewertungen, als
+`createdByUsername` und `createdByDisplayName`. Die Produktseite zeigt ihn unter
+„Angelegt von“, beim eigenen Produkt mit dem Hinweis „Du“. Im Katalog grenzt
+`createdByMe=true` auf selbst angelegte Produkte ein.
 
 **Aggregation.** Durchschnitt und Anzahl reisen als korrelierte Unterabfragen
 mit der Produktzeile mit – eine Abfrage für die ganze Liste, kein Nachladen je

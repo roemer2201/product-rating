@@ -207,6 +207,19 @@ export function ProductPage() {
             <dd>{detail.ean ?? strings.product.noEan}</dd>
           </div>
         )}
+
+        <div className="product__fact">
+          <dt>{strings.product.createdBy}</dt>
+          <dd>
+            {accountName({
+              username: detail.createdByUsername,
+              displayName: detail.createdByDisplayName,
+            }) ?? strings.product.createdByUnknown}
+            {detail.createdBy === user?.id && (
+              <span className="badge">{strings.product.createdByYou}</span>
+            )}
+          </dd>
+        </div>
       </dl>
 
       {detail.notes !== null && (
@@ -287,7 +300,10 @@ export function ProductPage() {
       )}
 
       <section className="section">
-        <p className="product__meta">{strings.product.updatedAt(formatDate(detail.updatedAt))}</p>
+        <p className="product__meta">
+          {strings.product.createdAt(formatDate(detail.createdAt))} ·{' '}
+          {strings.product.updatedAt(formatDate(detail.updatedAt))}
+        </p>
 
         <div className="form__actions">
           <button

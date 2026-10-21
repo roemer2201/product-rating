@@ -127,6 +127,8 @@ export const productListQuerySchema = z.object({
   minStars: z.coerce.number().int().min(RATING_MIN_STARS).max(RATING_MAX_STARS).optional(),
   /** Restricts the list to products the caller has rated themselves. */
   ratedByMe: flagSchema.optional(),
+  /** Restricts the list to products the caller has added to the catalogue. */
+  createdByMe: flagSchema.optional(),
   sort: z.enum(PRODUCT_SORT_FIELDS).default('updated'),
   /** Defaults to ascending for `name` and descending for everything else. */
   order: z.enum(PRODUCT_SORT_ORDERS).optional(),
