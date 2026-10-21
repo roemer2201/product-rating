@@ -360,10 +360,9 @@ describe('from an empty instance to a rated catalogue', () => {
     });
     expect(renamed.statusCode).toBe(200);
 
-    for (const url of [
-      `/api/v1/products/${productId}`,
-      `/api/v1/products/by-ean/${STORED_EAN}`,
-    ]) {
+    const byIdUrl = `/api/v1/products/${productId}`;
+    const byEanUrl = `/api/v1/products/by-ean/${STORED_EAN}`;
+    for (const url of [byIdUrl, byEanUrl]) {
       const response = await harness.app.inject({
         method: 'GET',
         url,

@@ -119,11 +119,8 @@ describe('listProducts', () => {
       ],
     });
 
-    const first = listProducts(database.db, annaId, query({
-      createdByMe: true,
-      sort: 'name',
-      limit: 1,
-    }));
+    const firstPageQuery = query({ createdByMe: true, sort: 'name', limit: 1 });
+    const first = listProducts(database.db, annaId, firstPageQuery);
     expect(first.total).toBe(3);
     expect(first.nextCursor).not.toBeNull();
     expect(walk(1, { createdByMe: true, sort: 'name' })).toEqual([
