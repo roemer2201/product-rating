@@ -387,9 +387,6 @@ describe('ProductPage', () => {
         path: '/products/prod-1',
         body: {
           product: makeProductDetail({
-            // Added by somebody else, so the only marker is the one on the verdict.
-            createdBy: 'user-carla',
-            createdByUsername: 'carla',
             ratings: { average: 3.5, count: 2 },
             ownRating: makeRating({ stars: 5 }),
             allRatings: [
@@ -468,9 +465,7 @@ describe('ProductPage', () => {
 
     renderProduct();
 
-    const creator = (await screen.findByText(strings.product.createdBy)).nextElementSibling;
-    expect(creator).toHaveTextContent('Bert vom Balkon');
-    expect(screen.queryByText(strings.product.createdByYou)).not.toBeInTheDocument();
+    expect(await screen.findByText(/Angelegt von Bert vom Balkon am /u)).toBeInTheDocument();
   });
 
   it('marks a product the caller added', async () => {
@@ -482,9 +477,8 @@ describe('ProductPage', () => {
 
     renderProduct();
 
-    const own = (await screen.findByText(strings.product.createdBy)).nextElementSibling;
-    expect(own).toHaveTextContent(testUser.username);
-    expect(own).toHaveTextContent(strings.product.createdByYou);
+    expect(await screen.findByText(/Angelegt von dir am /u)).toBeInTheDocument();
+    expect(screen.queryByText(new RegExp(`von ${testUser.username} am`, 'u'))).toBeNull();
   });
 
   it('records a price in cents, whatever separator was typed', async () => {

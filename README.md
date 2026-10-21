@@ -688,9 +688,10 @@ und die Bewertungen jedes Produkts mitzulesen wäre auf jeder Seite zu bezahlen.
 **Ersteller.** Jedes Produkt merkt sich in `created_by`, wer es angelegt hat;
 die API liefert die Kennung als `createdBy` überall mit. Die Einzelabfrage
 nennt dazu den Namen nach derselben Regel wie bei den Bewertungen, als
-`createdByUsername` und `createdByDisplayName`. Die Produktseite zeigt ihn unter
-„Angelegt von“, beim eigenen Produkt mit dem Hinweis „Du“. Im Katalog grenzt
-`createdByMe=true` auf selbst angelegte Produkte ein.
+`createdByUsername` und `createdByDisplayName`. Die Produktseite nennt ihn klein
+in der Fußzeile („Angelegt von Anna am …“, beim eigenen Produkt „Angelegt von
+dir am …“). Im Katalog grenzt `createdByMe=true` auf selbst angelegte Produkte
+ein.
 
 **Aggregation.** Durchschnitt und Anzahl reisen als korrelierte Unterabfragen
 mit der Produktzeile mit – eine Abfrage für die ganze Liste, kein Nachladen je
