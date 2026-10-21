@@ -113,7 +113,15 @@ export function makeProduct(overrides: Partial<ProductWithRatings> = {}): Produc
 }
 
 export function makeProductDetail(overrides: Partial<ProductDetail> = {}): ProductDetail {
-  return { ...makeProduct(), photos: [], allRatings: [], prices: [], ...overrides };
+  return {
+    ...makeProduct(),
+    createdByUsername: testUser.username,
+    createdByDisplayName: testUser.displayName,
+    photos: [],
+    allRatings: [],
+    prices: [],
+    ...overrides,
+  };
 }
 
 /** One page of a product list, as `GET /api/v1/products` answers it. */

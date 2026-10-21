@@ -338,6 +338,57 @@ describe('from an empty instance to a rated catalogue', () => {
     expect((forAnna.json().product as ProductDetail).ownRating?.stars).toBe(4);
     expect((forBert.json().product as ProductDetail).ownRating?.stars).toBe(2);
   });
+
+  it('names the account that added the product, whoever asks', async () => {
+    const response = await harness.app.inject({
+      method: 'GET',
+      url: `/api/v1/products/${productId}`,
+      headers: { cookie: bertCookie },
+    });
+
+    const detail = response.json().product as ProductDetail;
+    expect(detail.createdByUsername).toBe(ANNA.username);
+    expect(detail.createdByDisplayName).toBeNull();
+  });
+
+  it('returns the current display name from both product detail lookup routes', async () => {
+    const renamed = await harness.app.inject({
+      method: 'PATCH',
+      url: '/api/v1/auth/profile',
+      headers: writeHeaders(annaCookie),
+      payload: { displayName: 'Anna am Herd' },
+    });
+    expect(renamed.statusCode).toBe(200);
+
+    const byIdUrl = `/api/v1/products/${productId}`;
+    const byEanUrl = `/api/v1/products/by-ean/${STORED_EAN}`;
+    for (const url of [byIdUrl, byEanUrl]) {
+      const response = await harness.app.inject({
+        method: 'GET',
+        url,
+        headers: { cookie: bertCookie },
+      });
+      expect(response.statusCode).toBe(200);
+      const detail = response.json().product as ProductDetail;
+      expect(detail.createdByUsername).toBe(ANNA.username);
+      expect(detail.createdByDisplayName).toBe('Anna am Herd');
+      expect(detail).not.toHaveProperty('passwordHash');
+    }
+
+    const cleared = await harness.app.inject({
+      method: 'PATCH',
+      url: '/api/v1/auth/profile',
+      headers: writeHeaders(annaCookie),
+      payload: { displayName: null },
+    });
+    expect(cleared.statusCode).toBe(200);
+    const response = await harness.app.inject({
+      method: 'GET',
+      url: `/api/v1/products/${productId}`,
+      headers: { cookie: bertCookie },
+    });
+    expect((response.json().product as ProductDetail).createdByDisplayName).toBeNull();
+  });
 });
 
 describe('browsing the catalogue afterwards', () => {
@@ -381,6 +432,14 @@ describe('browsing the catalogue afterwards', () => {
     expect(await search('minStars=3')).toEqual(['Erdnussbutter']);
     expect(await search('minStars=4')).toEqual([]);
     expect(await search('ratedByMe=true')).toEqual(['Erdnussbutter']);
+  });
+
+  it('filters by who added a product, and combines that with who rated it', async () => {
+    // Anna added the peanut butter, Bert the oats - but Bert rated the former.
+    expect(await search('createdByMe=true')).toEqual(['Erdnussbutter']);
+    expect(await search('createdByMe=true', bertCookie)).toEqual(['Haferflocken']);
+    expect(await search('createdByMe=true&ratedByMe=true')).toEqual(['Erdnussbutter']);
+    expect(await search('createdByMe=true&ratedByMe=true', bertCookie)).toEqual([]);
   });
 
   it('sorts and pages', async () => {

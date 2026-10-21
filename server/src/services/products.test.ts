@@ -107,6 +107,40 @@ describe('listProducts', () => {
     expect(walk(3, { sort: 'created' })).toHaveLength(5);
   });
 
+  it('keeps creator filtering consistent across pages and honors false', () => {
+    const bert = seedDatabase(database.db, { users: [{ username: 'bert' }] });
+    const bertId = bert.users?.[0]?.id ?? '';
+    seedDatabase(database.db, {
+      products: [
+        { ean: null, name: 'Anna Eins', createdBy: annaId },
+        { ean: null, name: 'Bert Eins', createdBy: bertId },
+        { ean: null, name: 'Anna Zwei', createdBy: annaId },
+        { ean: null, name: 'Anna Drei', createdBy: annaId },
+      ],
+    });
+
+    const firstPageQuery = query({ createdByMe: true, sort: 'name', limit: 1 });
+    const first = listProducts(database.db, annaId, firstPageQuery);
+    expect(first.total).toBe(3);
+    expect(first.nextCursor).not.toBeNull();
+    expect(walk(1, { createdByMe: true, sort: 'name' })).toEqual([
+      'Anna Drei',
+      'Anna Eins',
+      'Anna Zwei',
+    ]);
+
+    const noCreatorFilter = listProducts(
+      database.db,
+      annaId,
+      query({ createdByMe: false, sort: 'name' }),
+    );
+    expect(noCreatorFilter.total).toBe(4);
+
+    const forBert = listProducts(database.db, bertId, query({ createdByMe: true }));
+    expect(forBert.total).toBe(1);
+    expect(forBert.products.map((product) => product.name)).toEqual(['Bert Eins']);
+  });
+
   it('reports the total across all pages', () => {
     seedDatabase(database.db, {
       products: [

@@ -447,6 +447,40 @@ describe('ProductPage', () => {
     expect(screen.getByText(/erfasst von Bert vom Balkon/u)).toBeInTheDocument();
   });
 
+  it('names who added the product', async () => {
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      {
+        path: '/products/prod-1',
+        body: {
+          product: makeProductDetail({
+            createdBy: 'user-bert',
+            createdByUsername: 'bert',
+            createdByDisplayName: 'Bert vom Balkon',
+          }),
+        },
+      },
+    ]);
+
+    renderProduct();
+
+    expect(await screen.findByText(/Angelegt von Bert vom Balkon am /u)).toBeInTheDocument();
+  });
+
+  it('marks a product the caller added', async () => {
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      { path: '/products/prod-1', body: { product: makeProductDetail() } },
+    ]);
+
+    renderProduct();
+
+    expect(await screen.findByText(/Angelegt von dir am /u)).toBeInTheDocument();
+    expect(screen.queryByText(new RegExp(`von ${testUser.username} am`, 'u'))).toBeNull();
+  });
+
   it('records a price in cents, whatever separator was typed', async () => {
     const user = userEvent.setup();
     const fetchMock = mockFetch([

@@ -225,6 +225,7 @@ describe('CataloguePage', () => {
     await user.selectOptions(screen.getByLabelText(strings.catalogue.category), 'Getränke');
     await user.selectOptions(screen.getByLabelText(strings.catalogue.minStars), String(4));
     await user.click(screen.getByLabelText(strings.catalogue.ratedByMe));
+    await user.click(screen.getByLabelText(strings.catalogue.createdByMe));
     await user.selectOptions(screen.getByLabelText(strings.catalogue.kind), 'dish');
     await user.selectOptions(screen.getByLabelText(strings.catalogue.sort), 'name');
 
@@ -233,9 +234,42 @@ describe('CataloguePage', () => {
       expect(url).toContain('categoryId=cat-drinks');
       expect(url).toContain('minStars=4');
       expect(url).toContain('ratedByMe=true');
+      expect(url).toContain('createdByMe=true');
       expect(url).toContain('kind=dish');
       expect(url).toContain('sort=name');
     });
+  });
+
+  it('clears both personal filters with reset', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([
+      CATEGORIES,
+      { path: '/products', body: makeProductPage([makeProduct()]) },
+    ]);
+
+    renderCatalogue();
+    await screen.findByText('Apfelsaft');
+
+    const created = screen.getByLabelText(strings.catalogue.createdByMe);
+    const rated = screen.getByLabelText(strings.catalogue.ratedByMe);
+    await user.click(created);
+    await user.click(rated);
+
+    await waitFor(() => {
+      const url = lastListUrl(fetchMock.mock.calls);
+      expect(url).toContain('createdByMe=true');
+      expect(url).toContain('ratedByMe=true');
+    });
+
+    await user.click(screen.getByRole('button', { name: strings.catalogue.resetFilters }));
+
+    expect(created).not.toBeChecked();
+    expect(rated).not.toBeChecked();
+    // The unfiltered list is already cached, so a new HTTP request is optional.
+    expect(
+      screen.queryByRole('button', { name: strings.catalogue.resetFilters }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('Apfelsaft')).toBeInTheDocument();
   });
 
   it('says that a filtered list is empty for a different reason', async () => {

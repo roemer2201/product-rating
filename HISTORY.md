@@ -5,6 +5,38 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-21 – Katalogfilter „von mir erstellt“ und Ersteller auf der Produktseite
+
+- Neuer Listenparameter `createdByMe` für `GET /api/v1/products`, im Katalog als
+  Checkbox „von mir erstellt“ neben der bisherigen, jetzt kürzer benannten
+  „von mir bewertet“ (vorher „Nur von mir bewertete“). Die Spalte
+  `products.created_by` gab es seit M2; neu ist nur, dass sie ausgewertet wird.
+- Die Einzelabfrage eines Produkts liefert zusätzlich `createdByUsername` und
+  `createdByDisplayName`. Die Produktseite nennt den Ersteller klein in der
+  Fußzeile vor dem Änderungsdatum: „Angelegt von Anna am … · Zuletzt geändert
+  am …“, beim eigenen Produkt „Angelegt von dir am …“.
+- Nach dem Review: Der Name des Erstellers wird über `findAccountNameById`
+  gelesen, das nur Benutzer- und Anzeigenamen abfragt statt der ganzen
+  Kontozeile samt Passwort-Hash. In die Antwort gelangten auch vorher nur diese
+  beiden Felder; die Änderung hält die übrigen Kontodaten schon aus der Abfrage
+  heraus. Neue Tests decken ab: ein geänderter oder entfernter Anzeigename
+  erscheint sofort beim Ersteller, über die Kennung wie über die EAN;
+  `createdByMe` liefert über alle Seiten dieselbe Auswahl, `false` filtert
+  nicht; „Filter zurücksetzen“ nimmt beide Häkchen zurück.
+- Validierung: 780 Projekttests, ESLint, Typprüfung und Formatprüfung
+  erfolgreich. Katalog und Produktseite im Browser mit 320 und 390 Pixel Breite
+  geprüft: Auf 390 Pixel stehen beide Checkboxen einzeilig nebeneinander, auf
+  320 Pixel bricht jeder Text zweizeilig um, bleibt aber nebeneinander.
+
+| Thema | Entscheidung | Begründung |
+|---|---|---|
+| Beide Häkchen | UND, wie bei allen anderen Filtern | Mit dem Projektinhaber abgestimmt; „erstellt oder bewertet“ hätte als einziger Filter anders kombiniert |
+| Index auf `created_by` | Keiner, keine Migration | Bei einstelliger Nutzerzahl trifft der Filter einen großen Teil des Katalogs, ein Index brächte wenig; nachziehen, falls eine Messung es verlangt |
+| Platz auf der Produktseite | Fußzeile statt neben Durchschnitt und EAN | Wunsch des Projektinhabers: der Kopf der Seite bleibt, wie er war |
+| Name des Erstellers | Nur in der Einzelabfrage, nicht in der Liste | Wie bei den Bewertungen: die Kachel braucht ihn nicht, die Liste bleibt ohne zusätzlichen Join |
+
+---
+
 ## 2026-10-18 – Review der Bash-Vervollständigung (PR #49)
 
 - Fehler bei geschützten Wortgrenzen behoben: Ein TAB nach

@@ -413,6 +413,8 @@ Gerichten bedeutet der Preis „Kosten pro Portion“.
       dem die anderen im Haushalt eine Bewertung, einen Preis oder einen
       Papierkorb-Eintrag sehen. Bewusst ohne Eindeutigkeit; Anmeldung und
       Verwaltung laufen weiter über den Benutzernamen
+- [x] Katalogfilter „von mir erstellt“ neben „von mir bewertet“ (beide
+      zusammen: UND), dazu der Ersteller auf der Produktseite
 - [x] Fremde Bewertungen sichtbar machen: wer im Haushalt hat wie viele Sterne vergeben – bisher liefert die API nur Durchschnitt, Anzahl und die eigene Bewertung
 - [x] FTS5-Suche nachrüsten, falls die `LIKE`-Suche mit wachsendem Katalog spürbar langsam wird
 - [x] Freitextsuche findet auch Kategorien, ganz oder als Teilwort („thermo“

@@ -64,6 +64,20 @@ export function ProductPage() {
   const dish = detail.kind === 'dish';
   const eanEditable = detail.kind === 'product' && detail.ean === null;
 
+  // Accounts are disabled rather than deleted, so a missing name is a corner
+  // case; the date alone is still worth showing then.
+  const createdOn = formatDate(detail.createdAt);
+  const creator = accountName({
+    username: detail.createdByUsername,
+    displayName: detail.createdByDisplayName,
+  });
+  const creatorLine =
+    detail.createdBy === user?.id
+      ? strings.product.createdByYou(createdOn)
+      : creator === null
+        ? strings.product.createdAt(createdOn)
+        : strings.product.createdBy(creator, createdOn);
+
   const onSave = (values: ProductFormValues): void => {
     const parsed = updateProductSchema.safeParse({
       // Only offered while there is none; an empty field leaves it that way.
@@ -287,7 +301,9 @@ export function ProductPage() {
       )}
 
       <section className="section">
-        <p className="product__meta">{strings.product.updatedAt(formatDate(detail.updatedAt))}</p>
+        <p className="product__meta">
+          {creatorLine} · {strings.product.updatedAt(formatDate(detail.updatedAt))}
+        </p>
 
         <div className="form__actions">
           <button

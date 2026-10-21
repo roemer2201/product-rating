@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { asc, eq, sql } from 'drizzle-orm';
-import type { User, UserRole } from '@product-rating/shared';
+import type { NamedAccount, User, UserRole } from '@product-rating/shared';
 import type { DbHandle } from '../db/index.js';
 import { users, passwordResets, type UserRow } from '../db/index.js';
 import { ConflictError, NotFoundError, ValidationError } from './errors.js';
@@ -64,6 +64,18 @@ export function assertPasswordPolicy(password: string, config: AppConfig): void 
 
 export function findUserById(db: DbHandle, id: string): UserRow | undefined {
   return db.select().from(users).where(eq(users.id, id)).get();
+}
+
+/**
+ * Looks up only the fields needed to display the name of another account.
+ * Unlike `findUserById`, this never loads password hashes or contact details.
+ */
+export function findAccountNameById(db: DbHandle, id: string): NamedAccount | undefined {
+  return db
+    .select({ username: users.username, displayName: users.displayName })
+    .from(users)
+    .where(eq(users.id, id))
+    .get();
 }
 
 export function findUserByUsername(db: DbHandle, username: string): UserRow | undefined {

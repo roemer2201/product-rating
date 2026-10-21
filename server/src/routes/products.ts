@@ -25,6 +25,7 @@ import {
   trashProduct,
   updateProduct,
 } from '../services/products.js';
+import { findAccountNameById } from '../services/users.js';
 
 /**
  * The product catalogue.
@@ -37,15 +38,18 @@ import {
  */
 
 /**
- * Fills a single product up to what the detail page needs: its photos, every
- * rating it carries and its price history. The list deliberately stays without
- * all three and reports `primaryPhotoId` and the average alone — a card shows
+ * Fills a single product up to what the detail page needs: who added it, its
+ * photos, every rating it carries and its price history. The list deliberately
+ * stays without them and reports `primaryPhotoId` and the average alone — a card shows
  * one image and one number, and reading the photos, verdicts and prices of
  * every product would be paid for on each page.
  */
 function withDetails(app: FastifyInstance, product: ProductWithRatings): ProductDetail {
+  const creator = findAccountNameById(app.db, product.createdBy);
   return {
     ...product,
+    createdByUsername: creator?.username ?? null,
+    createdByDisplayName: creator?.displayName ?? null,
     photos: productPhotos(app.db, product.id),
     allRatings: listProductRatings(app.db, product.id),
     prices: listProductPrices(app.db, product.id),
