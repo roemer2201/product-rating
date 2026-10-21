@@ -350,6 +350,46 @@ describe('from an empty instance to a rated catalogue', () => {
     expect(detail.createdByUsername).toBe(ANNA.username);
     expect(detail.createdByDisplayName).toBeNull();
   });
+
+  it('returns the current display name from both product detail lookup routes', async () => {
+    const renamed = await harness.app.inject({
+      method: 'PATCH',
+      url: '/api/v1/auth/profile',
+      headers: writeHeaders(annaCookie),
+      payload: { displayName: 'Anna am Herd' },
+    });
+    expect(renamed.statusCode).toBe(200);
+
+    for (const url of [
+      `/api/v1/products/${productId}`,
+      `/api/v1/products/by-ean/${STORED_EAN}`,
+    ]) {
+      const response = await harness.app.inject({
+        method: 'GET',
+        url,
+        headers: { cookie: bertCookie },
+      });
+      expect(response.statusCode).toBe(200);
+      const detail = response.json().product as ProductDetail;
+      expect(detail.createdByUsername).toBe(ANNA.username);
+      expect(detail.createdByDisplayName).toBe('Anna am Herd');
+      expect(detail).not.toHaveProperty('passwordHash');
+    }
+
+    const cleared = await harness.app.inject({
+      method: 'PATCH',
+      url: '/api/v1/auth/profile',
+      headers: writeHeaders(annaCookie),
+      payload: { displayName: null },
+    });
+    expect(cleared.statusCode).toBe(200);
+    const response = await harness.app.inject({
+      method: 'GET',
+      url: `/api/v1/products/${productId}`,
+      headers: { cookie: bertCookie },
+    });
+    expect((response.json().product as ProductDetail).createdByDisplayName).toBeNull();
+  });
 });
 
 describe('browsing the catalogue afterwards', () => {

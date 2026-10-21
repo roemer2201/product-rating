@@ -25,7 +25,7 @@ import {
   trashProduct,
   updateProduct,
 } from '../services/products.js';
-import { findUserById } from '../services/users.js';
+import { findAccountNameById } from '../services/users.js';
 
 /**
  * The product catalogue.
@@ -45,7 +45,7 @@ import { findUserById } from '../services/users.js';
  * every product would be paid for on each page.
  */
 function withDetails(app: FastifyInstance, product: ProductWithRatings): ProductDetail {
-  const creator = findUserById(app.db, product.createdBy);
+  const creator = findAccountNameById(app.db, product.createdBy);
   return {
     ...product,
     createdByUsername: creator?.username ?? null,

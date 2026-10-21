@@ -15,7 +15,7 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
   `createdByDisplayName`. Die Produktseite nennt den Ersteller klein in der
   Fußzeile vor dem Änderungsdatum: „Angelegt von Anna am … · Zuletzt geändert
   am …“, beim eigenen Produkt „Angelegt von dir am …“.
-- Validierung: 777 Projekttests, ESLint, Typprüfung und Formatprüfung
+- Validierung: Projekttests, ESLint, Typprüfung und Formatprüfung
   erfolgreich. Katalog und Produktseite im Browser mit 320 und 390 Pixel Breite
   geprüft: Auf 390 Pixel stehen beide Checkboxen einzeilig nebeneinander, auf
   320 Pixel bricht jeder Text zweizeilig um, bleibt aber nebeneinander.

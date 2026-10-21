@@ -240,6 +240,38 @@ describe('CataloguePage', () => {
     });
   });
 
+  it('clears both personal filters with reset', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([
+      CATEGORIES,
+      { path: '/products', body: makeProductPage([makeProduct()]) },
+    ]);
+
+    renderCatalogue();
+    await screen.findByText('Apfelsaft');
+
+    const created = screen.getByLabelText(strings.catalogue.createdByMe);
+    const rated = screen.getByLabelText(strings.catalogue.ratedByMe);
+    await user.click(created);
+    await user.click(rated);
+
+    await waitFor(() => {
+      const url = lastListUrl(fetchMock.mock.calls);
+      expect(url).toContain('createdByMe=true');
+      expect(url).toContain('ratedByMe=true');
+    });
+
+    await user.click(screen.getByRole('button', { name: strings.catalogue.resetFilters }));
+
+    expect(created).not.toBeChecked();
+    expect(rated).not.toBeChecked();
+    await waitFor(() => {
+      const url = lastListUrl(fetchMock.mock.calls);
+      expect(url).not.toContain('createdByMe=');
+      expect(url).not.toContain('ratedByMe=');
+    });
+  });
+
   it('says that a filtered list is empty for a different reason', async () => {
     const user = userEvent.setup();
     mockFetch([CATEGORIES, { path: '/products', body: makeProductPage([]) }]);
