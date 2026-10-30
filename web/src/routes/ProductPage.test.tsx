@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router';
 import { ProductPage } from '@/routes/ProductPage';
 import { strings } from '@/lib/strings';
+import { queryKeys } from '@/lib/queries';
 import { listCaptures } from '@/lib/offlineQueue';
 import { mockFetch, testUser } from '@/testing/fetchMock';
 import {
@@ -495,8 +496,13 @@ describe('ProductPage', () => {
       { path: '/products/prod-1', body: { product: makeProductDetail() } },
     ]);
 
-    renderProduct();
+    const { client } = renderProduct();
     await screen.findByRole('heading', { name: 'Apfelsaft' });
+
+    // Opening a product after a hasPrice catalogue query leaves it cached.
+    // Adding its first price must invalidate the cached list too.
+    const listKey = queryKeys.products.list({ hasPrice: true });
+    client.setQueryData(listKey, { pages: [{ products: [], total: 0, nextCursor: null }] });
 
     await user.type(screen.getByLabelText(new RegExp(strings.price.amount)), '1,99');
     // Restricted to the input: the suggestion list next to it carries the
@@ -518,6 +524,44 @@ describe('ProductPage', () => {
       // Whole cents on the wire, never a decimal.
       expect(body.cents).toBe(199);
       expect(body.shop).toBe('Bioladen');
+    });
+    await waitFor(() => {
+      expect(client.getQueryState(listKey)?.isInvalidated).toBe(true);
+    });
+  });
+
+  it('invalidates the price-filtered catalogue after removing the last price', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      { path: '/prices/shops', body: { shops: [] } },
+      { path: '/prices/price-1', method: 'DELETE', body: { ok: true } },
+      {
+        path: '/products/prod-1',
+        body: { product: makeProductDetail({ prices: [makePrice()] }) },
+      },
+    ]);
+
+    const { client } = renderProduct();
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+
+    const listKey = queryKeys.products.list({ hasPrice: true });
+    client.setQueryData(listKey, {
+      pages: [{ products: [makeProductDetail()], total: 1, nextCursor: null }],
+    });
+
+    await user.click(screen.getByRole('button', { name: /Eintrag über .* löschen/u }));
+
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(
+          ([url, init]) =>
+            String(url).endsWith('/prices/price-1') &&
+            (init as RequestInit)?.method === 'DELETE',
+        ),
+      ).toBe(true);
+      expect(client.getQueryState(listKey)?.isInvalidated).toBe(true);
     });
   });
 
