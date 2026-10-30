@@ -1,3 +1,10 @@
+product-rating (0.10.1) unstable; urgency=medium
+
+  * Documentation only: record the review fix of 0.10.0 (catalogue lists
+    are refreshed after a price is added or removed).
+
+ -- roemer2201 <roemer2201@users.noreply.github.com>  Fri, 30 Oct 2026 00:00:00 +0000
+
 product-rating (0.10.0) unstable; urgency=medium
 
   * Catalogue: only the search line stays visible; filters and sorting
