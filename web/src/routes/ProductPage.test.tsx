@@ -556,8 +556,7 @@ describe('ProductPage', () => {
     await waitFor(() => {
       const deleteCall = fetchMock.mock.calls.find(
         ([url, init]) =>
-          String(url).endsWith('/prices/price-1') &&
-          (init as RequestInit)?.method === 'DELETE',
+          String(url).endsWith('/prices/price-1') && (init as RequestInit)?.method === 'DELETE',
       );
       expect(deleteCall).toBeDefined();
       expect(client.getQueryState(listKey)?.isInvalidated).toBe(true);
