@@ -326,6 +326,7 @@ export type ProductListParams = {
   minStars?: number | undefined;
   ratedByMe?: boolean | undefined;
   createdByMe?: boolean | undefined;
+  hasPrice?: boolean | undefined;
   sort?: ProductSortField | undefined;
   order?: SortOrder | undefined;
   limit?: number | undefined;

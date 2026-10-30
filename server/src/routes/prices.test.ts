@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { Price, ProductDetail } from '@product-rating/shared';
+import type { Price, ProductDetail, ProductListPage } from '@product-rating/shared';
 import { seedDatabase } from '../db/testing.js';
 import { createUser } from '../services/users.js';
 import { createTestApp, sessionCookie, writeHeaders, type TestApp } from '../testing/harness.js';
@@ -80,6 +80,37 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await harness.close();
+});
+
+describe('the catalogue filter for recorded prices', () => {
+  async function listNames(query: string, cookie = annaCookie): Promise<string[]> {
+    const response = await harness.app.inject({
+      method: 'GET',
+      url: `/api/v1/products?${query}`,
+      headers: { cookie },
+    });
+    expect(response.statusCode).toBe(200);
+    return (response.json() as ProductListPage).products.map((product) => product.name);
+  }
+
+  it('keeps the products with a price, recorded by anybody', async () => {
+    expect(await listNames('hasPrice=true')).toEqual([]);
+
+    // Bert records it, Anna filters: a price is a fact about the household.
+    expect((await addPrice({ cents: 199 }, bertCookie)).statusCode).toBe(201);
+
+    expect(await listNames('hasPrice=true')).toEqual(['Apfelsaft']);
+    expect(await listNames('hasPrice=false&sort=name')).toEqual(['Apfelsaft', 'Haferflocken']);
+    expect(
+      (
+        await harness.app.inject({
+          method: 'GET',
+          url: '/api/v1/products?hasPrice=vielleicht',
+          headers: { cookie: annaCookie },
+        })
+      ).statusCode,
+    ).toBe(400);
+  });
 });
 
 describe('recording a price', () => {

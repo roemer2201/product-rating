@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { productListQuerySchema, type ProductListQuery } from '@product-rating/shared';
-import { FOLD_FUNCTION, foldForSearch, productCategories } from '../db/index.js';
+import { FOLD_FUNCTION, foldForSearch, prices, productCategories } from '../db/index.js';
 import { createTestDatabase, seedDatabase, type TestDatabase } from '../db/testing.js';
 import { createCategory, deleteCategory, listCategories, updateCategory } from './categories.js';
 import { ConflictError, NotFoundError, ValidationError } from './errors.js';
@@ -139,6 +139,61 @@ describe('listProducts', () => {
     const forBert = listProducts(database.db, bertId, query({ createdByMe: true }));
     expect(forBert.total).toBe(1);
     expect(forBert.products.map((product) => product.name)).toEqual(['Bert Eins']);
+  });
+
+  it('keeps only entries with a price when asked, whoever recorded it', () => {
+    const bert = seedDatabase(database.db, { users: [{ username: 'bert' }] });
+    const bertId = bert.users?.[0]?.id ?? '';
+    const seeded = seedDatabase(database.db, {
+      products: [
+        { ean: '4260000000011', name: 'Apfelsaft', createdBy: annaId },
+        { ean: '4260000000028', name: 'Birnensaft', createdBy: annaId },
+        { ean: null, kind: 'dish', name: 'Gulasch', createdBy: annaId },
+        { ean: '4260000000035', name: 'Kirschsaft', createdBy: bertId },
+      ],
+    });
+    const idOf = (name: string): string =>
+      seeded.products?.find((product) => product.name === name)?.id ?? '';
+    const addPrice = (productId: string, userId: string, special: boolean): void => {
+      database.db
+        .insert(prices)
+        .values({
+          id: `price-${productId}-${String(special)}`,
+          productId,
+          userId,
+          cents: 199,
+          currency: 'EUR',
+          shop: null,
+          note: null,
+          special,
+          purchasedAt: new Date('2026-08-10T12:00:00Z'),
+          createdAt: new Date('2026-08-10T12:00:00Z'),
+        })
+        .run();
+    };
+    // Two prices on one product must not list it twice.
+    addPrice(idOf('Apfelsaft'), annaId, false);
+    addPrice(idOf('Apfelsaft'), annaId, true);
+    // An offer alone counts, so does the cost of a portion and a price by
+    // somebody else.
+    addPrice(idOf('Kirschsaft'), bertId, true);
+    addPrice(idOf('Gulasch'), bertId, false);
+
+    expect(walk(1, { hasPrice: true, sort: 'name' })).toEqual([
+      'Apfelsaft',
+      'Gulasch',
+      'Kirschsaft',
+    ]);
+    expect(listProducts(database.db, annaId, query({ hasPrice: true })).total).toBe(3);
+    expect(listProducts(database.db, annaId, query({ hasPrice: false })).total).toBe(4);
+    // Combined with the other filters like every one of them: AND.
+    expect(
+      listProducts(
+        database.db,
+        annaId,
+        query({ hasPrice: true, createdByMe: true, sort: 'name' }),
+      ).products.map((product) => product.name),
+    ).toEqual(['Apfelsaft', 'Gulasch']);
   });
 
   it('reports the total across all pages', () => {

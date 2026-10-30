@@ -5,6 +5,32 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-30 – Katalog: Filter zum Aufklappen, Filter „Enthält Preis“ (0.10.0)
+
+- Der Kopf der Katalogseite zeigt nur noch die Suchzeile (Suchfeld, Leeren,
+  Kamera). Darunter steht der Button „Zusätzliche Filter“. Hinter ihm liegen
+  Kategorie, Mindeststerne, Art, Sortierung, Richtung, „von mir erstellt“,
+  „von mir bewertet“ und am Ende neu „Enthält Preis“. Beim Öffnen der Seite
+  ist der Bereich zugeklappt.
+- Sind Filter gesetzt, nennt der Button ihre Zahl („Zusätzliche Filter (2)“).
+  „Filter zurücksetzen“ steht außerhalb des aufklappbaren Bereichs, also auch
+  bei zugeklappten Filtern erreichbar. Auf Telefonbreite rutscht es unter den
+  Button, weil beide nicht in eine Zeile passen.
+- Neuer Listenparameter `hasPrice` für `GET /api/v1/products`. Er lässt nur
+  Einträge mit mindestens einem Preis durch, gleich von wem erfasst. Als
+  `EXISTS`-Unterabfrage über `prices_product_purchased_idx`, keine Migration.
+- Im Browser bei 390 und 320 Pixel Breite geprüft, zugeklappt und
+  aufgeklappt.
+
+| Thema | Entscheidung | Begründung |
+|---|---|---|
+| Zurücksetzen | Außerhalb des aufklappbaren Bereichs | Mit dem Projektinhaber abgestimmt: aktive Filter sollen sich auch zugeklappt zurücksetzen lassen |
+| Was als Preis zählt | Jeder Eintrag, auch Aktionspreise und Kosten pro Portion | Mit dem Projektinhaber abgestimmt |
+| Sortierung | Ebenfalls hinter dem Button, zählt aber nicht als Filter | Mit dem Projektinhaber abgestimmt; die Zahl am Button soll nur sagen, ob die Liste eingeschränkt ist |
+| Zustand des Bereichs | Beim Öffnen der Seite immer zugeklappt, nicht gespeichert | Wie die Filter selbst ist er Zustand der Ansicht, nicht des Geräts |
+
+---
+
 ## 2026-10-30 – Preisformular: „Aktionspreis“ neben dem Betrag (0.9.2)
 
 - Wunsch des Projektinhabers: Die Markierung heißt in der Oberfläche

@@ -582,8 +582,10 @@ export function useAddPrice(): UseMutationResult<Price, Error, AddPriceVariables
   return useMutation({
     mutationFn: async ({ productId, input }: AddPriceVariables) =>
       (await api.prices.add(productId, input)).price,
-    onSuccess: (_price, { productId }) => {
-      void client.invalidateQueries({ queryKey: queryKeys.products.byId(productId) });
+    onSuccess: () => {
+      // A new price may make the product enter the hasPrice catalogue filter.
+      // Invalidate lists alongside the product detail and shop suggestions.
+      void client.invalidateQueries({ queryKey: queryKeys.products.all });
       void client.invalidateQueries({ queryKey: queryKeys.shops });
     },
   });
@@ -601,8 +603,9 @@ export function useDeletePrice(): UseMutationResult<void, Error, DeletePriceVari
     mutationFn: async ({ priceId }: DeletePriceVariables) => {
       await api.prices.remove(priceId);
     },
-    onSuccess: (_result, { productId }) => {
-      void client.invalidateQueries({ queryKey: queryKeys.products.byId(productId) });
+    onSuccess: () => {
+      // Removing the last price may make a product leave the hasPrice list.
+      void client.invalidateQueries({ queryKey: queryKeys.products.all });
     },
   });
 }
