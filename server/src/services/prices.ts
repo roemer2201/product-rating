@@ -47,6 +47,7 @@ export function toPublicPrice(
     currency: row.currency,
     shop: row.shop,
     note: row.note,
+    special: row.special,
     purchasedAt: row.purchasedAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
   };
@@ -133,7 +134,11 @@ export function createPrice(
   input: CreatePriceInput,
   now: Date = new Date(),
 ): Price {
-  if (findProductById(db, productId) === undefined) throw new NotFoundError('product not found');
+  const product = findProductById(db, productId);
+  if (product === undefined) throw new NotFoundError('product not found');
+  if (product.kind === 'dish' && input.special) {
+    throw new ValidationError('a dish cannot have a special price', { field: 'special' });
+  }
 
   const row: PriceRow = {
     id: randomUUID(),
@@ -143,6 +148,7 @@ export function createPrice(
     currency: config.app.currency,
     shop: input.shop,
     note: input.note,
+    special: input.special,
     purchasedAt: purchaseMoment(input.purchasedAt, now),
     createdAt: now,
   };

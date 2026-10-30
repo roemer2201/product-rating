@@ -415,6 +415,16 @@ Gerichten bedeutet der Preis „Kosten pro Portion“.
       Verwaltung laufen weiter über den Benutzernamen
 - [x] Katalogfilter „von mir erstellt“ neben „von mir bewertet“ (beide
       zusammen: UND), dazu der Ersteller auf der Produktseite
+- [x] Checkbox „Sonderpreis“ bei der Preiserfassung (Spalte `prices.special`,
+      Migration `0011`); der günstigste erfasste Preis lässt Sonderpreise aus,
+      der günstigste Sonderpreis steht in einer eigenen Zeile. Nicht bei
+      Gerichten; mit Export/Import und Offline-Erfassung
+- [ ] Sonderpreis-Markierung an vorhandenen Preiseinträgen nachträglich setzen
+      oder entfernen – bisher gibt es kein Bearbeiten eines Preises, nur
+      Erfassen und Löschen (vom Projektinhaber am 30.10.2026 vorerst
+      zurückgestellt)
+- [x] Einstellungsseite: Abschnitt „Verwaltung“ zwischen „Konto“ und
+      „Anzeigename“ statt am Ende
 - [x] Fremde Bewertungen sichtbar machen: wer im Haushalt hat wie viele Sterne vergeben – bisher liefert die API nur Durchschnitt, Anzahl und die eigene Bewertung
 - [x] FTS5-Suche nachrüsten, falls die `LIKE`-Suche mit wachsendem Katalog spürbar langsam wird
 - [x] Freitextsuche findet auch Kategorien, ganz oder als Teilwort („thermo“

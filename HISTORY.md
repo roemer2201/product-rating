@@ -5,6 +5,51 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-30 – Verwaltung auf der Einstellungsseite weiter oben
+
+- Der Abschnitt „Verwaltung“ (nur für Administratoren) steht jetzt direkt
+  nach „Konto“ und vor „Anzeigename“, statt zwischen Geräten und
+  Offline-Erfassungen am Ende der Seite. Nur die Reihenfolge hat sich
+  geändert, Inhalt und Sichtbarkeit sind gleich geblieben. Wunsch des
+  Projektinhabers.
+- Ein neuer Test prüft die Reihenfolge der ersten drei Überschriften.
+
+---
+
+## 2026-10-30 – Sonderpreis bei der Preiserfassung
+
+- Neue Spalte `prices.special` (boolean, `NOT NULL DEFAULT false`), Migration
+  `0011_price_special.sql`. Sie fügt nur eine Spalte hinzu; vorhandene Preise
+  gelten danach als normale Preise.
+- `POST /api/v1/products/:id/prices` nimmt `special` an, ohne das Feld gilt
+  `false`. Damit gehen Anfragen älterer Clients und vor dem Update
+  gespeicherte Offline-Erfassungen weiterhin durch. Jeder Preis liefert
+  `special` aus.
+- Preisformular: Checkbox „Sonderpreis“ unter dem Betrag. Nach dem Speichern
+  wird sie wie Betrag und Notiz zurückgesetzt, der Einkaufsort dagegen bleibt.
+  Bei Gerichten gibt es sie nicht. Der Notizhinweis nennt nicht mehr
+  „Angebot“ als Beispiel, dafür ist jetzt die Checkbox da.
+- Übersicht über der Liste: Der „Günstigste erfasste Preis“ zählt nur normale
+  Preise. Gibt es einen Sonderpreis, nennt eine eigene Zeile den günstigsten
+  („Günstigster Sonderpreis“). „Zuletzt bezahlt“ zeigt jeden Eintrag und
+  hängt bei einem Angebot „Sonderpreis“ an. In der Liste trägt jedes Angebot
+  ein Abzeichen.
+- Export/Import: `special` an jedem Preis in `export.json`, Spalte `special`
+  (`1`/`0`) in `prices.csv`. Dateien ohne das Feld werden als normale Preise
+  gelesen.
+- Offline-Erfassung: `CapturedPrice.special` ist optional. Erfassungen, die
+  vor dem Update in der Warteschlange lagen, gehen als normale Preise hoch.
+
+| Thema | Entscheidung | Begründung |
+|---|---|---|
+| Günstigster Preis | Ohne Sonderpreise, diese in eigener Zeile | Mit dem Projektinhaber abgestimmt: ein einzelnes Angebot soll nicht dauerhaft als „der“ günstigste Preis stehen |
+| Gerichte | Keine Checkbox | Mit dem Projektinhaber abgestimmt; „Kosten pro Portion“ ist eine Rechnung, kein Einkauf, wie beim Einkaufsort |
+| Vorhandene Einträge | Nur neue Einträge markierbar | Mit dem Projektinhaber abgestimmt; ein Bearbeiten von Preisen gibt es bisher nicht, Punkt im Backlog |
+| Version des Exportformats | Bleibt 3 | Ein zusätzliches Feld kann ein älterer Leser nicht missverstehen (siehe `EXPORT_VERSION`) |
+| Eigenes Feld statt Notiz | Spalte `special` | Nur ein Feld lässt sich beim günstigsten Preis zuverlässig auswerten, Freitext in der Notiz nicht |
+
+---
+
 ## 2026-10-21 – Katalogfilter „von mir erstellt“ und Ersteller auf der Produktseite
 
 - Neuer Listenparameter `createdByMe` für `GET /api/v1/products`, im Katalog als

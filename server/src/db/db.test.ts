@@ -453,6 +453,47 @@ describe('migration 0010: entries without an EAN', () => {
   });
 });
 
+describe('migration 0011: offers among the prices', () => {
+  it('keeps the recorded prices and marks none of them as an offer', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'product-rating-special-'));
+    const path = join(directory, 'app.db');
+    const before = migrationsBefore(directory, '0011_price_special');
+
+    try {
+      const opened = openDatabase({ path });
+      const { sqlite } = opened;
+      runMigrations({ db: opened.db, sqlite, databasePath: path, folder: before });
+
+      sqlite
+        .prepare(
+          `insert into users (id, username, password_hash, created_at) values ('u1', 'anna', 'x', 0)`,
+        )
+        .run();
+      sqlite
+        .prepare(
+          `insert into products (id, ean, name, created_by, created_at, updated_at)
+           values ('p1', '4260000000011', 'Apfelsaft', 'u1', 0, 0)`,
+        )
+        .run();
+      sqlite
+        .prepare(
+          `insert into prices (id, product_id, user_id, cents, currency, note, purchased_at, created_at)
+           values ('c1', 'p1', 'u1', 199, 'EUR', 'Angebot', 0, 0)`,
+        )
+        .run();
+
+      runMigrations({ db: opened.db, sqlite, databasePath: path });
+
+      expect(sqlite.prepare(`select id, cents, note, special from prices`).all()).toEqual([
+        { id: 'c1', cents: 199, note: 'Angebot', special: 0 },
+      ]);
+      opened.close();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('schema constraints', () => {
   it('rejects a second user with the same username', () => {
     const { db: handle } = db();

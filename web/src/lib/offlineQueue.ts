@@ -61,6 +61,8 @@ export interface CapturedPrice {
   cents: number;
   shop: string | null;
   note: string | null;
+  /** Absent in captures queued before offers were marked: a usual price. */
+  special?: boolean;
   purchasedAt: string;
 }
 
