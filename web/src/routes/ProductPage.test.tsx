@@ -502,7 +502,8 @@ describe('ProductPage', () => {
     // Opening a product after a hasPrice catalogue query leaves it cached.
     // Adding its first price must invalidate the cached list too.
     const listKey = queryKeys.products.list({ hasPrice: true });
-    client.setQueryData(listKey, { pages: [{ products: [], total: 0, nextCursor: null }] });
+    const emptyPage = { products: [], total: 0, nextCursor: null };
+    client.setQueryData(listKey, { pages: [emptyPage] });
 
     await user.type(screen.getByLabelText(new RegExp(strings.price.amount)), '1,99');
     // Restricted to the input: the suggestion list next to it carries the
@@ -547,20 +548,18 @@ describe('ProductPage', () => {
     await screen.findByRole('heading', { name: 'Apfelsaft' });
 
     const listKey = queryKeys.products.list({ hasPrice: true });
-    client.setQueryData(listKey, {
-      pages: [{ products: [makeProductDetail()], total: 1, nextCursor: null }],
-    });
+    const cachedPage = { products: [makeProductDetail()], total: 1, nextCursor: null };
+    client.setQueryData(listKey, { pages: [cachedPage] });
 
     await user.click(screen.getByRole('button', { name: /Eintrag über .* löschen/u }));
 
     await waitFor(() => {
-      expect(
-        fetchMock.mock.calls.some(
-          ([url, init]) =>
-            String(url).endsWith('/prices/price-1') &&
-            (init as RequestInit)?.method === 'DELETE',
-        ),
-      ).toBe(true);
+      const deleteCall = fetchMock.mock.calls.find(
+        ([url, init]) =>
+          String(url).endsWith('/prices/price-1') &&
+          (init as RequestInit)?.method === 'DELETE',
+      );
+      expect(deleteCall).toBeDefined();
       expect(client.getQueryState(listKey)?.isInvalidated).toBe(true);
     });
   });
