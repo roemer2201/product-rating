@@ -1265,6 +1265,25 @@ a {
   min-width: 0;
 }
 
+/* "Zusätzliche Filter" and, while something is set, the reset next to it. */
+.filters__toggle-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.filters__toggle[aria-expanded='true'] .filters__toggle-icon {
+  transform: rotate(180deg);
+}
+
+/* What the toggle folds: the same column of rows the filters always were. */
+.filters__more {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
 /* The search field and the camera button next to it. */
 .filters__search {
   display: flex;

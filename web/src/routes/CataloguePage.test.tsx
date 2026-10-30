@@ -51,6 +51,11 @@ function lastListUrl(calls: unknown[][]): string {
   return urls.at(-1) ?? '';
 }
 
+/** Unfolds the filters behind "Zusätzliche Filter", whatever its count says. */
+async function openMoreFilters(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+  await user.click(screen.getByRole('button', { name: /^Zusätzliche Filter/u }));
+}
+
 describe('CataloguePage', () => {
   it('lists the products with their average', async () => {
     mockFetch([
@@ -191,6 +196,7 @@ describe('CataloguePage', () => {
     await waitFor(() => {
       expect(lastListUrl(fetchMock.mock.calls)).toContain('q=saft');
     });
+    await openMoreFilters(user);
     await user.selectOptions(screen.getByLabelText(strings.catalogue.kind), 'dish');
     await waitFor(() => {
       const url = lastListUrl(fetchMock.mock.calls);
@@ -222,10 +228,12 @@ describe('CataloguePage', () => {
     renderCatalogue();
     await screen.findByText('Apfelsaft');
 
+    await openMoreFilters(user);
     await user.selectOptions(screen.getByLabelText(strings.catalogue.category), 'Getränke');
     await user.selectOptions(screen.getByLabelText(strings.catalogue.minStars), String(4));
     await user.click(screen.getByLabelText(strings.catalogue.ratedByMe));
     await user.click(screen.getByLabelText(strings.catalogue.createdByMe));
+    await user.click(screen.getByLabelText(strings.catalogue.hasPrice));
     await user.selectOptions(screen.getByLabelText(strings.catalogue.kind), 'dish');
     await user.selectOptions(screen.getByLabelText(strings.catalogue.sort), 'name');
 
@@ -235,12 +243,13 @@ describe('CataloguePage', () => {
       expect(url).toContain('minStars=4');
       expect(url).toContain('ratedByMe=true');
       expect(url).toContain('createdByMe=true');
+      expect(url).toContain('hasPrice=true');
       expect(url).toContain('kind=dish');
       expect(url).toContain('sort=name');
     });
   });
 
-  it('clears both personal filters with reset', async () => {
+  it('clears the personal filters and the price filter with reset', async () => {
     const user = userEvent.setup();
     const fetchMock = mockFetch([
       CATEGORIES,
@@ -250,21 +259,26 @@ describe('CataloguePage', () => {
     renderCatalogue();
     await screen.findByText('Apfelsaft');
 
+    await openMoreFilters(user);
     const created = screen.getByLabelText(strings.catalogue.createdByMe);
     const rated = screen.getByLabelText(strings.catalogue.ratedByMe);
+    const priced = screen.getByLabelText(strings.catalogue.hasPrice);
     await user.click(created);
     await user.click(rated);
+    await user.click(priced);
 
     await waitFor(() => {
       const url = lastListUrl(fetchMock.mock.calls);
       expect(url).toContain('createdByMe=true');
       expect(url).toContain('ratedByMe=true');
+      expect(url).toContain('hasPrice=true');
     });
 
     await user.click(screen.getByRole('button', { name: strings.catalogue.resetFilters }));
 
     expect(created).not.toBeChecked();
     expect(rated).not.toBeChecked();
+    expect(priced).not.toBeChecked();
     // The unfiltered list is already cached, so a new HTTP request is optional.
     expect(
       screen.queryByRole('button', { name: strings.catalogue.resetFilters }),
@@ -279,9 +293,57 @@ describe('CataloguePage', () => {
     renderCatalogue();
     await screen.findByText(strings.catalogue.empty);
 
+    await openMoreFilters(user);
     await user.click(screen.getByLabelText(strings.catalogue.ratedByMe));
 
     expect(await screen.findByText(strings.catalogue.emptyFiltered)).toBeInTheDocument();
+  });
+
+  it('shows only the search line until the other filters are unfolded', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([
+      CATEGORIES,
+      { path: '/products', body: makeProductPage([makeProduct()]) },
+    ]);
+
+    renderCatalogue();
+    await screen.findByText('Apfelsaft');
+
+    expect(screen.getByLabelText(strings.catalogue.search)).toBeInTheDocument();
+    const toggle = screen.getByRole('button', { name: strings.catalogue.moreFilters });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    for (const label of [
+      strings.catalogue.category,
+      strings.catalogue.minStars,
+      strings.catalogue.kind,
+      strings.catalogue.sort,
+      strings.catalogue.order,
+      strings.catalogue.createdByMe,
+      strings.catalogue.ratedByMe,
+      strings.catalogue.hasPrice,
+    ]) {
+      expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
+    }
+
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(toggle).toHaveAttribute('aria-controls', 'catalogue-more-filters');
+    await user.click(screen.getByLabelText(strings.catalogue.hasPrice));
+    await user.selectOptions(screen.getByLabelText(strings.catalogue.minStars), String(4));
+    // Sorting is not a filter and does not count.
+    await user.selectOptions(screen.getByLabelText(strings.catalogue.sort), 'name');
+
+    // Folded again, the button still says that the list is narrowed down, and
+    // the reset stays within reach.
+    await user.click(toggle);
+    expect(screen.queryByLabelText(strings.catalogue.hasPrice)).not.toBeInTheDocument();
+    expect(toggle).toHaveAccessibleName(strings.catalogue.moreFiltersActive(2));
+    await waitFor(() => {
+      expect(lastListUrl(fetchMock.mock.calls)).toContain('hasPrice=true');
+    });
+
+    await user.click(screen.getByRole('button', { name: strings.catalogue.resetFilters }));
+    expect(toggle).toHaveAccessibleName(strings.catalogue.moreFilters);
   });
 
   it('loads the next page on demand', async () => {

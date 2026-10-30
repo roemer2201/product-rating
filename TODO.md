@@ -422,6 +422,8 @@ Gerichten bedeutet der Preis „Kosten pro Portion“.
 - [x] Preisformular: „Sonderpreis“ heißt „Aktionspreis“, die Checkbox steht
       rechts neben dem halb so breiten Betragsfeld, der Hinweis unter dem
       Betrag („Komma oder Punkt, beides geht“) entfällt
+- [x] Katalog aufgeräumt: nur die Suchzeile sichtbar, Filter und Sortierung
+      hinter „Zusätzliche Filter“; neuer Filter „Enthält Preis“ (`hasPrice`)
 - [ ] Aktionspreis-Markierung an vorhandenen Preiseinträgen nachträglich
       setzen oder entfernen – bisher gibt es kein Bearbeiten eines Preises,
       nur Erfassen und Löschen (vom Projektinhaber am 30.10.2026 vorerst

@@ -129,6 +129,11 @@ export const productListQuerySchema = z.object({
   ratedByMe: flagSchema.optional(),
   /** Restricts the list to products the caller has added to the catalogue. */
   createdByMe: flagSchema.optional(),
+  /**
+   * Restricts the list to products with at least one recorded price, by
+   * anybody: offers and the cost of a portion count as well.
+   */
+  hasPrice: flagSchema.optional(),
   sort: z.enum(PRODUCT_SORT_FIELDS).default('updated'),
   /** Defaults to ascending for `name` and descending for everything else. */
   order: z.enum(PRODUCT_SORT_ORDERS).optional(),

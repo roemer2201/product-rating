@@ -134,6 +134,15 @@ export function BackIcon({ className }: IconProps) {
   );
 }
 
+/** Opens a folded section; turned upside down by CSS while it is open. */
+export function ChevronDownIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M5.5 9 12 15.5 18.5 9" />
+    </svg>
+  );
+}
+
 /** Moves a photo towards the front of the gallery. */
 export function ArrowUpIcon({ className }: IconProps) {
   return (

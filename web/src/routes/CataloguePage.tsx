@@ -13,7 +13,7 @@ import { LoadMore } from '@/components/LoadMore';
 import { ProductCard } from '@/components/ProductCard';
 import { PullToRefresh } from '@/components/PullToRefresh';
 import { SelectField } from '@/components/Field';
-import { CameraIcon, CloseIcon } from '@/components/icons';
+import { CameraIcon, ChevronDownIcon, CloseIcon } from '@/components/icons';
 import { errorMessage } from '@/lib/api';
 import { useCategories, useProductList } from '@/lib/queries';
 import { strings } from '@/lib/strings';
@@ -29,6 +29,12 @@ import { strings } from '@/lib/strings';
  * The search term is held back for a moment before it becomes a request. On a
  * phone keyboard that is the difference between one query and eight.
  *
+ * Only the search line is always there. Everything else - filters, sorting,
+ * the "mine" checkboxes - waits behind "Zusätzliche Filter", which is folded
+ * whenever the screen opens: most visits are a search or a scroll. The button
+ * counts the filters that are set, so a folded panel never hides that the
+ * list is narrowed down, and the reset stays outside it for the same reason.
+ *
  * At the very top the screen can be pulled down to reload, the gesture the
  * catalogue is asked for most: someone else in the household has entered or
  * rated something, and the list in hand is a few minutes old.
@@ -39,6 +45,9 @@ const SEARCH_DEBOUNCE_MS = 300;
 
 /** Ties the camera button to the panel it opens, for assistive technology. */
 const SCANNER_PANEL_ID = 'catalogue-barcode-scanner';
+
+/** Ties the "Zusätzliche Filter" button to the panel it folds. */
+const MORE_FILTERS_PANEL_ID = 'catalogue-more-filters';
 
 /**
  * The choices of the "at least this many stars" filter: every star of the
@@ -65,6 +74,8 @@ export function CataloguePage() {
   const [minStars, setMinStars] = useState('');
   const [ratedByMe, setRatedByMe] = useState(false);
   const [createdByMe, setCreatedByMe] = useState(false);
+  const [hasPrice, setHasPrice] = useState(false);
+  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
   const [sort, setSort] = useState<ProductSortField>('updated');
   const [order, setOrder] = useState<SortOrder>('desc');
 
@@ -87,14 +98,23 @@ export function CataloguePage() {
     ...(minStars === '' ? {} : { minStars: Number(minStars) }),
     ...(ratedByMe ? { ratedByMe: true } : {}),
     ...(createdByMe ? { createdByMe: true } : {}),
+    ...(hasPrice ? { hasPrice: true } : {}),
     sort,
     order,
   });
 
   const products = list.data?.pages.flatMap((page) => page.products) ?? [];
   const total = list.data?.pages[0]?.total ?? 0;
-  const filtered =
-    term !== '' || category !== '' || kind !== '' || minStars !== '' || ratedByMe || createdByMe;
+  /** The filters behind the fold that are set; sorting is not a filter. */
+  const activeFilters = [
+    category !== '',
+    kind !== '',
+    minStars !== '',
+    createdByMe,
+    ratedByMe,
+    hasPrice,
+  ].filter(Boolean).length;
+  const filtered = term !== '' || activeFilters > 0;
 
   const handleDetectedEan = useCallback((ean: string): void => {
     // A scan is already a complete search term, so do not make it wait for the
@@ -124,6 +144,7 @@ export function CataloguePage() {
     setMinStars('');
     setRatedByMe(false);
     setCreatedByMe(false);
+    setHasPrice(false);
   };
 
   return (
@@ -207,109 +228,144 @@ export function CataloguePage() {
             </div>
           )}
 
-          <div className="filters__row">
-            <SelectField
-              label={strings.catalogue.category}
-              value={category}
-              onChange={(event) => {
-                setCategory(event.target.value);
+          <div className="filters__toggle-row">
+            <button
+              type="button"
+              className="button filters__toggle"
+              onClick={() => {
+                setMoreFiltersOpen((open) => !open);
               }}
+              aria-expanded={moreFiltersOpen}
+              // Only while the panel exists, as with the scanner above.
+              aria-controls={moreFiltersOpen ? MORE_FILTERS_PANEL_ID : undefined}
             >
-              <option value="">{strings.catalogue.allCategories}</option>
-              {(categories.data ?? []).map((entry) => (
-                <option key={entry.id} value={entry.id}>
-                  {entry.name}
-                </option>
-              ))}
-            </SelectField>
-
-            <SelectField
-              label={strings.catalogue.minStars}
-              value={minStars}
-              onChange={(event) => {
-                setMinStars(event.target.value);
-              }}
-            >
-              <option value="">{strings.catalogue.anyStars}</option>
-              {MIN_STARS_OPTIONS.map((stars) => (
-                <option key={stars} value={stars}>
-                  {strings.rating.starLabel(stars)}
-                </option>
-              ))}
-            </SelectField>
-          </div>
-
-          <div className="filters__row">
-            <SelectField
-              label={strings.catalogue.kind}
-              value={kind}
-              onChange={(event) => {
-                setKind(event.target.value as ProductKind | '');
-              }}
-            >
-              <option value="">{strings.catalogue.allKinds}</option>
-              <option value="product">{strings.catalogue.kindProduct}</option>
-              <option value="dish">{strings.catalogue.kindDish}</option>
-            </SelectField>
-          </div>
-
-          <div className="filters__row">
-            <SelectField
-              label={strings.catalogue.sort}
-              value={sort}
-              onChange={(event) => {
-                setSort(event.target.value as ProductSortField);
-              }}
-            >
-              {Object.entries(SORT_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </SelectField>
-
-            <SelectField
-              label={strings.catalogue.order}
-              value={order}
-              onChange={(event) => {
-                setOrder(event.target.value as SortOrder);
-              }}
-            >
-              <option value="asc">{strings.catalogue.orderAsc}</option>
-              <option value="desc">{strings.catalogue.orderDesc}</option>
-            </SelectField>
-          </div>
-
-          {/* Side by side, and combined like every other filter: both ticked
-              leaves what the caller added and rated. */}
-          <div className="filters__row">
-            <label className="checkbox">
-              <input
-                type="checkbox"
-                checked={createdByMe}
-                onChange={(event) => {
-                  setCreatedByMe(event.target.checked);
-                }}
-              />
-              {strings.catalogue.createdByMe}
-            </label>
-
-            <label className="checkbox">
-              <input
-                type="checkbox"
-                checked={ratedByMe}
-                onChange={(event) => {
-                  setRatedByMe(event.target.checked);
-                }}
-              />
-              {strings.catalogue.ratedByMe}
-            </label>
-          </div>
-
-          {filtered && (
-            <button type="button" className="button button--quiet" onClick={resetFilters}>
-              {strings.catalogue.resetFilters}
+              {activeFilters > 0
+                ? strings.catalogue.moreFiltersActive(activeFilters)
+                : strings.catalogue.moreFilters}
+              <ChevronDownIcon className="button__icon filters__toggle-icon" />
             </button>
+
+            {filtered && (
+              <button type="button" className="button button--quiet" onClick={resetFilters}>
+                {strings.catalogue.resetFilters}
+              </button>
+            )}
+          </div>
+
+          {moreFiltersOpen && (
+            <div id={MORE_FILTERS_PANEL_ID} className="filters__more">
+              <div className="filters__row">
+                <SelectField
+                  label={strings.catalogue.category}
+                  value={category}
+                  onChange={(event) => {
+                    setCategory(event.target.value);
+                  }}
+                >
+                  <option value="">{strings.catalogue.allCategories}</option>
+                  {(categories.data ?? []).map((entry) => (
+                    <option key={entry.id} value={entry.id}>
+                      {entry.name}
+                    </option>
+                  ))}
+                </SelectField>
+
+                <SelectField
+                  label={strings.catalogue.minStars}
+                  value={minStars}
+                  onChange={(event) => {
+                    setMinStars(event.target.value);
+                  }}
+                >
+                  <option value="">{strings.catalogue.anyStars}</option>
+                  {MIN_STARS_OPTIONS.map((stars) => (
+                    <option key={stars} value={stars}>
+                      {strings.rating.starLabel(stars)}
+                    </option>
+                  ))}
+                </SelectField>
+              </div>
+
+              <div className="filters__row">
+                <SelectField
+                  label={strings.catalogue.kind}
+                  value={kind}
+                  onChange={(event) => {
+                    setKind(event.target.value as ProductKind | '');
+                  }}
+                >
+                  <option value="">{strings.catalogue.allKinds}</option>
+                  <option value="product">{strings.catalogue.kindProduct}</option>
+                  <option value="dish">{strings.catalogue.kindDish}</option>
+                </SelectField>
+              </div>
+
+              <div className="filters__row">
+                <SelectField
+                  label={strings.catalogue.sort}
+                  value={sort}
+                  onChange={(event) => {
+                    setSort(event.target.value as ProductSortField);
+                  }}
+                >
+                  {Object.entries(SORT_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </SelectField>
+
+                <SelectField
+                  label={strings.catalogue.order}
+                  value={order}
+                  onChange={(event) => {
+                    setOrder(event.target.value as SortOrder);
+                  }}
+                >
+                  <option value="asc">{strings.catalogue.orderAsc}</option>
+                  <option value="desc">{strings.catalogue.orderDesc}</option>
+                </SelectField>
+              </div>
+
+              {/* Side by side, and combined like every other filter: both ticked
+                leaves what the caller added and rated. */}
+              <div className="filters__row">
+                <label className="checkbox">
+                  <input
+                    type="checkbox"
+                    checked={createdByMe}
+                    onChange={(event) => {
+                      setCreatedByMe(event.target.checked);
+                    }}
+                  />
+                  {strings.catalogue.createdByMe}
+                </label>
+
+                <label className="checkbox">
+                  <input
+                    type="checkbox"
+                    checked={ratedByMe}
+                    onChange={(event) => {
+                      setRatedByMe(event.target.checked);
+                    }}
+                  />
+                  {strings.catalogue.ratedByMe}
+                </label>
+              </div>
+
+              <div className="filters__row">
+                <label className="checkbox">
+                  <input
+                    type="checkbox"
+                    checked={hasPrice}
+                    onChange={(event) => {
+                      setHasPrice(event.target.checked);
+                    }}
+                  />
+                  {strings.catalogue.hasPrice}
+                </label>
+              </div>
+            </div>
           )}
         </div>
 

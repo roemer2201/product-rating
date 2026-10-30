@@ -21,6 +21,7 @@ import {
   FOLD_FUNCTION,
   LOWER_FUNCTION,
   photos,
+  prices,
   products,
   ratings,
   users,
@@ -751,6 +752,14 @@ function filterConditions(query: ProductListQuery, userId: string): SQL[] {
 
   if (query.createdByMe === true) {
     conditions.push(eq(products.createdBy, userId));
+  }
+
+  if (query.hasPrice === true) {
+    // `prices_product_purchased_idx` starts with the product, so this is one
+    // index probe per row rather than a scan of the price history.
+    conditions.push(
+      sql`exists (select 1 from ${prices} where ${prices.productId} = ${products.id})`,
+    );
   }
 
   return conditions;

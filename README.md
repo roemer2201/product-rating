@@ -100,14 +100,14 @@ mindestens 44 Pixel hoch, Ränder über `env(safe-area-inset-*)`.
 
 | Adresse | Ansicht |
 |---|---|
-| `/` | Katalog – Produktliste mit Suche, Filtern und Thumbnails |
+| `/` | Katalog – Produktliste mit Suchzeile und Thumbnails; Filter und Sortierung hinter „Zusätzliche Filter“ (zugeklappt, mit Zahl der gesetzten Filter), „Filter zurücksetzen“ daneben |
 | `/scan` | Scanner, primäre Aktion („Kamera starten“ im Kamerafeld); darunter „Ohne Barcode erfassen“ und die Eingabe von Hand |
 | `/products/new?ean=…` | Anlegeformular mit vorbelegter EAN |
 | `/products/new?kind=dish` | Anlegeformular für ein Gericht oder Rezept, ohne EAN |
 | `/products/new?kind=product` | Anlegeformular für ein Produkt ohne Barcode |
 | `/products/:id` | Produkt: Foto, Durchschnitt, eigene Bewertung, Bearbeiten, Löschen |
 | `/ratings` | Eigene Bewertungen |
-| `/settings` | Konto, Anzeigename, Passwort, eigene Sitzungen, Abmelden |
+| `/settings` | Konto, Verwaltung (nur Admin), Anzeigename, Passwort, eigene Sitzungen, Abmelden |
 | `/admin` | Verwaltung (nur Administratoren): Übersicht über die vier Bereiche darunter |
 | `/admin/categories` | Kategorienliste: anlegen, umbenennen, „häufig genutzt“, löschen |
 | `/admin/invites` | Einladungscodes erzeugen, weitergeben, zurückziehen |
@@ -582,6 +582,7 @@ welches Symbol der Scanner gelesen hat, denselben Eintrag. Führende Nullen
 | `minStars` | 0–10 | Nur Produkte, deren Durchschnitt diesen Wert erreicht; unbewertete fallen heraus |
 | `ratedByMe` | `true`/`false` | Nur selbst bewertete Produkte |
 | `createdByMe` | `true`/`false` | Nur selbst angelegte Produkte; zusammen mit `ratedByMe` gilt beides |
+| `hasPrice` | `true`/`false` | Nur Produkte mit mindestens einem erfassten Preis, gleich von wem – Aktionspreise und Kosten pro Portion zählen mit |
 | `sort` | `name`, `created`, `updated`, `rating` | Standard `updated` |
 | `order` | `asc`, `desc` | Standard: `asc` bei `name`, sonst `desc` |
 | `limit` | 1–100 | Standard 25 |

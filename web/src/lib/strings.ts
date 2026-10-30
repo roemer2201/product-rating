@@ -483,6 +483,10 @@ export const strings = {
     anyStars: 'Egal',
     createdByMe: 'von mir erstellt',
     ratedByMe: 'von mir bewertet',
+    hasPrice: 'Enthält Preis',
+    moreFilters: 'Zusätzliche Filter',
+    // The count keeps a folded panel from hiding that the list is filtered.
+    moreFiltersActive: (count: number) => `Zusätzliche Filter (${count})`,
     sort: 'Sortierung',
     order: 'Richtung',
     sortName: 'Name',
