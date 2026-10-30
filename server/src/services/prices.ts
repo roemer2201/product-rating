@@ -47,6 +47,7 @@ export function toPublicPrice(
     currency: row.currency,
     shop: row.shop,
     note: row.note,
+    special: row.special,
     purchasedAt: row.purchasedAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
   };
@@ -143,6 +144,7 @@ export function createPrice(
     currency: config.app.currency,
     shop: input.shop,
     note: input.note,
+    special: input.special,
     purchasedAt: purchaseMoment(input.purchasedAt, now),
     createdAt: now,
   };

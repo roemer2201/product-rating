@@ -64,6 +64,7 @@ export function makePrice(overrides: Partial<Price> = {}): Price {
     currency: 'EUR',
     shop: 'Bioladen',
     note: null,
+    special: false,
     purchasedAt: '2026-08-10T12:00:00.000Z',
     createdAt: '2026-08-10T12:00:00.000Z',
     ...overrides,

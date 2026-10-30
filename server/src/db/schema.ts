@@ -315,6 +315,12 @@ export const prices = sqliteTable(
     /** Where it was bought. Free text — a household knows its own shops. */
     shop: text('shop'),
     note: text('note'),
+    /**
+     * An offer rather than the usual price. Kept apart from the note so the
+     * "cheapest price" of a product can leave it out: one sale would otherwise
+     * stand there as the price for good.
+     */
+    special: integer('special', { mode: 'boolean' }).notNull().default(false),
     /** The day of the purchase, which is rarely the day of the entry. */
     purchasedAt: integer('purchased_at', { mode: 'timestamp_ms' }).notNull(),
     createdAt: createdAt(),

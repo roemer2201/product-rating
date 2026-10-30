@@ -521,6 +521,47 @@ describe('ProductPage', () => {
     });
   });
 
+  it('sends the offer mark and clears it for the next entry', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      { path: '/prices/shops', body: { shops: [] } },
+      {
+        path: '/products/prod-1/prices',
+        method: 'POST',
+        body: { price: makePrice({ special: true }) },
+      },
+      { path: '/products/prod-1', body: { product: makeProductDetail() } },
+    ]);
+
+    renderProduct();
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+
+    const special = screen.getByRole('checkbox', { name: strings.price.special });
+    expect(special).not.toBeChecked();
+
+    await user.type(screen.getByLabelText(new RegExp(strings.price.amount)), '0,99');
+    await user.click(special);
+    await user.click(screen.getByRole('button', { name: strings.price.add }));
+
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(
+        ([url, init]) =>
+          String(url).endsWith('/products/prod-1/prices') &&
+          (init as RequestInit)?.method === 'POST',
+      );
+      expect(post).toBeDefined();
+      const body = JSON.parse(String((post?.[1] as RequestInit).body)) as Record<string, unknown>;
+      expect(body.cents).toBe(99);
+      expect(body.special).toBe(true);
+    });
+    // An offer is the exception; the next entry starts as a usual price.
+    await waitFor(() => {
+      expect(special).not.toBeChecked();
+    });
+  });
+
   it('says so when the amount is not one, instead of sending a zero', async () => {
     const user = userEvent.setup();
     const fetchMock = mockFetch([
@@ -568,6 +609,57 @@ describe('ProductPage', () => {
     expect(screen.getAllByText(strings.price.lowest)).toHaveLength(2);
   });
 
+  it('keeps an offer out of the cheapest price and names it on a line of its own', async () => {
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      { path: '/prices/shops', body: { shops: [] } },
+      {
+        path: '/products/prod-1',
+        body: {
+          product: makeProductDetail({
+            prices: [
+              makePrice({ id: 'price-3', cents: 99, shop: 'Aktionsmarkt', special: true }),
+              makePrice({ id: 'price-2', cents: 249, shop: 'Supermarkt' }),
+              makePrice({ id: 'price-1', cents: 179, shop: 'Discounter' }),
+            ],
+          }),
+        },
+      },
+    ]);
+
+    renderProduct();
+
+    const lowest = await screen.findByText(strings.price.lowest, { selector: 'dt' });
+    expect(lowest.parentElement).toHaveTextContent(/1[.,]79/);
+    expect(lowest.parentElement).not.toHaveTextContent(/0[.,]99/);
+
+    const lowestSpecial = screen.getByText(strings.price.lowestSpecial, { selector: 'dt' });
+    expect(lowestSpecial.parentElement).toHaveTextContent(/0[.,]99/);
+    expect(lowestSpecial.parentElement).toHaveTextContent(/Aktionsmarkt/);
+
+    // The badge of the cheapest row sits on the usual price, the offer has its own.
+    expect(screen.getAllByText(strings.price.lowest)).toHaveLength(2);
+    expect(screen.getByText(strings.price.special, { selector: '.badge' })).toBeInTheDocument();
+  });
+
+  it('leaves the line of offers out while there is none', async () => {
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      { path: '/prices/shops', body: { shops: [] } },
+      {
+        path: '/products/prod-1',
+        body: { product: makeProductDetail({ prices: [makePrice()] }) },
+      },
+    ]);
+
+    renderProduct();
+
+    expect(await screen.findByText(strings.price.lowest, { selector: 'dt' })).toBeInTheDocument();
+    expect(screen.queryByText(strings.price.lowestSpecial)).not.toBeInTheDocument();
+  });
+
   it('shows a dish with its source and the cost of a portion, without an EAN', async () => {
     mockFetch([
       { path: '/auth/me', body: { user: testUser } },
@@ -601,6 +693,7 @@ describe('ProductPage', () => {
     // Nothing is bought in a shop: neither the field nor "Ohne Ort" in the rows.
     expect(screen.queryByLabelText(new RegExp(strings.price.shop))).not.toBeInTheDocument();
     expect(screen.queryByText(new RegExp(strings.price.noShop))).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: strings.price.special })).not.toBeInTheDocument();
     expect(screen.getByLabelText(new RegExp(strings.price.dishAmount))).toBeInTheDocument();
   });
 

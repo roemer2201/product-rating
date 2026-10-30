@@ -109,6 +109,8 @@ const exportedPriceSchema = z.object({
   currency: z.string().min(3).max(3),
   shop: z.string().nullish(),
   note: z.string().nullish(),
+  /** Absent in files written before offers were marked. */
+  special: z.boolean().default(false),
   purchasedAt: z.string().optional(),
 });
 
@@ -327,6 +329,7 @@ function collectProducts(db: DbHandle, includeTrash: boolean): ExportedProduct[]
         currency: price.currency,
         shop: price.shop,
         note: price.note,
+        special: price.special,
         purchasedAt: price.purchasedAt.toISOString(),
       }))
       .filter((price) => price.user !== ''),
@@ -576,7 +579,7 @@ function usersCsv(accounts: ExportedUser[]): string {
 
 function pricesCsv(exported: ExportedProduct[]): string {
   const rows: (string | number | null)[][] = [
-    ['ean', 'product', 'user', 'cents', 'currency', 'shop', 'note', 'purchased_at'],
+    ['ean', 'product', 'user', 'cents', 'currency', 'shop', 'note', 'special', 'purchased_at'],
   ];
 
   for (const product of exported) {
@@ -589,6 +592,7 @@ function pricesCsv(exported: ExportedProduct[]): string {
         price.currency,
         price.shop ?? null,
         price.note ?? null,
+        price.special ? 1 : 0,
         price.purchasedAt ?? null,
       ]);
     }
@@ -1040,6 +1044,7 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
             currency: price.currency,
             shop: price.shop ?? null,
             note: price.note ?? null,
+            special: price.special,
             purchasedAt: paidAt,
             createdAt: now,
           })

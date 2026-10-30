@@ -201,6 +201,8 @@ export interface Price {
   currency: string;
   shop: string | null;
   note: string | null;
+  /** An offer; the cheapest price of a product leaves these out. */
+  special: boolean;
   purchasedAt: string;
   createdAt: string;
 }

@@ -315,6 +315,7 @@ describe('prices in an export', () => {
       cents: 199,
       shop: 'Bioladen',
       note: null,
+      special: false,
       purchasedAt: '2026-08-10',
     });
 
@@ -337,7 +338,58 @@ describe('prices in an export', () => {
     expect(second.pricesSkipped).toBe(1);
     const here = listProductPrices(target.database.db, productIdOf(target, '4260000000011'));
     expect(here).toHaveLength(1);
-    expect(here[0]).toMatchObject({ cents: 199, currency: 'EUR', shop: 'Bioladen' });
+    expect(here[0]).toMatchObject({
+      cents: 199,
+      currency: 'EUR',
+      shop: 'Bioladen',
+      special: false,
+    });
+  });
+
+  it('keeps an offer marked, and reads files from before the mark as usual prices', async () => {
+    const juice = productIdOf(source, '4260000000011');
+    createPrice(source.database.db, source.config, ANNA, juice, {
+      cents: 129,
+      shop: 'Discounter',
+      note: null,
+      special: true,
+      purchasedAt: '2026-08-11',
+    });
+
+    await exportCatalogue({
+      db: source.database.db,
+      config: source.config,
+      target: directory,
+      format: 'both',
+    });
+    expect(readFileSync(join(directory, EXPORT_PRICES_CSV), 'utf8')).toContain(
+      'cents,currency,shop,note,special,purchased_at',
+    );
+
+    await importCatalogue({ db: target.database.db, config: target.config, source: directory });
+    const here = listProductPrices(target.database.db, productIdOf(target, '4260000000011'));
+    expect(here[0]).toMatchObject({ cents: 129, special: true });
+
+    // A file written before offers were marked has no `special` at all.
+    const path = join(directory, EXPORT_JSON_FILE);
+    const original = readFileSync(path, 'utf8');
+    const stripped = original.replaceAll(/\s*"special": (true|false),/g, '');
+    expect(stripped).not.toContain('"special"');
+    writeFileSync(path, stripped);
+
+    const older = newInstance(false);
+    try {
+      const result = await importCatalogue({
+        db: older.database.db,
+        config: older.config,
+        source: directory,
+      });
+      expect(result.pricesCreated).toBe(1);
+      const there = listProductPrices(older.database.db, productIdOf(older, '4260000000011'));
+      expect(there[0]).toMatchObject({ cents: 129, special: false });
+    } finally {
+      older.database.close();
+    }
   });
 });
 

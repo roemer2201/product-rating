@@ -221,9 +221,33 @@ describe('syncing a capture', () => {
           String(url).endsWith('/products') && (init as RequestInit)?.method === 'POST',
       ),
     ).toBe(false);
-    expect(
-      fetchMock.mock.calls.some(([url]) => String(url).includes('/products/prod-1/prices')),
-    ).toBe(true);
+    const post = fetchMock.mock.calls.find(([url]) =>
+      String(url).includes('/products/prod-1/prices'),
+    );
+    expect(post).toBeDefined();
+    // Queued before offers were marked: it goes up as a usual price.
+    const body = JSON.parse(String((post?.[1] as RequestInit).body)) as Record<string, unknown>;
+    expect(body.special).toBe(false);
+  });
+
+  it('keeps the offer mark of a price written down offline', async () => {
+    await enqueueCapture({
+      ean: TEST_EAN,
+      label: 'Apfelsaft',
+      price: { cents: 99, shop: null, note: null, special: true, purchasedAt: '2026-08-20' },
+    });
+
+    const fetchMock = mockFetch([
+      { path: `/products/by-ean/${TEST_EAN}`, body: { product: PRODUCT } },
+      { path: '/products/prod-1/prices', method: 'POST', body: { price: {} } },
+    ]);
+
+    expect((await syncCaptures()).synced).toBe(1);
+    const post = fetchMock.mock.calls.find(([url]) =>
+      String(url).includes('/products/prod-1/prices'),
+    );
+    const body = JSON.parse(String((post?.[1] as RequestInit).body)) as Record<string, unknown>;
+    expect(body).toMatchObject({ cents: 99, special: true });
   });
 
   it('asks instead of overwriting a verdict that changed in the meantime', async () => {

@@ -382,7 +382,7 @@ ratings   (id, product_id, user_id, stars 0..5, comment, created_at, updated_at)
 photos    (id, product_id, user_id, filename, mime, width, height,
            position, created_at)
 
-prices    (id, product_id, user_id, cents, currency, shop, note,
+prices    (id, product_id, user_id, cents, currency, shop, note, special,
            purchased_at, created_at)
 
 products_fts (name, variant, brand, ean, product_id)  FTS5, Trigramme, per Trigger gepflegt
@@ -720,8 +720,18 @@ Gelesen wird der Verlauf über `GET /api/v1/products/:id`, der ihn unter
 eigene Leseroute gibt es bewusst nicht: Ein Preis ist nur neben seinem Produkt
 interessant.
 
-**Körper von `POST`:** `{ "cents": 199, "shop": "Bioladen", "note": "Angebot",
-"purchasedAt": "2026-08-10" }`. Nur `cents` ist Pflicht.
+**Körper von `POST`:** `{ "cents": 199, "shop": "Bioladen", "note": "500-g-Packung",
+"special": false, "purchasedAt": "2026-08-10" }`. Nur `cents` ist Pflicht;
+`special` fehlt bei älteren Clients und gilt dann als `false`.
+
+**Sonderpreise** (Angebot, Aktion, reduziert) sind am Eintrag markiert, im
+Formular über die Checkbox „Sonderpreis“. Der „Günstigste erfasste Preis“ über
+der Liste lässt sie aus, sonst stünde dort nach einem einzigen Angebot
+dauerhaft ein Preis, den man sonst nie bezahlt. Gibt es einen Sonderpreis,
+nennt eine eigene Zeile den günstigsten; in der Liste trägt jeder ein Abzeichen.
+Bei Gerichten gibt es die Markierung nicht, wie den Einkaufsort. Markiert wird
+beim Erfassen; ein nachträgliches Ändern vorhandener Einträge gibt es bisher
+nicht.
 
 **Beträge sind ganze Zahlen in der kleinsten Einheit der Währung**, nie
 Dezimalzahlen: 1,10 + 2,20 ergibt binär nicht 3,30, und ein Preisverlauf, der
@@ -1509,7 +1519,11 @@ Papierkorb); eine vorhandene Bewertung wird nie überschrieben – ein Urteil
 gehört dem, der es abgegeben hat. Damit ist derselbe Import zweimal
 ausführbar, ohne dass sich etwas verdoppelt: Fotos erkennt der Import an Konto
 und Aufnahmezeitpunkt wieder, Preise an Konto, Einkaufstag und Betrag. Bilder laufen beim Einlesen durch denselben Weg
-wie ein Upload – neu kodiert, Thumbnail erzeugt, Metadaten entfernt.
+wie ein Upload – neu kodiert, Thumbnail erzeugt, Metadaten entfernt. Die
+Markierung als Sonderpreis reist als `special` mit, in `prices.csv` als Spalte
+`special` mit `1` oder `0`; Dateien von davor kennen sie nicht, ihre Preise
+gelten als normale Preise. Eine neue Version des Dateiformats braucht es dafür
+nicht, denn ein zusätzliches Feld kann ein älterer Leser nicht missverstehen.
 
 **Kategorien reisen als Namen.** `export.json` trägt die ganze Liste –
 auch Einträge, die noch an keinem Produkt hängen – samt Markierung „häufig

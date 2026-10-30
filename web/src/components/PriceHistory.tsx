@@ -24,13 +24,18 @@ import { strings } from '@/lib/strings';
  * the two numbers that answer it stand above it: the cheapest entry ever
  * recorded and the most recent one. Everything else is the log underneath.
  *
+ * An offer is marked as such and stays out of the cheapest price: one sale
+ * would otherwise stand there for good as what the product costs. The
+ * cheapest offer gets a line of its own instead.
+ *
  * Recording is open to every account, because what things cost is a fact about
  * the household. Removing an entry stays with whoever wrote it down, the same
  * rule photos follow.
  *
  * For a dish the same list holds what a portion costs. Nothing is bought in a
- * shop there, so the shop field and the shop in each row are left out, and the
- * date is the day of the calculation rather than of a purchase.
+ * shop there, so the shop field, the shop in each row and the offer mark are
+ * left out, and the date is the day of the calculation rather than of a
+ * purchase.
  */
 
 interface PriceHistoryProps {
@@ -63,6 +68,7 @@ export function PriceHistory({
   const [amount, setAmount] = useState('');
   const [shop, setShop] = useState('');
   const [note, setNote] = useState('');
+  const [special, setSpecial] = useState(false);
   const [date, setDate] = useState(todayAsInputValue());
   const [amountError, setAmountError] = useState<string | undefined>(undefined);
 
@@ -74,10 +80,23 @@ export function PriceHistory({
   // The list arrives with the newest purchase first, so the first entry is the
   // latest one and the cheapest is a single pass over at most fifty rows.
   const latest = prices[0] ?? null;
-  const lowest = prices.reduce<Price | null>(
-    (cheapest, entry) => (cheapest === null || entry.cents < cheapest.cents ? entry : cheapest),
-    null,
-  );
+  const cheapestOf = (entries: Price[]): Price | null =>
+    entries.reduce<Price | null>(
+      (cheapest, entry) => (cheapest === null || entry.cents < cheapest.cents ? entry : cheapest),
+      null,
+    );
+  const lowest = cheapestOf(prices.filter((entry) => !entry.special));
+  const lowestSpecial = cheapestOf(prices.filter((entry) => entry.special));
+
+  /** Amount, shop and - for an offer - the mark, as one line of the summary. */
+  const summaryOf = (price: Price | null): string =>
+    price === null
+      ? '–'
+      : [
+          formatAmount(price.cents, price.currency),
+          ...whereOf(price),
+          ...(price.special ? [strings.price.special] : []),
+        ].join(' · ');
 
   const mayRemove = (price: Price): boolean => price.userId === user.id || user.role === 'admin';
 
@@ -92,6 +111,7 @@ export function PriceHistory({
       cents,
       shop,
       note,
+      special: !dish && special,
       // An empty date field means "today", which is what the server assumes
       // when the field is missing.
       ...(date === '' ? {} : { purchasedAt: date }),
@@ -108,6 +128,7 @@ export function PriceHistory({
         onSuccess: () => {
           setAmount('');
           setNote('');
+          setSpecial(false);
           setDate(todayAsInputValue());
           // The shop stays: the next entry is usually from the same one.
         },
@@ -126,21 +147,20 @@ export function PriceHistory({
           <dl className="product__facts">
             <div className="product__fact">
               <dt>{dish ? strings.price.dishLatest : strings.price.latest}</dt>
-              <dd>
-                {latest === null
-                  ? '–'
-                  : [formatAmount(latest.cents, latest.currency), ...whereOf(latest)].join(' · ')}
-              </dd>
+              <dd>{summaryOf(latest)}</dd>
             </div>
 
             <div className="product__fact">
               <dt>{dish ? strings.price.dishLowest : strings.price.lowest}</dt>
-              <dd>
-                {lowest === null
-                  ? '–'
-                  : [formatAmount(lowest.cents, lowest.currency), ...whereOf(lowest)].join(' · ')}
-              </dd>
+              <dd>{summaryOf(lowest)}</dd>
             </div>
+
+            {lowestSpecial !== null && (
+              <div className="product__fact">
+                <dt>{strings.price.lowestSpecial}</dt>
+                <dd>{summaryOf(lowestSpecial)}</dd>
+              </div>
+            )}
           </dl>
 
           <ul className="price-list">
@@ -154,6 +174,7 @@ export function PriceHistory({
                         {dish ? strings.price.dishLowest : strings.price.lowest}
                       </span>
                     )}
+                    {price.special && <span className="badge">{strings.price.special}</span>}
                   </span>
                   <span className="price__meta">
                     {[
@@ -206,6 +227,7 @@ export function PriceHistory({
                     cents,
                     shop: shop.trim() === '' ? null : shop.trim(),
                     note: note.trim() === '' ? null : note.trim(),
+                    special: !dish && special,
                     purchasedAt: date === '' ? todayAsInputValue() : date,
                   },
                 });
@@ -230,6 +252,20 @@ export function PriceHistory({
           error={amountError}
           required
         />
+
+        {!dish && (
+          <label className="checkbox">
+            <input
+              type="checkbox"
+              name="special"
+              checked={special}
+              onChange={(event) => {
+                setSpecial(event.target.checked);
+              }}
+            />
+            {strings.price.special}
+          </label>
+        )}
 
         {!dish && (
           <>

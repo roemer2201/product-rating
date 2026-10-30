@@ -192,6 +192,7 @@ async function syncCapture(capture: Capture): Promise<Capture['state']> {
         cents: current.price.cents,
         shop: current.price.shop,
         note: current.price.note,
+        special: current.price.special ?? false,
         purchasedAt: current.price.purchasedAt,
       },
       requestOwner(current),

@@ -48,6 +48,11 @@ export const createPriceSchema = z.object({
   cents: z.int().min(0).max(PRICE_MAX_CENTS),
   shop: optionalText(shopSchema),
   note: optionalText(noteSchema),
+  /**
+   * An offer rather than the usual price. Optional so that a client from
+   * before the field, and an offline capture queued by one, still go through.
+   */
+  special: z.boolean().default(false),
   /** ISO date (`YYYY-MM-DD`) or a full timestamp; the server reads both. */
   purchasedAt: z.string().trim().min(1).max(40).optional(),
 });

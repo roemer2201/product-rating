@@ -105,6 +105,16 @@ describe('recording a price', () => {
     expect(price.purchasedAt.startsWith('2026-08-10')).toBe(true);
   });
 
+  it('marks an offer, and refuses a mark that is not a yes or no', async () => {
+    const response = await addPrice({ cents: 99, shop: 'Discounter', special: true });
+
+    expect(response.statusCode).toBe(201);
+    expect((response.json().price as Price).special).toBe(true);
+    expect((await readProduct()).prices[0]?.special).toBe(true);
+
+    expect((await addPrice({ cents: 99, special: 'ja' })).statusCode).toBe(400);
+  });
+
   it('is open to every account, and lists the newest purchase first', async () => {
     await addPrice({ cents: 249, shop: 'Supermarkt', purchasedAt: '2026-08-01' }, annaCookie);
     await addPrice({ cents: 179, shop: 'Discounter', purchasedAt: '2026-08-12' }, bertCookie);
@@ -120,6 +130,8 @@ describe('recording a price', () => {
     expect(response.statusCode).toBe(201);
     const price = response.json().price as Price;
     expect(price.shop).toBeNull();
+    // A client from before offers were marked records a usual price.
+    expect(price.special).toBe(false);
     expect(Date.parse(price.purchasedAt)).toBeGreaterThan(Date.now() - 60_000);
   });
 
