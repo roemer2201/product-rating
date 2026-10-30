@@ -1,3 +1,12 @@
+product-rating (0.10.0) unstable; urgency=medium
+
+  * Catalogue: only the search line stays visible; filters and sorting
+    fold behind "Zusaetzliche Filter", which counts the filters that are set.
+  * New catalogue filter "Enthaelt Preis" (list parameter hasPrice) for
+    entries with at least one recorded price.
+
+ -- roemer2201 <roemer2201@users.noreply.github.com>  Fri, 30 Oct 2026 00:00:00 +0000
+
 product-rating (0.9.2) unstable; urgency=medium
 
   * The price mark is called "Aktionspreis" in the interface. Its checkbox
