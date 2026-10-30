@@ -1518,12 +1518,19 @@ behält seine Daten (`--update` schreibt sie über und holt es zugleich aus dem
 Papierkorb); eine vorhandene Bewertung wird nie überschrieben – ein Urteil
 gehört dem, der es abgegeben hat. Damit ist derselbe Import zweimal
 ausführbar, ohne dass sich etwas verdoppelt: Fotos erkennt der Import an Konto
-und Aufnahmezeitpunkt wieder, Preise an Konto, Einkaufstag und Betrag. Bilder laufen beim Einlesen durch denselben Weg
+und Aufnahmezeitpunkt wieder, Preise an Konto, Einkaufstag, Betrag und der
+Markierung als Sonderpreis – ein normaler Preis und ein Angebot über denselben
+Betrag am selben Tag bleiben zwei Einträge. Bilder laufen beim Einlesen durch denselben Weg
 wie ein Upload – neu kodiert, Thumbnail erzeugt, Metadaten entfernt. Die
 Markierung als Sonderpreis reist als `special` mit, in `prices.csv` als Spalte
-`special` mit `1` oder `0`; Dateien von davor kennen sie nicht, ihre Preise
-gelten als normale Preise. Eine neue Version des Dateiformats braucht es dafür
-nicht, denn ein zusätzliches Feld kann ein älterer Leser nicht missverstehen.
+`special` mit `1` oder `0`. Dateien von davor kennen sie nicht: Neue Preise
+daraus werden normale Preise, und beim Wiedererkennen zählen nur Konto,
+Einkaufstag und Betrag – ein Eintrag, den jemand drüben inzwischen als
+Sonderpreis markiert hat, kommt so nicht ein zweites Mal als normaler Preis
+hinzu. Ein Gericht trägt keinen Sonderpreis; steht einer in der Datei, wird
+der Preis ohne Markierung übernommen und das als Problem gemeldet. Eine neue
+Version des Dateiformats braucht es für das Feld nicht, denn ein zusätzliches
+Feld kann ein älterer Leser nicht missverstehen.
 
 **Kategorien reisen als Namen.** `export.json` trägt die ganze Liste –
 auch Einträge, die noch an keinem Produkt hängen – samt Markierung „häufig

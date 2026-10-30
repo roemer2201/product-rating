@@ -429,6 +429,39 @@ describe('prices in an export', () => {
       older.database.close();
     }
   });
+
+  it('does not bring back an offer marked here as a usual price from an older file', async () => {
+    mkdirSync(directory, { recursive: true });
+    const price = { user: 'anna', cents: 129, currency: 'EUR', purchasedAt: '2026-08-11' };
+    // The same purchase, once in a file from before offers were marked.
+    writeFileSync(
+      join(directory, EXPORT_JSON_FILE),
+      JSON.stringify({
+        format: 'product-rating-export',
+        version: 3,
+        products: [{ ean: '4260000000011', name: 'Apfelsaft', createdBy: 'anna', prices: [price] }],
+      }),
+    );
+
+    const first = await importCatalogue({
+      db: target.database.db,
+      config: target.config,
+      source: directory,
+    });
+    expect(first.pricesCreated).toBe(1);
+    // In the meantime somebody here marks it as the offer it was.
+    target.database.sqlite.prepare('update prices set special = 1').run();
+
+    const second = await importCatalogue({
+      db: target.database.db,
+      config: target.config,
+      source: directory,
+    });
+    expect(second).toMatchObject({ pricesCreated: 0, pricesSkipped: 1 });
+    const here = listProductPrices(target.database.db, productIdOf(target, '4260000000011'));
+    expect(here).toHaveLength(1);
+    expect(here[0]?.special).toBe(true);
+  });
 });
 
 describe('entries without an EAN in an export', () => {
@@ -515,6 +548,41 @@ describe('entries without an EAN in an export', () => {
     await expect(
       importCatalogue({ db: target.database.db, config: target.config, source: directory }),
     ).rejects.toThrow(ValidationError);
+  });
+
+  it('imports the cost of a portion without an offer mark, and says so', async () => {
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(
+      join(directory, EXPORT_JSON_FILE),
+      JSON.stringify({
+        format: 'product-rating-export',
+        version: 3,
+        products: [
+          {
+            id: DISH_ID,
+            kind: 'dish',
+            name: 'Gulasch',
+            createdBy: 'anna',
+            prices: [{ user: 'anna', cents: 240, currency: 'EUR', special: true }],
+          },
+        ],
+      }),
+    );
+
+    const result = await importCatalogue({
+      db: target.database.db,
+      config: target.config,
+      source: directory,
+    });
+
+    expect(result.pricesCreated).toBe(1);
+    expect(result.problems).toEqual([
+      'Gulasch: price of "anna" is marked as an offer on a dish, imported without the mark',
+    ]);
+    expect(listProductPrices(target.database.db, DISH_ID)[0]).toMatchObject({
+      cents: 240,
+      special: false,
+    });
   });
 
   it('keeps the imported identity when a product later gets an EAN', async () => {

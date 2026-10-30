@@ -5,6 +5,34 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-30 – Nachbesserungen am Sonderpreis-Import (0.9.1)
+
+- Nachgezogen nach dem Merge von #51, direkt auf `main` auf Wunsch des
+  Projektinhabers. Anlass waren drei Punkte aus der Durchsicht des
+  Fix-Commits `3911e1e`, der Sonderpreise in die Duplikaterkennung des
+  Imports aufgenommen und für Gerichte über die API verboten hat.
+- Import, Gerichte: Ein Preis an einem Gericht, der in der Datei als
+  Sonderpreis markiert ist, wird ohne Markierung übernommen und als Problem
+  gemeldet. Der Import schreibt an `createPrice` vorbei und hätte die Regel
+  der API sonst umgangen. Maßgeblich ist die Art des Eintrags, wie sie nach
+  dem Lauf hier steht: die der Datei bei Neuanlage oder `--update`, sonst die
+  vorhandene.
+- Import, ältere Dateien: `special` bleibt im Schema der Exportdatei ohne
+  Standardwert. Fehlt das Feld, erkennt der Import einen vorhandenen Preis
+  wieder nur an Konto, Einkaufstag und Betrag. Ein hier inzwischen als
+  Sonderpreis markierter Eintrag kommt dadurch nicht ein zweites Mal als
+  normaler Preis hinzu. Neu angelegte Preise aus solchen Dateien bleiben
+  normale Preise.
+- README 8.3: Die Beschreibung des Wiedererkennens nennt jetzt die
+  Sonderpreis-Markierung und beide Sonderfälle.
+
+| Thema | Entscheidung | Begründung |
+|---|---|---|
+| Gericht mit Sonderpreis in der Datei | Übernehmen ohne Markierung, als Problem melden | Wie beim übrigen Import: übernehmen, was geht, und Abweichungen nennen, statt den Preis zu verlieren |
+| Fehlendes `special` | „Unbekannt“ statt `false` beim Wiedererkennen | Eine ältere Datei sagt nichts über Angebote; als `false` gelesen hätte sie nachträglich markierte Einträge verdoppelt |
+
+---
+
 ## 2026-10-30 – Verwaltung auf der Einstellungsseite weiter oben
 
 - Der Abschnitt „Verwaltung“ (nur für Administratoren) steht jetzt direkt

@@ -109,8 +109,13 @@ const exportedPriceSchema = z.object({
   currency: z.string().min(3).max(3),
   shop: z.string().nullish(),
   note: z.string().nullish(),
-  /** Absent in files written before offers were marked. */
-  special: z.boolean().default(false),
+  /**
+   * Absent in files written before offers were marked. Kept apart from
+   * `false` on purpose: such a file does not say "usual price", it says
+   * nothing, and the import treats the two differently when it looks for an
+   * entry it already wrote.
+   */
+  special: z.boolean().optional(),
   purchasedAt: z.string().optional(),
 });
 
@@ -592,7 +597,7 @@ function pricesCsv(exported: ExportedProduct[]): string {
         price.currency,
         price.shop ?? null,
         price.note ?? null,
-        price.special ? 1 : 0,
+        price.special === true ? 1 : 0,
         price.purchasedAt ?? null,
       ]);
     }
@@ -961,6 +966,10 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
       result.productsSkipped += 1;
     }
 
+    // What the entry is here after this run: the file's kind where it was
+    // written, the instance's where the product was left alone.
+    const kind = existing !== undefined && options.update !== true ? existing.kind : entry.kind;
+
     // A dry run has no product to hang ratings and photos off, so counting
     // them against a row that does not exist would be a lie.
     if (dryRun && existing === undefined) {
@@ -1013,9 +1022,22 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
 
       const paidAt = momentOf(price.purchasedAt, now);
 
+      // The cost of a portion is a calculation, not a purchase; the API
+      // refuses an offer there, and a file does not get around that.
+      let special = price.special ?? false;
+      if (special && kind === 'dish') {
+        result.problems.push(
+          `${label}: price of "${price.user}" is marked as an offer on a dish, imported without the mark`,
+        );
+        special = false;
+      }
+
       // Same account, day, amount and offer status: this is the entry the
       // file already put here. A usual price and a special price can share
-      // the same amount without being the same purchase.
+      // the same amount without being the same purchase. A file from before
+      // offers were marked does not know the status, so there the first three
+      // decide alone - otherwise an entry marked here in the meantime would
+      // arrive a second time as a usual price.
       const already = db
         .select({ id: prices.id })
         .from(prices)
@@ -1025,7 +1047,7 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
             eq(prices.userId, userId),
             eq(prices.purchasedAt, paidAt),
             eq(prices.cents, price.cents),
-            eq(prices.special, price.special),
+            price.special === undefined ? undefined : eq(prices.special, special),
           ),
         )
         .get();
@@ -1046,7 +1068,7 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
             currency: price.currency,
             shop: price.shop ?? null,
             note: price.note ?? null,
-            special: price.special,
+            special,
             purchasedAt: paidAt,
             createdAt: now,
           })
