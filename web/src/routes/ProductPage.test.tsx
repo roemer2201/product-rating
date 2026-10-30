@@ -540,6 +540,11 @@ describe('ProductPage', () => {
 
     const special = screen.getByRole('checkbox', { name: strings.price.special });
     expect(special).not.toBeChecked();
+    // The mark sits in one row with the amount, and the amount has no hint.
+    const amountField = screen.getByLabelText(new RegExp(strings.price.amount));
+    expect(special.closest('.price-entry')).toContainElement(amountField);
+    expect(amountField).not.toHaveAttribute('aria-describedby');
+    expect(screen.queryByText(/Komma oder Punkt/)).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText(new RegExp(strings.price.amount)), '0,99');
     await user.click(special);
@@ -694,6 +699,9 @@ describe('ProductPage', () => {
     expect(screen.queryByLabelText(new RegExp(strings.price.shop))).not.toBeInTheDocument();
     expect(screen.queryByText(new RegExp(strings.price.noShop))).not.toBeInTheDocument();
     expect(screen.queryByRole('checkbox', { name: strings.price.special })).not.toBeInTheDocument();
+    expect(
+      screen.getByLabelText(new RegExp(strings.price.dishAmount)).closest('.price-entry'),
+    ).toBeNull();
     expect(screen.getByLabelText(new RegExp(strings.price.dishAmount))).toBeInTheDocument();
   });
 

@@ -5,6 +5,24 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-30 – Preisformular: „Aktionspreis“ neben dem Betrag (0.9.2)
+
+- Wunsch des Projektinhabers: Die Markierung heißt in der Oberfläche
+  „Aktionspreis“ statt „Sonderpreis“, also an der Checkbox, am Abzeichen in
+  der Liste und in der Zeile „Günstigster Aktionspreis“. Im Code, in der API,
+  in der Datenbank und im Export bleibt der Name `special`.
+- Das Betragsfeld nimmt nur noch die halbe Breite ein, die Checkbox steht
+  rechts daneben auf Höhe des Eingabefelds (`.price-entry`, Raster mit zwei
+  gleichen Spalten). Bei Gerichten gibt es keine Checkbox, dort bleibt das
+  Feld voll breit.
+- Der Hinweis unter dem Betrag („Zum Beispiel 1,99 – Komma oder Punkt, beides
+  geht.“) entfällt, ebenso das Gegenstück bei Gerichten („Zum Beispiel 2,40 –
+  …“). Die Eingabe nimmt Komma und Punkt weiterhin an.
+- Im Browser mit 390 und 320 Pixel Breite geprüft: Eingabefeld und Checkbox
+  liegen auf gleicher Höhe und gleich hoch nebeneinander.
+
+---
+
 ## 2026-10-30 – Nachbesserungen am Sonderpreis-Import (0.9.1)
 
 - Nachgezogen nach dem Merge von #51, direkt auf `main` auf Wunsch des

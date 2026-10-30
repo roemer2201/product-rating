@@ -724,11 +724,13 @@ interessant.
 "special": false, "purchasedAt": "2026-08-10" }`. Nur `cents` ist Pflicht;
 `special` fehlt bei älteren Clients und gilt dann als `false`.
 
-**Sonderpreise** (Angebot, Aktion, reduziert) sind am Eintrag markiert, im
-Formular über die Checkbox „Sonderpreis“. Der „Günstigste erfasste Preis“ über
-der Liste lässt sie aus, sonst stünde dort nach einem einzigen Angebot
-dauerhaft ein Preis, den man sonst nie bezahlt. Gibt es einen Sonderpreis,
-nennt eine eigene Zeile den günstigsten; in der Liste trägt jeder ein Abzeichen.
+**Aktionspreise** (Angebot, Aktion, reduziert) sind am Eintrag markiert, im
+Formular über die Checkbox „Aktionspreis“ rechts neben dem Betrag. Der
+„Günstigste erfasste Preis“ über der Liste lässt sie aus, sonst stünde dort
+nach einem einzigen Angebot dauerhaft ein Preis, den man sonst nie bezahlt.
+Gibt es einen Aktionspreis, nennt eine eigene Zeile den günstigsten; in der
+Liste trägt jeder ein Abzeichen. Im Code und in der API heißt die Markierung
+`special`.
 Bei Gerichten gibt es die Markierung nicht, wie den Einkaufsort. Markiert wird
 beim Erfassen; ein nachträgliches Ändern vorhandener Einträge gibt es bisher
 nicht.
@@ -1519,15 +1521,15 @@ Papierkorb); eine vorhandene Bewertung wird nie überschrieben – ein Urteil
 gehört dem, der es abgegeben hat. Damit ist derselbe Import zweimal
 ausführbar, ohne dass sich etwas verdoppelt: Fotos erkennt der Import an Konto
 und Aufnahmezeitpunkt wieder, Preise an Konto, Einkaufstag, Betrag und der
-Markierung als Sonderpreis – ein normaler Preis und ein Angebot über denselben
+Markierung als Aktionspreis – ein normaler Preis und ein Angebot über denselben
 Betrag am selben Tag bleiben zwei Einträge. Bilder laufen beim Einlesen durch denselben Weg
 wie ein Upload – neu kodiert, Thumbnail erzeugt, Metadaten entfernt. Die
-Markierung als Sonderpreis reist als `special` mit, in `prices.csv` als Spalte
+Markierung als Aktionspreis reist als `special` mit, in `prices.csv` als Spalte
 `special` mit `1` oder `0`. Dateien von davor kennen sie nicht: Neue Preise
 daraus werden normale Preise, und beim Wiedererkennen zählen nur Konto,
 Einkaufstag und Betrag – ein Eintrag, den jemand drüben inzwischen als
-Sonderpreis markiert hat, kommt so nicht ein zweites Mal als normaler Preis
-hinzu. Ein Gericht trägt keinen Sonderpreis; steht einer in der Datei, wird
+Aktionspreis markiert hat, kommt so nicht ein zweites Mal als normaler Preis
+hinzu. Ein Gericht trägt keinen Aktionspreis; steht einer in der Datei, wird
 der Preis ohne Markierung übernommen und das als Problem gemeldet. Eine neue
 Version des Dateiformats braucht es für das Feld nicht, denn ein zusätzliches
 Feld kann ein älterer Leser nicht missverstehen.

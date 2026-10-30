@@ -238,34 +238,37 @@ export function PriceHistory({
       />
 
       <div className="form">
-        <Field
-          label={dish ? strings.price.dishAmount : strings.price.amount}
-          name="amount"
-          // `decimal` rather than `numeric`: it is the keyboard with the comma
-          // on it, which is the character a German price is typed with.
-          inputMode="decimal"
-          value={amount}
-          onChange={(event) => {
-            setAmount(event.target.value);
-          }}
-          hint={dish ? strings.price.dishAmountHint : strings.price.amountHint}
-          error={amountError}
-          required
-        />
+        {/* The offer mark sits next to the amount it belongs to; half the width
+            is plenty for a price. A dish has no mark, so its field stays whole. */}
+        <div className={dish ? undefined : 'price-entry'}>
+          <Field
+            label={dish ? strings.price.dishAmount : strings.price.amount}
+            name="amount"
+            // `decimal` rather than `numeric`: it is the keyboard with the comma
+            // on it, which is the character a German price is typed with.
+            inputMode="decimal"
+            value={amount}
+            onChange={(event) => {
+              setAmount(event.target.value);
+            }}
+            error={amountError}
+            required
+          />
 
-        {!dish && (
-          <label className="checkbox">
-            <input
-              type="checkbox"
-              name="special"
-              checked={special}
-              onChange={(event) => {
-                setSpecial(event.target.checked);
-              }}
-            />
-            {strings.price.special}
-          </label>
-        )}
+          {!dish && (
+            <label className="checkbox price-entry__special">
+              <input
+                type="checkbox"
+                name="special"
+                checked={special}
+                onChange={(event) => {
+                  setSpecial(event.target.checked);
+                }}
+              />
+              {strings.price.special}
+            </label>
+          )}
+        </div>
 
         {!dish && (
           <>

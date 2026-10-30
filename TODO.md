@@ -419,9 +419,12 @@ Gerichten bedeutet der Preis „Kosten pro Portion“.
       Migration `0011`); der günstigste erfasste Preis lässt Sonderpreise aus,
       der günstigste Sonderpreis steht in einer eigenen Zeile. Nicht bei
       Gerichten; mit Export/Import und Offline-Erfassung
-- [ ] Sonderpreis-Markierung an vorhandenen Preiseinträgen nachträglich setzen
-      oder entfernen – bisher gibt es kein Bearbeiten eines Preises, nur
-      Erfassen und Löschen (vom Projektinhaber am 30.10.2026 vorerst
+- [x] Preisformular: „Sonderpreis“ heißt „Aktionspreis“, die Checkbox steht
+      rechts neben dem halb so breiten Betragsfeld, der Hinweis unter dem
+      Betrag („Komma oder Punkt, beides geht“) entfällt
+- [ ] Aktionspreis-Markierung an vorhandenen Preiseinträgen nachträglich
+      setzen oder entfernen – bisher gibt es kein Bearbeiten eines Preises,
+      nur Erfassen und Löschen (vom Projektinhaber am 30.10.2026 vorerst
       zurückgestellt)
 - [x] Einstellungsseite: Abschnitt „Verwaltung“ zwischen „Konto“ und
       „Anzeigename“ statt am Ende
