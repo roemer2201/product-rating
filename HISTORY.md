@@ -21,6 +21,16 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
   `EXISTS`-Unterabfrage über `prices_product_purchased_idx`, keine Migration.
 - Im Browser bei 390 und 320 Pixel Breite geprüft, zugeklappt und
   aufgeklappt.
+- Nach dem Review (Commits `ccc0ce8` bis `e6b49e4` in PR #52): Das Erfassen
+  und Löschen eines Preises lud bisher nur die Produktseite neu. Ein Katalog
+  mit „Enthält Preis“ zeigte deshalb nach dem ersten Preis eines Produkts oder
+  nach dem Löschen des letzten einen veralteten Stand, bis er von Hand neu
+  geladen wurde. `useAddPrice` und `useDeletePrice` erklären jetzt alle
+  Produktabfragen (`queryKeys.products.all`) für veraltet, also Listen und
+  Produktseite. Die Offline-Synchronisation tat das schon vorher. Für beide
+  Richtungen gibt es Regressionstests in `ProductPage.test.tsx`. Der Rest der
+  Review-Commits betraf nur die Prettier-Formatierung; eine vorübergehende
+  Diagnose in der CI wurde vor dem Merge wieder entfernt.
 
 | Thema | Entscheidung | Begründung |
 |---|---|---|
@@ -28,6 +38,7 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 | Was als Preis zählt | Jeder Eintrag, auch Aktionspreise und Kosten pro Portion | Mit dem Projektinhaber abgestimmt |
 | Sortierung | Ebenfalls hinter dem Button, zählt aber nicht als Filter | Mit dem Projektinhaber abgestimmt; die Zahl am Button soll nur sagen, ob die Liste eingeschränkt ist |
 | Zustand des Bereichs | Beim Öffnen der Seite immer zugeklappt, nicht gespeichert | Wie die Filter selbst ist er Zustand der Ansicht, nicht des Geräts |
+| Neu laden nach Preisänderung | Alle Produktabfragen statt gezielt der passenden Listen | Aus dem Review; einfacher und robust, bei der Größe des Haushalts ohne spürbare Kosten |
 
 ---
 
