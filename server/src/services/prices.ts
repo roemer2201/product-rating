@@ -134,7 +134,11 @@ export function createPrice(
   input: CreatePriceInput,
   now: Date = new Date(),
 ): Price {
-  if (findProductById(db, productId) === undefined) throw new NotFoundError('product not found');
+  const product = findProductById(db, productId);
+  if (product === undefined) throw new NotFoundError('product not found');
+  if (product.kind === 'dish' && input.special) {
+    throw new ValidationError('a dish cannot have a special price', { field: 'special' });
+  }
 
   const row: PriceRow = {
     id: randomUUID(),

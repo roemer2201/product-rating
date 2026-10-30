@@ -346,6 +346,44 @@ describe('prices in an export', () => {
     });
   });
 
+  it('retains usual and special prices with identical amounts on import', async () => {
+    const juice = productIdOf(source, '4260000000011');
+    for (const special of [false, true]) {
+      createPrice(source.database.db, source.config, ANNA, juice, {
+        cents: 199,
+        shop: 'Bioladen',
+        note: null,
+        special,
+        purchasedAt: '2026-08-10',
+      });
+    }
+
+    await exportCatalogue({
+      db: source.database.db,
+      config: source.config,
+      target: directory,
+    });
+
+    const first = await importCatalogue({
+      db: target.database.db,
+      config: target.config,
+      source: directory,
+    });
+    expect(first.pricesCreated).toBe(2);
+
+    const here = listProductPrices(target.database.db, productIdOf(target, '4260000000011'));
+    expect(here).toHaveLength(2);
+    expect(here.map((price) => price.special).sort()).toEqual([false, true]);
+
+    const second = await importCatalogue({
+      db: target.database.db,
+      config: target.config,
+      source: directory,
+    });
+    expect(second.pricesSkipped).toBe(2);
+    expect(second.pricesCreated).toBe(0);
+  });
+
   it('keeps an offer marked, and reads files from before the mark as usual prices', async () => {
     const juice = productIdOf(source, '4260000000011');
     createPrice(source.database.db, source.config, ANNA, juice, {

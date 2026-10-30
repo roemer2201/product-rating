@@ -1013,8 +1013,9 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
 
       const paidAt = momentOf(price.purchasedAt, now);
 
-      // Same account, same day, same amount: that is the entry this file
-      // already put here on an earlier run.
+      // Same account, day, amount and offer status: this is the entry the
+      // file already put here. A usual price and a special price can share
+      // the same amount without being the same purchase.
       const already = db
         .select({ id: prices.id })
         .from(prices)
@@ -1024,6 +1025,7 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
             eq(prices.userId, userId),
             eq(prices.purchasedAt, paidAt),
             eq(prices.cents, price.cents),
+            eq(prices.special, price.special),
           ),
         )
         .get();
