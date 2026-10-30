@@ -396,4 +396,20 @@ describe('SettingsPage', () => {
 
     expect(await screen.findByRole('link', { name: strings.settings.toAdmin })).toBeInTheDocument();
   });
+
+  it('places the administration between the account and the display name', async () => {
+    mockFetch([{ path: '/auth/me', body: { user: { ...testUser, role: 'admin' } } }, SESSIONS]);
+    renderSettings();
+
+    await screen.findByRole('link', { name: strings.settings.toAdmin });
+    const headings = screen
+      .getAllByRole('heading', { level: 2 })
+      .map((heading) => heading.textContent);
+
+    expect(headings.slice(0, 3)).toEqual([
+      strings.settings.account,
+      strings.settings.adminTitle,
+      strings.settings.displayNameTitle,
+    ]);
+  });
 });

@@ -22,6 +22,9 @@ import { APP_VERSION, compareVersions } from '@/lib/version';
 /**
  * The account: who you are, your password, your devices, and the way out.
  *
+ * For an administrator the way into the administration follows right after
+ * the account, ahead of everything that is only changed now and then.
+ *
  * Logging out lives here alone. The bottom navigation reaches this screen
  * from anywhere in the app; the header only names the account.
  *
@@ -153,6 +156,16 @@ export function SettingsPage() {
           <p className="product__meta">
             {strings.settings.memberSince(formatDate(user.createdAt))}
           </p>
+        </section>
+      )}
+
+      {user?.role === 'admin' && (
+        <section className="section">
+          <h2 className="section__title">{strings.settings.adminTitle}</h2>
+          <p className="section__intro">{strings.settings.adminIntro}</p>
+          <Link className="button" to="/admin">
+            {strings.settings.toAdmin}
+          </Link>
         </section>
       )}
 
@@ -301,16 +314,6 @@ export function SettingsPage() {
           </ul>
         )}
       </section>
-
-      {user?.role === 'admin' && (
-        <section className="section">
-          <h2 className="section__title">{strings.settings.adminTitle}</h2>
-          <p className="section__intro">{strings.settings.adminIntro}</p>
-          <Link className="button" to="/admin">
-            {strings.settings.toAdmin}
-          </Link>
-        </section>
-      )}
 
       <CaptureQueue />
 

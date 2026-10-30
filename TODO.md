@@ -423,6 +423,8 @@ Gerichten bedeutet der Preis „Kosten pro Portion“.
       oder entfernen – bisher gibt es kein Bearbeiten eines Preises, nur
       Erfassen und Löschen (vom Projektinhaber am 30.10.2026 vorerst
       zurückgestellt)
+- [x] Einstellungsseite: Abschnitt „Verwaltung“ zwischen „Konto“ und
+      „Anzeigename“ statt am Ende
 - [x] Fremde Bewertungen sichtbar machen: wer im Haushalt hat wie viele Sterne vergeben – bisher liefert die API nur Durchschnitt, Anzahl und die eigene Bewertung
 - [x] FTS5-Suche nachrüsten, falls die `LIKE`-Suche mit wachsendem Katalog spürbar langsam wird
 - [x] Freitextsuche findet auch Kategorien, ganz oder als Teilwort („thermo“

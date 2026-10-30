@@ -5,6 +5,17 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-10-30 – Verwaltung auf der Einstellungsseite weiter oben
+
+- Der Abschnitt „Verwaltung“ (nur für Administratoren) steht jetzt direkt
+  nach „Konto“ und vor „Anzeigename“, statt zwischen Geräten und
+  Offline-Erfassungen am Ende der Seite. Nur die Reihenfolge hat sich
+  geändert, Inhalt und Sichtbarkeit sind gleich geblieben. Wunsch des
+  Projektinhabers.
+- Ein neuer Test prüft die Reihenfolge der ersten drei Überschriften.
+
+---
+
 ## 2026-10-30 – Sonderpreis bei der Preiserfassung
 
 - Neue Spalte `prices.special` (boolean, `NOT NULL DEFAULT false`), Migration
