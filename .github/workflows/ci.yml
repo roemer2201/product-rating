@@ -83,6 +83,12 @@ jobs:
       - name: Check formatting
         run: npm run format:check
 
+      - name: Diagnose formatting
+        if: failure()
+        run: |
+          npx prettier --write web/src/routes/ProductPage.test.tsx
+          git diff -- web/src/routes/ProductPage.test.tsx
+
       - name: Lint
         run: npm run lint
 
