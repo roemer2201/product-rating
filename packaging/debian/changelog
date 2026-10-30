@@ -1,3 +1,11 @@
+product-rating (0.9.2) unstable; urgency=medium
+
+  * The price mark is called "Aktionspreis" in the interface. Its checkbox
+    sits next to the amount field, which takes half the width.
+  * The hint below the amount field is gone.
+
+ -- roemer2201 <roemer2201@users.noreply.github.com>  Fri, 30 Oct 2026 00:00:00 +0000
+
 product-rating (0.9.1) unstable; urgency=medium
 
   * Import: a price on a dish that a file marks as special price is
