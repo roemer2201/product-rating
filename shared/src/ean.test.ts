@@ -121,6 +121,8 @@ describe('createProductSchema', () => {
       // The same box ticked and picked from the dropdown is one category.
       categoryIds: ['cat-breakfast', 'cat-organic'],
       notes: null,
+      // Left out means an ordinary entry, shown in the catalogue.
+      priceWatch: false,
     });
   });
 

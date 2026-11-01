@@ -95,7 +95,12 @@ async function resolveProduct(capture: Capture): Promise<string> {
     });
   }
 
-  const { category: _legacy, categoryIds: _chosen, ...fields } = capture.product;
+  const {
+    category: _legacy,
+    categoryIds: _chosen,
+    priceWatch = false,
+    ...fields
+  } = capture.product;
 
   try {
     const { product } = await api.products.create(
@@ -105,6 +110,7 @@ async function resolveProduct(capture: Capture): Promise<string> {
         ean: capture.ean,
         ...fields,
         categoryIds: await captureCategoryIds(capture, capture.product),
+        priceWatch,
       },
       requestOwner(capture),
     );

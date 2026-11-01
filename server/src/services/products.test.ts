@@ -196,6 +196,34 @@ describe('listProducts', () => {
     ).toEqual(['Apfelsaft', 'Gulasch']);
   });
 
+  it('includes, leaves out or keeps only entries marked as price watch', () => {
+    seedDatabase(database.db, {
+      products: [
+        { ean: '4260000000011', name: 'Apfelsaft', createdBy: annaId },
+        { ean: '4260000000028', name: 'Gouda in Scheiben', priceWatch: true, createdBy: annaId },
+        { ean: null, name: 'Gouda vom Markt', priceWatch: true, createdBy: annaId },
+        { ean: '4260000000035', name: 'Gouda-Chips', createdBy: annaId },
+      ],
+    });
+    const names = (overrides: Record<string, unknown>): string[] =>
+      walk(1, { sort: 'name', ...overrides });
+
+    // Left out of the query it lets everything through, like `include`.
+    expect(names({})).toEqual(['Apfelsaft', 'Gouda in Scheiben', 'Gouda vom Markt', 'Gouda-Chips']);
+    expect(names({ priceWatch: 'include' })).toEqual(names({}));
+    expect(names({ priceWatch: 'exclude' })).toEqual(['Apfelsaft', 'Gouda-Chips']);
+    expect(names({ priceWatch: 'only' })).toEqual(['Gouda in Scheiben', 'Gouda vom Markt']);
+    expect(listProducts(database.db, annaId, query({ priceWatch: 'exclude' })).total).toBe(2);
+    expect(listProducts(database.db, annaId, query({ priceWatch: 'only' })).total).toBe(2);
+    // Combined with the search like every other filter: AND.
+    expect(names({ q: 'gouda', priceWatch: 'exclude' })).toEqual(['Gouda-Chips']);
+    expect(names({ q: 'gouda', priceWatch: 'only' })).toEqual([
+      'Gouda in Scheiben',
+      'Gouda vom Markt',
+    ]);
+    expect(() => query({ priceWatch: 'never' })).toThrow();
+  });
+
   it('reports the total across all pages', () => {
     seedDatabase(database.db, {
       products: [
@@ -233,6 +261,21 @@ describe('listProducts', () => {
 });
 
 describe('createProduct', () => {
+  it('stores the price watch mark it is given', () => {
+    const created = createProduct(database.db, annaId, {
+      ean: '4260000000011',
+      name: 'Gouda in Scheiben',
+      variant: null,
+      brand: null,
+      categoryIds: [],
+      notes: null,
+      priceWatch: true,
+    });
+
+    expect(created.product.priceWatch).toBe(true);
+    expect(getProduct(database.db, annaId, created.product.id).priceWatch).toBe(true);
+  });
+
   it('carries the existing product in the conflict', () => {
     const first = createProduct(database.db, annaId, {
       ean: '4260000000011',
@@ -512,6 +555,24 @@ describe('updateProduct', () => {
     );
   });
 
+  it('sets and clears the price watch mark, and keeps it unless it is sent', () => {
+    const created = createProduct(database.db, annaId, {
+      ean: '4260000000011',
+      name: 'Gouda in Scheiben',
+      variant: null,
+      brand: null,
+      categoryIds: [],
+      notes: null,
+    });
+    // Callers inside the server may leave it out: an ordinary entry.
+    expect(created.product.priceWatch).toBe(false);
+
+    const id = created.product.id;
+    expect(updateProduct(database.db, id, { priceWatch: true }).priceWatch).toBe(true);
+    expect(updateProduct(database.db, id, { name: 'Gouda jung' }).priceWatch).toBe(true);
+    expect(updateProduct(database.db, id, { priceWatch: false }).priceWatch).toBe(false);
+  });
+
   it('fails for an unknown product', () => {
     expect(() => updateProduct(database.db, 'nope', { name: 'X' })).toThrow(NotFoundError);
   });
@@ -583,6 +644,27 @@ describe('the trash', () => {
     expect(created.product.name).toBe('Apfelsaft naturtrüb');
     expect(created.product.categories).toEqual([]);
     expect(getProduct(database.db, annaId, productId).ratings.count).toBe(2);
+  });
+
+  it('keeps the price watch mark of a restored product unless the form sends one', () => {
+    const productId = ratedProduct();
+    updateProduct(database.db, productId, { priceWatch: true });
+    trashProduct(database.db, productId, annaId);
+    const entry = {
+      ean: '4260000000011',
+      name: 'Apfelsaft',
+      variant: null,
+      brand: null,
+      categoryIds: [],
+      notes: null,
+    };
+
+    expect(createProduct(database.db, annaId, entry).product.priceWatch).toBe(true);
+
+    trashProduct(database.db, productId, annaId);
+    expect(
+      createProduct(database.db, annaId, { ...entry, priceWatch: false }).product.priceWatch,
+    ).toBe(false);
   });
 
   it('removes rows only when the trash is emptied', () => {

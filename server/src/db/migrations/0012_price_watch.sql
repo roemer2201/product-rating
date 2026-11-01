@@ -1,0 +1,1 @@
+ALTER TABLE `products` ADD `price_watch` integer DEFAULT false NOT NULL;

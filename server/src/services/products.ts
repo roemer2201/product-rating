@@ -9,6 +9,7 @@ import {
   type Product,
   type ProductListPage,
   type ProductKind,
+  type PriceWatchFilter,
   type ProductListQuery,
   type ProductSortField,
   type ProductWithRatings,
@@ -137,6 +138,7 @@ export function toPublicProduct(row: ProductRow, categories: CategoryRef[]): Pro
     brand: row.brand,
     categories,
     notes: row.notes,
+    priceWatch: row.priceWatch,
     createdBy: row.createdBy,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -249,11 +251,14 @@ export interface CreatedProduct {
 }
 
 /**
- * What `createProduct()` takes: the validated request, where the kind may be
- * left out by callers inside the server that only ever create scanned
- * products.
+ * What `createProduct()` takes: the validated request, where the kind and the
+ * price watch mark may be left out by callers inside the server that only ever
+ * create ordinary scanned products.
  */
-export type NewProductInput = Omit<CreateProductInput, 'kind'> & { kind?: ProductKind };
+export type NewProductInput = Omit<CreateProductInput, 'kind' | 'priceWatch'> & {
+  kind?: ProductKind;
+  priceWatch?: boolean;
+};
 
 /** Writes a new row; the caller has settled that nothing else holds its EAN. */
 function insertProduct(
@@ -272,6 +277,7 @@ function insertProduct(
     variant: input.variant,
     brand: input.brand,
     notes: input.notes,
+    priceWatch: input.priceWatch ?? false,
     createdBy: userId,
     createdAt: now,
     updatedAt: now,
@@ -350,6 +356,9 @@ function restoreWithData(
     variant: input.variant,
     brand: input.brand,
     notes: input.notes,
+    // Left as it was when the caller does not say: a mark set before the
+    // product went into the trash is still what the household decided.
+    priceWatch: input.priceWatch ?? existing.priceWatch,
     updatedAt: now,
     deletedAt: null,
     deletedBy: null,
@@ -362,6 +371,7 @@ function restoreWithData(
         variant: row.variant,
         brand: row.brand,
         notes: row.notes,
+        priceWatch: row.priceWatch,
         updatedAt: row.updatedAt,
         deletedAt: null,
         deletedBy: null,
@@ -425,6 +435,7 @@ export function updateProduct(
   if (input.variant !== undefined) changes.variant = input.variant;
   if (input.brand !== undefined) changes.brand = input.brand;
   if (input.notes !== undefined) changes.notes = input.notes;
+  if (input.priceWatch !== undefined) changes.priceWatch = input.priceWatch;
 
   db.transaction((tx) => {
     tx.update(products).set(changes).where(eq(products.id, id)).run();
@@ -723,7 +734,16 @@ function searchCondition(term: string): SQL | undefined {
   return and(...words.map((word) => or(productFieldsContain(word), categoryNameContains(word))));
 }
 
-function filterConditions(query: ProductListQuery, userId: string): SQL[] {
+/**
+ * The list query as the service takes it. The route always passes the parsed
+ * request; callers inside the server may leave out the price watch filter,
+ * which then lets everything through as `include` does.
+ */
+export type ProductListOptions = Omit<ProductListQuery, 'priceWatch'> & {
+  priceWatch?: PriceWatchFilter;
+};
+
+function filterConditions(query: ProductListOptions, userId: string): SQL[] {
   const conditions: SQL[] = [notTrashed];
 
   const term = query.q?.trim();
@@ -762,6 +782,13 @@ function filterConditions(query: ProductListQuery, userId: string): SQL[] {
     );
   }
 
+  // `include` adds nothing: the entries marked as price watch simply stay in.
+  if (query.priceWatch === 'exclude') {
+    conditions.push(eq(products.priceWatch, false));
+  } else if (query.priceWatch === 'only') {
+    conditions.push(eq(products.priceWatch, true));
+  }
+
   return conditions;
 }
 
@@ -798,7 +825,7 @@ function cursorKeyOf(row: ProductQueryRow, sort: ProductSortField): CursorKey {
 export function listProducts(
   db: DbHandle,
   userId: string,
-  query: ProductListQuery,
+  query: ProductListOptions,
 ): ProductListPage {
   const { sort, limit } = query;
   const order = query.order ?? defaultOrderFor(sort);

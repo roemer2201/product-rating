@@ -128,6 +128,39 @@ describe('syncing a capture', () => {
     expect(JSON.parse(String((post?.[1] as RequestInit).body))).toMatchObject({
       ean: TEST_EAN,
       name: 'Apfelsaft',
+      // A capture from before the mark existed creates an ordinary entry.
+      priceWatch: false,
+    });
+  });
+
+  it('keeps the price watch mark of a product captured offline', async () => {
+    await enqueueCapture({
+      ean: TEST_EAN,
+      label: 'Gouda',
+      product: {
+        name: 'Gouda',
+        variant: 'in Scheiben',
+        brand: null,
+        categoryIds: [],
+        notes: null,
+        priceWatch: true,
+      },
+    });
+
+    const fetchMock = mockFetch([
+      {
+        path: `/products/by-ean/${TEST_EAN}`,
+        status: 404,
+        body: { error: { code: 'not_found' } },
+      },
+      { path: '/products', method: 'POST', body: { product: PRODUCT, restored: false } },
+    ]);
+
+    expect((await syncCaptures()).synced).toBe(1);
+    const post = fetchMock.mock.calls.find(([, init]) => (init as RequestInit)?.method === 'POST');
+    expect(JSON.parse(String((post?.[1] as RequestInit).body))).toMatchObject({
+      name: 'Gouda',
+      priceWatch: true,
     });
   });
 

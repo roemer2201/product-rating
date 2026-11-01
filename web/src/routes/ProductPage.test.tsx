@@ -159,6 +159,38 @@ describe('ProductPage', () => {
     });
   });
 
+  it('opens the form with the price watch mark and saves it like any other field', async () => {
+    const user = userEvent.setup();
+    const marked = makeProductDetail({ priceWatch: true });
+    const fetchMock = mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      { path: '/products/prod-1', method: 'PATCH', body: { product: marked } },
+      { path: '/products/prod-1', body: { product: marked } },
+    ]);
+
+    renderProduct();
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+    // Nothing on the screen itself changes: rating and prices are there as usual.
+    expect(screen.queryByLabelText(strings.product.priceWatch)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: strings.common.edit }));
+    const checkbox = screen.getByLabelText(strings.product.priceWatch);
+    expect(checkbox).toBeChecked();
+    expect(checkbox).toHaveAccessibleDescription(strings.product.priceWatchHint);
+    await user.click(checkbox);
+    await user.click(screen.getByRole('button', { name: strings.common.save }));
+
+    await waitFor(() => {
+      const patch = fetchMock.mock.calls.find(
+        ([, init]) => (init as RequestInit)?.method === 'PATCH',
+      );
+      expect(JSON.parse(String((patch?.[1] as RequestInit).body))).toMatchObject({
+        priceWatch: false,
+      });
+    });
+  });
+
   it('names every category of the product', async () => {
     mockFetch([
       { path: '/auth/me', body: { user: testUser } },

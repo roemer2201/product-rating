@@ -85,6 +85,8 @@ export const createProductSchema = z
     /** Identifiers from `GET /api/v1/categories`; none at all is fine. */
     categoryIds: categoryIdsSchema.default([]),
     notes: optionalText(notesSchema),
+    /** Kept for its prices only; the catalogue leaves it out unless asked. */
+    priceWatch: z.boolean().default(false),
   })
   .refine((value) => value.kind === 'product' || value.ean === null, DISH_WITHOUT_EAN);
 
@@ -106,6 +108,7 @@ export const updateProductSchema = z
     /** Replaces the whole set; `[]` takes every category off the product. */
     categoryIds: categoryIdsSchema.optional(),
     notes: optionalText(notesSchema).optional(),
+    priceWatch: z.boolean().optional(),
   })
   .refine((value) => Object.values(value).some((entry) => entry !== undefined), {
     message: 'no changes given',
@@ -115,6 +118,13 @@ export const updateProductSchema = z
 const flagSchema = z
   .union([z.boolean(), z.enum(['true', 'false', '1', '0'])])
   .transform((value) => value === true || value === 'true' || value === '1');
+
+/**
+ * How the product list treats entries marked as price watch: let them through
+ * with the rest, leave them out, or show nothing else.
+ */
+export const PRICE_WATCH_FILTERS = ['include', 'exclude', 'only'] as const;
+export type PriceWatchFilter = (typeof PRICE_WATCH_FILTERS)[number];
 
 export const productListQuerySchema = z.object({
   /** Free text over name, variant, brand and — for digits — the EAN. */
@@ -134,6 +144,12 @@ export const productListQuerySchema = z.object({
    * anybody: offers and the cost of a portion count as well.
    */
   hasPrice: flagSchema.optional(),
+  /**
+   * Entries marked as price watch. `include` by default, so every caller but
+   * the catalogue page — the hint on similar names, scripts — sees the whole
+   * catalogue; the page decides when to leave them out.
+   */
+  priceWatch: z.enum(PRICE_WATCH_FILTERS).default('include'),
   sort: z.enum(PRODUCT_SORT_FIELDS).default('updated'),
   /** Defaults to ascending for `name` and descending for everything else. */
   order: z.enum(PRODUCT_SORT_ORDERS).optional(),

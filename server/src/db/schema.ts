@@ -165,6 +165,12 @@ export const products = sqliteTable(
     variant: text('variant'),
     brand: text('brand'),
     notes: text('notes'),
+    /**
+     * Recorded for its prices, not to be rated: sliced cheese, butter, milk.
+     * The catalogue leaves such entries out unless asked; everything else
+     * about them — ratings, photos, notes — works as on any other row.
+     */
+    priceWatch: integer('price_watch', { mode: 'boolean' }).notNull().default(false),
     createdBy: text('created_by')
       .notNull()
       .references(() => users.id, { onDelete: 'restrict' }),

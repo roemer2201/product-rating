@@ -331,6 +331,9 @@ export const strings = {
       'Es gibt noch keine Kategorien. Angelegt werden sie von Administratoren in der Verwaltung.',
     categoriesToAdmin: 'Kategorien verwalten',
     notesHint: 'Platz für alles, was du dir merken willst.',
+    priceWatch: 'Preisbeobachtung',
+    priceWatchHint:
+      'Nur wegen des Preises erfasst: Der Katalog zeigt den Eintrag dann erst bei einer Suche oder über den Filter.',
     create: 'Produkt anlegen',
     createDish: 'Gericht anlegen',
     creating: 'Wird angelegt …',
@@ -484,6 +487,10 @@ export const strings = {
     createdByMe: 'von mir erstellt',
     ratedByMe: 'von mir bewertet',
     hasPrice: 'Enthält Preis',
+    priceWatch: 'Preisbeobachtungen',
+    priceWatchSearch: 'nur bei Suche',
+    priceWatchInclude: 'immer anzeigen',
+    priceWatchOnly: 'nur diese',
     moreFilters: 'Zusätzliche Filter',
     // The count keeps a folded panel from hiding that the list is filtered.
     moreFiltersActive: (count: number) => `Zusätzliche Filter (${count})`,

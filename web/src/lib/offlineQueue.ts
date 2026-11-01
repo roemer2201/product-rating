@@ -48,6 +48,8 @@ export interface CapturedProduct {
   /** Legacy: the single free text category of captures before the list. */
   category?: string | null;
   notes: string | null;
+  /** Absent in captures queued before the mark existed: an ordinary entry. */
+  priceWatch?: boolean;
 }
 
 export interface CapturedRating {

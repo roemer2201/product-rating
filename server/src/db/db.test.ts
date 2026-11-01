@@ -494,6 +494,55 @@ describe('migration 0011: offers among the prices', () => {
   });
 });
 
+describe('migration 0012: entries kept for their prices', () => {
+  it('keeps every product and marks none of them as price watch', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'product-rating-price-watch-'));
+    const path = join(directory, 'app.db');
+    const before = migrationsBefore(directory, '0012_price_watch');
+
+    try {
+      const opened = openDatabase({ path });
+      const { sqlite } = opened;
+      runMigrations({ db: opened.db, sqlite, databasePath: path, folder: before });
+
+      sqlite
+        .prepare(
+          `insert into users (id, username, password_hash, created_at) values ('u1', 'anna', 'x', 0)`,
+        )
+        .run();
+      sqlite
+        .prepare(
+          `insert into products (id, ean, name, created_by, created_at, updated_at)
+           values ('p1', '4260000000011', 'Gouda', 'u1', 0, 0)`,
+        )
+        .run();
+      sqlite
+        .prepare(
+          `insert into ratings (id, product_id, user_id, stars, created_at, updated_at)
+           values ('r1', 'p1', 'u1', 7, 0, 0)`,
+        )
+        .run();
+
+      runMigrations({ db: opened.db, sqlite, databasePath: path });
+
+      expect(sqlite.prepare(`select id, name, price_watch from products`).all()).toEqual([
+        { id: 'p1', name: 'Gouda', price_watch: 0 },
+      ]);
+      // A plain ADD COLUMN: nothing hanging off the product goes missing, and
+      // the search still finds it.
+      expect(sqlite.prepare(`select count(*) as count from ratings`).get()).toEqual({ count: 1 });
+      expect(
+        sqlite
+          .prepare(`select count(*) as count from products_fts where products_fts match 'gouda'`)
+          .get(),
+      ).toEqual({ count: 1 });
+      opened.close();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('schema constraints', () => {
   it('rejects a second user with the same username', () => {
     const { db: handle } = db();

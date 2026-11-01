@@ -85,6 +85,13 @@
       "when": 1793378909669,
       "tag": "0011_price_special",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1793569096689,
+      "tag": "0012_price_watch",
+      "breakpoints": true
     }
   ]
 }

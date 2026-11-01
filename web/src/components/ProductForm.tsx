@@ -39,6 +39,9 @@ import { strings } from '@/lib/strings';
  * for the recipe itself. An entry without an EAN gets no protection from
  * duplicates by the database, so its form shows similar names while the name
  * is typed, and a product bought without a barcode may get one later.
+ *
+ * The price watch mark is one more field like the others: it only keeps the
+ * entry out of the catalogue's default view, nothing on the product changes.
  */
 
 export interface ProductFormValues {
@@ -50,6 +53,8 @@ export interface ProductFormValues {
   /** Identifiers from the category list. */
   categoryIds: string[];
   notes: string;
+  /** Recorded for its prices; the catalogue leaves it out by default. */
+  priceWatch: boolean;
 }
 
 interface ProductFormProps {
@@ -107,6 +112,7 @@ export function ProductForm({
   const [brand, setBrand] = useState(initial?.brand ?? '');
   const [categoryIds, setCategoryIds] = useState(initial?.categoryIds ?? []);
   const [notes, setNotes] = useState(initial?.notes ?? '');
+  const [priceWatch, setPriceWatch] = useState(initial?.priceWatch ?? false);
 
   // The same query the picker reads; asked for here to check the choice
   // against the list once more before it goes out.
@@ -122,7 +128,15 @@ export function ProductForm({
       list === undefined
         ? categoryIds
         : categoryIds.filter((id) => list.some((entry) => entry.id === id));
-    onSubmit({ ean: eanEditable ? ean : '', name, variant, brand, categoryIds: chosen, notes });
+    onSubmit({
+      ean: eanEditable ? ean : '',
+      name,
+      variant,
+      brand,
+      categoryIds: chosen,
+      notes,
+      priceWatch,
+    });
   };
 
   const dish = kind === 'dish';
@@ -201,6 +215,24 @@ export function ProductForm({
         error={errors.notes}
         optional
       />
+
+      <div className="field">
+        <label className="checkbox">
+          <input
+            type="checkbox"
+            name="priceWatch"
+            checked={priceWatch}
+            aria-describedby="product-price-watch-hint"
+            onChange={(event) => {
+              setPriceWatch(event.target.checked);
+            }}
+          />
+          {strings.product.priceWatch}
+        </label>
+        <p className="field__hint" id="product-price-watch-hint">
+          {strings.product.priceWatchHint}
+        </p>
+      </div>
 
       {children}
 

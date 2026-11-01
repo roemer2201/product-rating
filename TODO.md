@@ -424,6 +424,13 @@ Gerichten bedeutet der Preis „Kosten pro Portion“.
       Betrag („Komma oder Punkt, beides geht“) entfällt
 - [x] Katalog aufgeräumt: nur die Suchzeile sichtbar, Filter und Sortierung
       hinter „Zusätzliche Filter“; neuer Filter „Enthält Preis“ (`hasPrice`)
+- [x] Markierung „Preisbeobachtung“ am Eintrag (Spalte `products.price_watch`,
+      Migration `0012`): nur wegen des Preises erfasste Artikel blendet der
+      Katalog ohne Suchbegriff aus, bei einer Suche erscheinen sie; Filter
+      „Preisbeobachtungen“ mit „nur bei Suche“, „immer anzeigen“, „nur
+      diese“. Produktseite, Bewertung, Fotos und Notizen bleiben unverändert
+      (abgestimmt mit dem Projektinhaber am 01.11.2026); mit Export/Import und
+      Offline-Erfassung
 - [ ] Aktionspreis-Markierung an vorhandenen Preiseinträgen nachträglich
       setzen oder entfernen – bisher gibt es kein Bearbeiten eines Preises,
       nur Erfassen und Löschen (vom Projektinhaber am 30.10.2026 vorerst
