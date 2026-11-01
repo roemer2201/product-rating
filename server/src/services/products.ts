@@ -257,7 +257,8 @@ export interface CreatedProduct {
  */
 export type NewProductInput = Omit<CreateProductInput, 'kind' | 'priceWatch'> & {
   kind?: ProductKind;
-  priceWatch?: boolean;
+  // Zod may expose an omitted optional field as explicitly undefined.
+  priceWatch?: boolean | undefined;
 };
 
 /** Writes a new row; the caller has settled that nothing else holds its EAN. */
