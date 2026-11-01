@@ -42,8 +42,13 @@ it('adopts a capture from before the queue knew accounts, after a live identity 
     await waitFor(async () => {
       expect((await getCapture(capture.id))?.ownerId).toBe(testUser.id);
     });
+    // The label exists in both the old orphan row and the adopted row.
+    // Wait for the orphan to disappear before looking for the new row,
+    // otherwise findByText can hand back an element being unmounted.
+    await waitFor(() => {
+      expect(screen.queryByText(strings.offlineCapture.unassignedTitle)).not.toBeInTheDocument();
+    });
     expect(await screen.findByText('Captured before the update')).toBeInTheDocument();
-    expect(screen.queryByText(strings.offlineCapture.unassignedTitle)).not.toBeInTheDocument();
   } finally {
     view.unmount();
   }
