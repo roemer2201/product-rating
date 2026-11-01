@@ -121,9 +121,13 @@ describe('createProductSchema', () => {
       // The same box ticked and picked from the dropdown is one category.
       categoryIds: ['cat-breakfast', 'cat-organic'],
       notes: null,
-      // Left out means an ordinary entry, shown in the catalogue.
-      priceWatch: false,
     });
+  });
+
+  it('preserves whether a caller explicitly supplied the price-watch mark', () => {
+    expect(createProductSchema.parse({ name: 'Gouda' })).not.toHaveProperty('priceWatch');
+    expect(createProductSchema.parse({ name: 'Gouda', priceWatch: false }).priceWatch).toBe(false);
+    expect(createProductSchema.parse({ name: 'Gouda', priceWatch: true }).priceWatch).toBe(true);
   });
 
   it('requires a name', () => {

@@ -95,12 +95,7 @@ async function resolveProduct(capture: Capture): Promise<string> {
     });
   }
 
-  const {
-    category: _legacy,
-    categoryIds: _chosen,
-    priceWatch = false,
-    ...fields
-  } = capture.product;
+  const { category: _legacy, categoryIds: _chosen, priceWatch, ...fields } = capture.product;
 
   try {
     const { product } = await api.products.create(
@@ -110,7 +105,9 @@ async function resolveProduct(capture: Capture): Promise<string> {
         ean: capture.ean,
         ...fields,
         categoryIds: await captureCategoryIds(capture, capture.product),
-        priceWatch,
+        // Preserve omission on legacy captures, especially when the server
+        // restores a trashed entry with an existing price-watch mark.
+        ...(priceWatch === undefined ? {} : { priceWatch }),
       },
       requestOwner(capture),
     );

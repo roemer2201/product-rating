@@ -166,6 +166,50 @@ describe('creating products', () => {
     expect(invalid.statusCode).toBe(400);
   });
 
+  it('preserves a trashed price-watch mark for legacy creation requests', async () => {
+    const created = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: writeHeaders(annaCookie),
+      payload: { ean: SHORT_EAN, name: 'Gouda', priceWatch: true },
+    });
+    expect(created.statusCode).toBe(201);
+    const id = created.json().product.id as string;
+
+    const remove = async () =>
+      harness.app.inject({
+        method: 'DELETE',
+        url: `/api/v1/products/${id}`,
+        headers: writeHeaders(adminCookie),
+      });
+    expect((await remove()).statusCode).toBe(200);
+
+    const legacy = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: writeHeaders(annaCookie),
+      payload: { ean: SHORT_EAN, name: 'Gouda jung' },
+    });
+    expect(legacy.statusCode).toBe(201);
+    expect(legacy.json()).toMatchObject({
+      restored: true,
+      product: { id, priceWatch: true },
+    });
+
+    expect((await remove()).statusCode).toBe(200);
+    const cleared = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: writeHeaders(annaCookie),
+      payload: { ean: SHORT_EAN, name: 'Gouda', priceWatch: false },
+    });
+    expect(cleared.statusCode).toBe(201);
+    expect(cleared.json()).toMatchObject({
+      restored: true,
+      product: { id, priceWatch: false },
+    });
+  });
+
   it('answers a taken EAN with 409 and the existing product', async () => {
     const first = await harness.app.inject({
       method: 'POST',

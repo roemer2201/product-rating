@@ -125,12 +125,10 @@ describe('syncing a capture', () => {
 
     expect(result.synced).toBe(1);
     const post = fetchMock.mock.calls.find(([, init]) => (init as RequestInit)?.method === 'POST');
-    expect(JSON.parse(String((post?.[1] as RequestInit).body))).toMatchObject({
-      ean: TEST_EAN,
-      name: 'Apfelsaft',
-      // A capture from before the mark existed creates an ordinary entry.
-      priceWatch: false,
-    });
+    const body = JSON.parse(String((post?.[1] as RequestInit).body)) as Record<string, unknown>;
+    expect(body).toMatchObject({ ean: TEST_EAN, name: 'Apfelsaft' });
+    // An older capture must not overwrite the mark of a restored entry.
+    expect(body).not.toHaveProperty('priceWatch');
   });
 
   it('keeps the price watch mark of a product captured offline', async () => {

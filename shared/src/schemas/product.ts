@@ -85,8 +85,12 @@ export const createProductSchema = z
     /** Identifiers from `GET /api/v1/categories`; none at all is fine. */
     categoryIds: categoryIdsSchema.default([]),
     notes: optionalText(notesSchema),
-    /** Kept for its prices only; the catalogue leaves it out unless asked. */
-    priceWatch: z.boolean().default(false),
+    /**
+     * Omission must survive validation: a legacy client restoring an entry
+     * from the trash must not clear its existing price-watch mark.
+     * New products default to false in the service and database.
+     */
+    priceWatch: z.boolean().optional(),
   })
   .refine((value) => value.kind === 'product' || value.ean === null, DISH_WITHOUT_EAN);
 
