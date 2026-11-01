@@ -1,3 +1,15 @@
+product-rating (0.11.0) unstable; urgency=medium
+
+  * New "Preisbeobachtung" mark on catalogue entries (migration 0012,
+    column products.price_watch): entries recorded only for their price
+    stay out of the catalogue list unless a search term is given.
+  * New catalogue filter "Preisbeobachtungen" (list parameter priceWatch:
+    include, exclude, only). The API default is include.
+  * Export/import carry the mark as priceWatch, products.csv as column
+    price_watch; offline captures keep it.
+
+ -- roemer2201 <roemer2201@users.noreply.github.com>  Sun, 01 Nov 2026 00:00:00 +0000
+
 product-rating (0.10.1) unstable; urgency=medium
 
   * Documentation only: record the review fix of 0.10.0 (catalogue lists

@@ -124,6 +124,12 @@ describe('createProductSchema', () => {
     });
   });
 
+  it('preserves whether a caller explicitly supplied the price-watch mark', () => {
+    expect(createProductSchema.parse({ name: 'Gouda' })).not.toHaveProperty('priceWatch');
+    expect(createProductSchema.parse({ name: 'Gouda', priceWatch: false }).priceWatch).toBe(false);
+    expect(createProductSchema.parse({ name: 'Gouda', priceWatch: true }).priceWatch).toBe(true);
+  });
+
   it('requires a name', () => {
     expect(createProductSchema.safeParse({ ean: '96385074', name: '   ' }).success).toBe(false);
   });

@@ -5,6 +5,46 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-11-01 – Markierung „Preisbeobachtung“ (0.11.0)
+
+- Anlass: Manche Artikel landen nur wegen des Preises im Katalog (Gouda in
+  Scheiben, Butter), und bewerten will sie im Haushalt niemand. Sie füllten die
+  Standardansicht des Katalogs.
+- Neue Spalte `products.price_watch` (boolean, Standard `false`), Migration
+  `0012_price_watch.sql`. Ein reines `ADD COLUMN`: Die Tabelle wird nicht neu
+  gebaut, Volltextsuche und Trigger bleiben unberührt. Kein Index, weil ein
+  Ja/Nein-Feld kaum filtert und die Bedingung neben den anderen läuft.
+- Abgestimmt mit dem Projektinhaber: Die Markierung wirkt **nur auf die
+  Katalogliste**. Produktseite, Bewertung, Fotos, Notizen und Preise bleiben
+  unverändert und bearbeitbar. Gesetzt und entfernt wird sie über eine
+  Checkbox im normalen Produktformular, beim Anlegen wie beim Bearbeiten.
+- Listenparameter `priceWatch` (`include` | `exclude` | `only`) für
+  `GET /api/v1/products`. Standard der API ist `include`, damit sich für
+  andere Aufrufer nichts ändert. Vor allem der Hinweis auf ähnliche Namen beim
+  Anlegen soll markierte Einträge weiter kennen, sonst entstehen Doppelungen.
+  Wann ausgeblendet wird, entscheidet allein die Katalogseite.
+- Katalogseite: Neue Auswahl „Preisbeobachtungen“ unter „Zusätzliche
+  Filter“, neben „Art“. Standard „nur bei Suche“: ohne Suchbegriff
+  `exclude`, mit Suchbegriff `include` – wer „Gouda“ tippt, findet den Käse.
+  Dazu „immer anzeigen“ und „nur diese“ (auch bei einer Suche). Nur eine vom
+  Standard abweichende Stellung zählt als gesetzter Filter. Kein eigenes
+  Kennzeichen auf der Produktkarte (vom Projektinhaber so entschieden).
+- Offline-Erfassung nimmt die Markierung mit. Einträge in der Warteschlange
+  von vor dem Update haben das Feld nicht und werden als unmarkiert angelegt.
+- Export/Import: Feld `priceWatch` in `export.json`, Spalte `price_watch`
+  (`1`/`0`) in `products.csv`. Die Formatversion bleibt 3, denn ein
+  zusätzliches Feld kann ein älterer Leser nicht missverstehen – er lässt es
+  weg, und der Eintrag erscheint dort wieder im Katalog. Fehlt das Feld beim
+  Import, sind neue Einträge unmarkiert; `--update` lässt eine hier gesetzte
+  Markierung dann stehen.
+- Ein aus dem Papierkorb per Neuanlage zurückgeholter Eintrag übernimmt die
+  Markierung aus dem Formular. Schickt der Aufrufer keine mit, bleibt die alte.
+- Im Browser bei 390 und 320 Pixel Breite geprüft: Standardansicht ohne die
+  markierten Einträge, Suche nach „gouda“ mit ihnen, „nur diese“, Checkbox
+  im Bearbeitungsformular.
+
+---
+
 ## 2026-10-30 – Katalog: Filter zum Aufklappen, Filter „Enthält Preis“ (0.10.0)
 
 - Der Kopf der Katalogseite zeigt nur noch die Suchzeile (Suchfeld, Leeren,

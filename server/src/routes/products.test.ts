@@ -143,7 +143,71 @@ describe('creating products', () => {
     expect(product.ean).toBe(SHORT_EAN_NORMALISED);
     expect(product.name).toBe('Apfelsaft');
     expect(product.notes).toBeNull();
+    expect(product.priceWatch).toBe(false);
     expect(product.createdBy).toBe(annaId);
+  });
+
+  it('stores the price watch mark, and refuses one that is not a boolean', async () => {
+    const response = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: writeHeaders(annaCookie),
+      payload: { ean: SHORT_EAN, name: 'Gouda in Scheiben', priceWatch: true },
+    });
+    expect(response.statusCode).toBe(201);
+    expect(response.json().product.priceWatch).toBe(true);
+
+    const invalid = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: writeHeaders(annaCookie),
+      payload: { name: 'Butter', priceWatch: 'ja' },
+    });
+    expect(invalid.statusCode).toBe(400);
+  });
+
+  it('preserves a trashed price-watch mark for legacy creation requests', async () => {
+    const created = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: writeHeaders(annaCookie),
+      payload: { ean: SHORT_EAN, name: 'Gouda', priceWatch: true },
+    });
+    expect(created.statusCode).toBe(201);
+    const id = created.json().product.id as string;
+
+    const remove = async () =>
+      harness.app.inject({
+        method: 'DELETE',
+        url: `/api/v1/products/${id}`,
+        headers: writeHeaders(adminCookie),
+      });
+    expect((await remove()).statusCode).toBe(200);
+
+    const legacy = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: writeHeaders(annaCookie),
+      payload: { ean: SHORT_EAN, name: 'Gouda jung' },
+    });
+    expect(legacy.statusCode).toBe(201);
+    expect(legacy.json()).toMatchObject({
+      restored: true,
+      product: { id, priceWatch: true },
+    });
+
+    expect((await remove()).statusCode).toBe(200);
+    const cleared = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: writeHeaders(annaCookie),
+      payload: { ean: SHORT_EAN, name: 'Gouda', priceWatch: false },
+    });
+    expect(cleared.statusCode).toBe(201);
+    expect(cleared.json()).toMatchObject({
+      restored: true,
+      product: { id, priceWatch: false },
+    });
   });
 
   it('answers a taken EAN with 409 and the existing product', async () => {
@@ -562,6 +626,35 @@ describe('searching and filtering', () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json().error.message).toContain('sorting');
+  });
+
+  it('leaves out, or keeps only, the entries marked as price watch', async () => {
+    const marked = await harness.app.inject({
+      method: 'PATCH',
+      url: `/api/v1/products/${productIds.toothpaste}`,
+      headers: writeHeaders(annaCookie),
+      payload: { priceWatch: true },
+    });
+    expect(marked.statusCode).toBe(200);
+    expect(marked.json().product.priceWatch).toBe(true);
+
+    // Without the parameter the list stays whole: only the catalogue page
+    // decides to leave them out.
+    expect((await listProducts('')).total).toBe(4);
+    expect((await listProducts('?priceWatch=include')).total).toBe(4);
+    expect(namesOf(await listProducts('?priceWatch=exclude&sort=name'))).toEqual([
+      'Apfelsaft',
+      'Haferflocken',
+      'Müsli Knusper',
+    ]);
+    expect(namesOf(await listProducts('?priceWatch=only'))).toEqual(['Zahnpasta']);
+
+    const invalid = await harness.app.inject({
+      method: 'GET',
+      url: '/api/v1/products?priceWatch=never',
+      headers: { cookie: annaCookie },
+    });
+    expect(invalid.statusCode).toBe(400);
   });
 
   it('rejects a page size above the maximum', async () => {

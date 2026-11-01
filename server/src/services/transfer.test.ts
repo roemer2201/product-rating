@@ -464,6 +464,73 @@ describe('prices in an export', () => {
   });
 });
 
+describe('the price watch mark in an export', () => {
+  it('travels with the product, in JSON and CSV', async () => {
+    const coffee = productIdOf(source, '4006381333931');
+    updateProduct(source.database.db, coffee, { priceWatch: true });
+
+    await exportCatalogue({
+      db: source.database.db,
+      config: source.config,
+      target: directory,
+      format: 'both',
+    });
+    const csv = readFileSync(join(directory, EXPORT_PRODUCTS_CSV), 'utf8');
+    expect(csv).toContain('notes,price_watch,created_by');
+    expect(csv).toMatch(/4006381333931,product,Kaffee,.*,1,bert,/);
+    expect(csv).toMatch(/4260000000011,product,Apfelsaft,.*,0,anna,/);
+
+    await importCatalogue({ db: target.database.db, config: target.config, source: directory });
+    const marked = listProducts(target.database.db, ANNA, {
+      priceWatch: 'only',
+      sort: 'updated',
+      limit: 25,
+    });
+    expect(marked.products.map((product) => product.ean)).toEqual(['4006381333931']);
+  });
+
+  it('reads files from before the mark, and leaves a mark set here alone on update', async () => {
+    const coffee = productIdOf(source, '4006381333931');
+    updateProduct(source.database.db, coffee, { priceWatch: true });
+    await exportCatalogue({ db: source.database.db, config: source.config, target: directory });
+
+    // A file written before the mark existed has no `priceWatch` at all.
+    const path = join(directory, EXPORT_JSON_FILE);
+    const stripped = readFileSync(path, 'utf8').replaceAll(/\s*"priceWatch": (true|false),/g, '');
+    expect(stripped).not.toContain('"priceWatch"');
+    writeFileSync(path, stripped);
+
+    const first = await importCatalogue({
+      db: target.database.db,
+      config: target.config,
+      source: directory,
+    });
+    expect(first.productsCreated).toBe(2);
+    const here = productIdOf(target, '4006381333931');
+    expect(
+      listProducts(target.database.db, ANNA, { q: '4006381333931', sort: 'updated', limit: 25 })
+        .products[0]?.priceWatch,
+    ).toBe(false);
+
+    // Somebody here marks it; an update from the old file must not clear that.
+    updateProduct(target.database.db, here, { priceWatch: true });
+    const second = await importCatalogue({
+      db: target.database.db,
+      config: target.config,
+      source: directory,
+      update: true,
+    });
+    expect(second.productsUpdated).toBe(2);
+    expect(
+      listProducts(target.database.db, ANNA, {
+        priceWatch: 'only',
+        sort: 'updated',
+        limit: 25,
+      }).products.map((product) => product.id),
+    ).toEqual([here]);
+  });
+});
+
 describe('entries without an EAN in an export', () => {
   const DISH_ID = '0b4c8e2a-6f1d-4c3b-9a7e-5d2f1e0c9b8a';
 

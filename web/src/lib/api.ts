@@ -15,6 +15,7 @@ import type {
   Photo,
   Price,
   PhotoSize,
+  PriceWatchFilter,
   Product,
   ProductDetail,
   ProductListPage,
@@ -327,6 +328,7 @@ export type ProductListParams = {
   ratedByMe?: boolean | undefined;
   createdByMe?: boolean | undefined;
   hasPrice?: boolean | undefined;
+  priceWatch?: PriceWatchFilter | undefined;
   sort?: ProductSortField | undefined;
   order?: SortOrder | undefined;
   limit?: number | undefined;

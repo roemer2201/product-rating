@@ -103,6 +103,7 @@ export function makeProduct(overrides: Partial<ProductWithRatings> = {}): Produc
     brand: 'Bio Hof',
     categories: [{ id: 'cat-drinks', name: 'Getränke' }],
     notes: null,
+    priceWatch: false,
     createdBy: testUser.id,
     createdAt: '2026-08-01T10:00:00.000Z',
     updatedAt: '2026-08-10T08:00:00.000Z',

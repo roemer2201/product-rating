@@ -211,6 +211,28 @@ describe('ProductNewPage', () => {
     });
   });
 
+  it('creates an entry marked as price watch from the ordinary form', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([
+      CATEGORIES,
+      { path: '/products', method: 'POST', status: 201, body: { product: makeProduct() } },
+    ]);
+
+    renderNew();
+    await fillName(user);
+
+    const checkbox = screen.getByRole('checkbox', { name: strings.product.priceWatch });
+    expect(checkbox).not.toBeChecked();
+    await user.click(checkbox);
+    await user.click(screen.getByRole('button', { name: strings.product.create }));
+
+    expect(await screen.findByText('Produktseite')).toBeInTheDocument();
+    const post = fetchMock.mock.calls.find(([, init]) => (init as RequestInit)?.method === 'POST');
+    expect(JSON.parse(String((post?.[1] as RequestInit).body))).toMatchObject({
+      priceWatch: true,
+    });
+  });
+
   it('says where categories come from while there are none', async () => {
     mockFetch([{ path: '/categories', body: { categories: [] } }]);
 

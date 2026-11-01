@@ -87,6 +87,7 @@ export function ProductPage() {
       brand: emptyToNull(values.brand),
       categoryIds: values.categoryIds,
       notes: emptyToNull(values.notes),
+      priceWatch: values.priceWatch,
     });
 
     if (!parsed.success) {
@@ -126,6 +127,7 @@ export function ProductPage() {
             brand: detail.brand ?? '',
             categoryIds: detail.categories.map((entry) => entry.id),
             notes: detail.notes ?? '',
+            priceWatch: detail.priceWatch,
           }}
           initialCategories={detail.categories}
           onSubmit={onSave}

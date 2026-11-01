@@ -100,7 +100,7 @@ mindestens 44 Pixel hoch, Ränder über `env(safe-area-inset-*)`.
 
 | Adresse | Ansicht |
 |---|---|
-| `/` | Katalog – Produktliste mit Suchzeile und Thumbnails; Filter und Sortierung hinter „Zusätzliche Filter“ (zugeklappt, mit Zahl der gesetzten Filter), „Filter zurücksetzen“ daneben |
+| `/` | Katalog – Produktliste mit Suchzeile und Thumbnails; Filter und Sortierung hinter „Zusätzliche Filter“ (zugeklappt, mit Zahl der gesetzten Filter), „Filter zurücksetzen“ daneben; als Preisbeobachtung markierte Einträge erscheinen erst bei einer Suche oder über den Filter |
 | `/scan` | Scanner, primäre Aktion („Kamera starten“ im Kamerafeld); darunter „Ohne Barcode erfassen“ und die Eingabe von Hand |
 | `/products/new?ean=…` | Anlegeformular mit vorbelegter EAN |
 | `/products/new?kind=dish` | Anlegeformular für ein Gericht oder Rezept, ohne EAN |
@@ -373,7 +373,7 @@ sessions  (id, user_id, expires_at, user_agent, created_at, last_seen_at)
 password_resets (id = SHA-256 des Tokens, user_id, created_by, expires_at,
            used_at, created_at)
 invites   (code, created_by, expires_at, used_by, used_at)
-products  (id, kind, ean UNIQUE NULL, name, variant, brand, notes,
+products  (id, kind, ean UNIQUE NULL, name, variant, brand, notes, price_watch,
            created_by, created_at, updated_at, deleted_at, deleted_by)
 categories (id, name UNIQUE, frequent, created_at, updated_at)
 product_categories (product_id, category_id)  PRIMARY KEY (product_id, category_id)
@@ -473,7 +473,7 @@ vorbehalten, weil es fremde Bewertungen und Fotos mitnimmt.
 | `GET /api/v1/products` | angemeldet | Liste mit Suche, Filtern, Sortierung und Cursor-Pagination |
 | `GET /api/v1/products/by-ean/:ean` | angemeldet | Nachschlagen nach dem Scan |
 | `GET /api/v1/products/:id` | angemeldet | Produkt inklusive Ersteller, eigener Bewertung, Durchschnitt, Anzahl, Fotos und aller Bewertungen |
-| `PATCH /api/v1/products/:id` | angemeldet | Name, Sorte, Marke, Kategorien oder Notizen ändern; EAN einmalig nachtragen |
+| `PATCH /api/v1/products/:id` | angemeldet | Name, Sorte, Marke, Kategorien, Notizen oder Markierung `priceWatch` ändern; EAN einmalig nachtragen |
 | `DELETE /api/v1/products/:id` | admin | Produkt in den Papierkorb legen (umkehrbar) |
 | `GET /api/v1/trash` | admin | Inhalt des Papierkorbs, jüngste Löschung zuerst |
 | `POST /api/v1/trash/:id/restore` | admin | Produkt aus dem Papierkorb zurückholen |
@@ -492,7 +492,8 @@ danach einmal täglich, zusammen mit dem Aufräumen abgelaufener Sitzungen.
 Die EAN bleibt belegt, solange ein Produkt im Papierkorb liegt – der
 `UNIQUE`-Index kennt keinen Papierkorb. Wer dieselbe EAN erneut anlegt, holt das
 Produkt deshalb **zurück**, statt eine Fehlermeldung zu bekommen: die frisch
-eingegebenen Daten überschreiben Name, Sorte, Marke, Kategorien und Notizen, die
+eingegebenen Daten überschreiben Name, Sorte, Marke, Kategorien und Notizen
+(die Markierung als Preisbeobachtung nur, wenn die Anfrage sie mitschickt), die
 alten
 Bewertungen und Fotos kommen mit. Ein `409` wäre hier eine Sackgasse – wer am
 Regal steht, darf den Papierkorb in der Regel gar nicht sehen. Die Antwort auf
@@ -583,10 +584,26 @@ welches Symbol der Scanner gelesen hat, denselben Eintrag. Führende Nullen
 | `ratedByMe` | `true`/`false` | Nur selbst bewertete Produkte |
 | `createdByMe` | `true`/`false` | Nur selbst angelegte Produkte; zusammen mit `ratedByMe` gilt beides |
 | `hasPrice` | `true`/`false` | Nur Produkte mit mindestens einem erfassten Preis, gleich von wem – Aktionspreise und Kosten pro Portion zählen mit |
+| `priceWatch` | `include`, `exclude`, `only` | Als Preisbeobachtung markierte Einträge mitliefern, weglassen oder nur sie; Standard `include` |
 | `sort` | `name`, `created`, `updated`, `rating` | Standard `updated` |
 | `order` | `asc`, `desc` | Standard: `asc` bei `name`, sonst `desc` |
 | `limit` | 1–100 | Standard 25 |
 | `cursor` | Zeichenkette | `nextCursor` der vorherigen Seite |
+
+**Preisbeobachtung.** Manches landet nur wegen des Preises im Katalog –
+Gouda in Scheiben, Butter, Milch –, und bewerten will das im Haushalt niemand.
+Solche Einträge bekommen im Produktformular die Markierung „Preisbeobachtung“
+(Spalte `products.price_watch`, Migration `0012_price_watch.sql`). Sie wirkt
+**nur auf die Katalogliste**: Ohne Suchbegriff blendet die Katalogseite markierte
+Einträge aus (`priceWatch=exclude`), mit Suchbegriff zeigt sie sie wie alle
+anderen (`include`) – wer „Gouda“ tippt, findet den Käse samt Preisverlauf.
+Unter „Zusätzliche Filter“ stellt die Auswahl „Preisbeobachtungen“ das auf
+„immer anzeigen“ oder „nur diese“ um; beides zählt als gesetzter Filter. Alles
+andere bleibt, wie es ist: Produktseite, Bewertungen, Fotos, Notizen und Preise
+funktionieren unverändert, der Scan findet den Eintrag direkt, und die Markierung
+lässt sich jederzeit im Formular wieder entfernen. Die API liefert ohne
+Parameter weiterhin alles, damit etwa der Hinweis auf ähnliche Namen beim
+Anlegen auch markierte Einträge kennt und keine Doppelung entsteht.
 
 Die Antwort ist `{ products, nextCursor, total }`. Der Cursor merkt sich die
 Sortierung, mit der er entstanden ist; wird sie gewechselt, antwortet die Route
@@ -1563,6 +1580,12 @@ Datei ab. Eine von Hand geschriebene Datei ohne `id` legt Einträge ohne EAN bei
 jedem Lauf neu an. Versionen 1 und 2 liest der Import weiter, ihre Einträge
 sind alle Produkte. In `products.csv` steht die Art in der Spalte `kind`, die
 EAN-Spalte bleibt bei Einträgen ohne leer.
+
+Die Markierung als Preisbeobachtung reist als `priceWatch` mit, in
+`products.csv` als Spalte `price_watch` mit `1` oder `0`. Wie beim Aktionspreis
+braucht es dafür keine neue Version des Dateiformats. Dateien von davor kennen
+das Feld nicht: Neue Einträge daraus sind unmarkiert, und `--update` lässt eine
+hier gesetzte Markierung stehen, statt sie mit einer alten Datei zu löschen.
 
 Bekommt ein zuvor ohne EAN importiertes Produkt später einen Barcode, erkennt
 der nächste Import es auch mit EAN an seiner bisherigen Kennung wieder.

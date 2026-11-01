@@ -67,6 +67,8 @@ export interface SeedProduct {
   brand?: string | null;
   /** Names; an entry of the list is created for each one that is missing. */
   categories?: string[];
+  /** `false` unless given. */
+  priceWatch?: boolean;
   createdBy: string;
 }
 
@@ -143,6 +145,7 @@ export function seedDatabase(db: AppDatabase, data: SeedData): SeedData {
       name: product.name,
       variant: product.variant ?? null,
       brand: product.brand ?? null,
+      priceWatch: product.priceWatch ?? false,
       createdBy: product.createdBy,
     };
     db.insert(products).values(row).run();

@@ -143,6 +143,7 @@ export function ProductNewPage() {
       brand: emptyToNull(values.brand),
       categoryIds: values.categoryIds,
       notes: emptyToNull(values.notes),
+      priceWatch: values.priceWatch,
     });
 
     if (!parsed.success) {
@@ -218,6 +219,7 @@ export function ProductNewPage() {
                           brand: emptyToNull(values.brand),
                           categoryIds: values.categoryIds,
                           notes: emptyToNull(values.notes),
+                          priceWatch: values.priceWatch,
                         },
                         photos: capturedPhotos,
                       },

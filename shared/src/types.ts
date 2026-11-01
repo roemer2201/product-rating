@@ -131,6 +131,12 @@ export interface Product {
   /** Alphabetical; empty when the product carries none. */
   categories: CategoryRef[];
   notes: string | null;
+  /**
+   * Recorded for its prices rather than to be rated. The only effect is that
+   * the catalogue leaves it out by default; ratings, photos and notes work as
+   * on any other entry.
+   */
+  priceWatch: boolean;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

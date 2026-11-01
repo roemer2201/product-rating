@@ -156,6 +156,11 @@ const exportedProductSchema = z.object({
   /** Version 2: names from the category list. */
   categories: z.array(z.string()).optional(),
   notes: z.string().nullish(),
+  /**
+   * Added in 0.11 without a new format version: an older reader simply drops
+   * it, and the entry shows up in its catalogue again, which loses nothing.
+   */
+  priceWatch: z.boolean().optional(),
   createdBy: z.string().nullish(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
@@ -312,6 +317,7 @@ function collectProducts(db: DbHandle, includeTrash: boolean): ExportedProduct[]
       left.localeCompare(right, 'de'),
     ),
     notes: product.notes,
+    priceWatch: product.priceWatch,
     createdBy: accounts.get(product.createdBy) ?? null,
     createdAt: product.createdAt.toISOString(),
     updatedAt: product.updatedAt.toISOString(),
@@ -503,6 +509,7 @@ function productsCsv(exported: ExportedProduct[]): string {
       'brand',
       'categories',
       'notes',
+      'price_watch',
       'created_by',
       'created_at',
       'updated_at',
@@ -529,6 +536,7 @@ function productsCsv(exported: ExportedProduct[]): string {
       // is what a name in the list is least likely to contain.
       categoryNamesOf(product).join('; ') || null,
       product.notes ?? null,
+      product.priceWatch === true ? 1 : 0,
       product.createdBy ?? null,
       product.createdAt ?? null,
       product.updatedAt ?? null,
@@ -928,6 +936,7 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
           variant: entry.variant ?? null,
           brand: entry.brand ?? null,
           notes: entry.notes ?? null,
+          priceWatch: entry.priceWatch ?? false,
           createdBy: owner,
           createdAt: momentOf(entry.createdAt, now),
           updatedAt: momentOf(entry.updatedAt, now),
@@ -952,6 +961,9 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
             variant: entry.variant ?? null,
             brand: entry.brand ?? null,
             notes: entry.notes ?? null,
+            // A file written before the mark existed says nothing about it,
+            // and that must not clear what the household has set here since.
+            ...(entry.priceWatch === undefined ? {} : { priceWatch: entry.priceWatch }),
             updatedAt: now,
             // A product that is in the trash here comes back with the import:
             // the file says it belongs in the catalogue.

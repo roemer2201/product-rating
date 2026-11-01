@@ -38,6 +38,11 @@ import { strings } from '@/lib/strings';
  * At the very top the screen can be pulled down to reload, the gesture the
  * catalogue is asked for most: someone else in the household has entered or
  * rated something, and the list in hand is a few minutes old.
+ *
+ * Entries marked as price watch - sliced cheese, butter, recorded for what
+ * they cost rather than to be rated - stay out of the plain list. A search
+ * finds them like anything else, so typing "Gouda" still leads to the price;
+ * the filter can show them always or show nothing else.
  */
 
 /** How long a keystroke waits before it turns into a request. */
@@ -54,6 +59,18 @@ const MORE_FILTERS_PANEL_ID = 'catalogue-more-filters';
  * scale except zero, which is not a filter — it lets everything through.
  */
 const MIN_STARS_OPTIONS = Array.from({ length: RATING_MAX_STARS }, (_entry, index) => index + 1);
+
+/**
+ * The choices of the price watch filter. `search` is the screen's own rule
+ * rather than a value of the API: out of the plain list, in a search.
+ */
+type PriceWatchChoice = 'search' | 'include' | 'only';
+
+const PRICE_WATCH_LABELS: Record<PriceWatchChoice, string> = {
+  search: strings.catalogue.priceWatchSearch,
+  include: strings.catalogue.priceWatchInclude,
+  only: strings.catalogue.priceWatchOnly,
+};
 
 const SORT_LABELS: Record<ProductSortField, string> = {
   name: strings.catalogue.sortName,
@@ -75,6 +92,7 @@ export function CataloguePage() {
   const [ratedByMe, setRatedByMe] = useState(false);
   const [createdByMe, setCreatedByMe] = useState(false);
   const [hasPrice, setHasPrice] = useState(false);
+  const [priceWatch, setPriceWatch] = useState<PriceWatchChoice>('search');
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
   const [sort, setSort] = useState<ProductSortField>('updated');
   const [order, setOrder] = useState<SortOrder>('desc');
@@ -99,6 +117,7 @@ export function CataloguePage() {
     ...(ratedByMe ? { ratedByMe: true } : {}),
     ...(createdByMe ? { createdByMe: true } : {}),
     ...(hasPrice ? { hasPrice: true } : {}),
+    priceWatch: priceWatch === 'search' ? (term === '' ? 'exclude' : 'include') : priceWatch,
     sort,
     order,
   });
@@ -113,6 +132,7 @@ export function CataloguePage() {
     createdByMe,
     ratedByMe,
     hasPrice,
+    priceWatch !== 'search',
   ].filter(Boolean).length;
   const filtered = term !== '' || activeFilters > 0;
 
@@ -145,6 +165,7 @@ export function CataloguePage() {
     setRatedByMe(false);
     setCreatedByMe(false);
     setHasPrice(false);
+    setPriceWatch('search');
   };
 
   return (
@@ -297,6 +318,20 @@ export function CataloguePage() {
                   <option value="">{strings.catalogue.allKinds}</option>
                   <option value="product">{strings.catalogue.kindProduct}</option>
                   <option value="dish">{strings.catalogue.kindDish}</option>
+                </SelectField>
+
+                <SelectField
+                  label={strings.catalogue.priceWatch}
+                  value={priceWatch}
+                  onChange={(event) => {
+                    setPriceWatch(event.target.value as PriceWatchChoice);
+                  }}
+                >
+                  {Object.entries(PRICE_WATCH_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
                 </SelectField>
               </div>
 

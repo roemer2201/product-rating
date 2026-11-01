@@ -125,9 +125,40 @@ describe('syncing a capture', () => {
 
     expect(result.synced).toBe(1);
     const post = fetchMock.mock.calls.find(([, init]) => (init as RequestInit)?.method === 'POST');
-    expect(JSON.parse(String((post?.[1] as RequestInit).body))).toMatchObject({
+    const body = JSON.parse(String((post?.[1] as RequestInit).body)) as Record<string, unknown>;
+    expect(body).toMatchObject({ ean: TEST_EAN, name: 'Apfelsaft' });
+    // An older capture must not overwrite the mark of a restored entry.
+    expect(body).not.toHaveProperty('priceWatch');
+  });
+
+  it('keeps the price watch mark of a product captured offline', async () => {
+    await enqueueCapture({
       ean: TEST_EAN,
-      name: 'Apfelsaft',
+      label: 'Gouda',
+      product: {
+        name: 'Gouda',
+        variant: 'in Scheiben',
+        brand: null,
+        categoryIds: [],
+        notes: null,
+        priceWatch: true,
+      },
+    });
+
+    const fetchMock = mockFetch([
+      {
+        path: `/products/by-ean/${TEST_EAN}`,
+        status: 404,
+        body: { error: { code: 'not_found' } },
+      },
+      { path: '/products', method: 'POST', body: { product: PRODUCT, restored: false } },
+    ]);
+
+    expect((await syncCaptures()).synced).toBe(1);
+    const post = fetchMock.mock.calls.find(([, init]) => (init as RequestInit)?.method === 'POST');
+    expect(JSON.parse(String((post?.[1] as RequestInit).body))).toMatchObject({
+      name: 'Gouda',
+      priceWatch: true,
     });
   });
 

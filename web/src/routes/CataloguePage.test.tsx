@@ -249,6 +249,51 @@ describe('CataloguePage', () => {
     });
   });
 
+  it('leaves price watch entries out of the plain list, but not out of a search', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([
+      CATEGORIES,
+      { path: '/products', body: makeProductPage([makeProduct()]) },
+    ]);
+
+    renderCatalogue();
+    await screen.findByText('Apfelsaft');
+    expect(lastListUrl(fetchMock.mock.calls)).toContain('priceWatch=exclude');
+
+    // Typing "Gouda" has to lead to the cheese kept for its price.
+    await user.type(screen.getByLabelText(strings.catalogue.search), 'gouda');
+    await waitFor(() => {
+      const url = lastListUrl(fetchMock.mock.calls);
+      expect(url).toContain('q=gouda');
+      expect(url).toContain('priceWatch=include');
+    });
+
+    // "Nur diese" holds with a search as well.
+    await openMoreFilters(user);
+    await user.selectOptions(screen.getByLabelText(strings.catalogue.priceWatch), 'only');
+    await waitFor(() => {
+      expect(lastListUrl(fetchMock.mock.calls)).toContain('priceWatch=only');
+    });
+
+    await user.click(screen.getByRole('button', { name: strings.catalogue.clearSearch }));
+    await user.selectOptions(screen.getByLabelText(strings.catalogue.priceWatch), 'include');
+    await waitFor(() => {
+      const url = lastListUrl(fetchMock.mock.calls);
+      expect(url).not.toContain('q=');
+      expect(url).toContain('priceWatch=include');
+    });
+    // Anything but the default narrows the list in its own way and counts.
+    expect(
+      screen.getByRole('button', { name: strings.catalogue.moreFiltersActive(1) }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: strings.catalogue.resetFilters }));
+    // Back to the default, which counts as no filter. The plain list is cached
+    // already, so a new request is optional and not asserted.
+    expect(screen.getByLabelText(strings.catalogue.priceWatch)).toHaveValue('search');
+    expect(screen.getByRole('button', { name: strings.catalogue.moreFilters })).toBeInTheDocument();
+  });
+
   it('clears the personal filters and the price filter with reset', async () => {
     const user = userEvent.setup();
     const fetchMock = mockFetch([
@@ -321,6 +366,7 @@ describe('CataloguePage', () => {
       strings.catalogue.createdByMe,
       strings.catalogue.ratedByMe,
       strings.catalogue.hasPrice,
+      strings.catalogue.priceWatch,
     ]) {
       expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
     }
