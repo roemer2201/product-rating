@@ -100,7 +100,7 @@ mindestens 44 Pixel hoch, Ränder über `env(safe-area-inset-*)`.
 
 | Adresse | Ansicht |
 |---|---|
-| `/` | Katalog – Produktliste mit Suchzeile und Thumbnails; Filter und Sortierung hinter „Zusätzliche Filter“ (zugeklappt, mit Zahl der gesetzten Filter), „Filter zurücksetzen“ daneben; als Preisbeobachtung markierte Einträge erscheinen erst bei einer Suche oder über den Filter |
+| `/` | Katalog – Produktliste mit Suchzeile und Thumbnails; Filter und Sortierung hinter „Zusätzliche Filter“ (zugeklappt, mit Zahl der gesetzten Filter), „Filter zurücksetzen“ daneben; als Preisbeobachtung markierte Einträge erscheinen erst bei einer Suche oder über den Filter; findet die Suche nach einer gültigen EAN nichts, führt „Neuen Artikel erfassen“ zum Anlegeformular mit dieser EAN, blenden nur Filter den Artikel aus, „Artikel öffnen“ zu ihm |
 | `/scan` | Scanner, primäre Aktion („Kamera starten“ im Kamerafeld); darunter „Ohne Barcode erfassen“ und die Eingabe von Hand |
 | `/products/new?ean=…` | Anlegeformular mit vorbelegter EAN |
 | `/products/new?kind=dish` | Anlegeformular für ein Gericht oder Rezept, ohne EAN |

@@ -5,6 +5,34 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-11-02 – Katalog: unbekannte EAN direkt erfassen (0.12.0)
+
+- Anlass: Eine im Katalog gescannte EAN, die es noch nicht gibt, endete im
+  allgemeinen Hinweis „Zu dieser Suche gibt es nichts. Vielleicht mit weniger
+  Filtern?“. Eine EAN ist eindeutig, die leere Liste heißt also „noch nicht
+  erfasst“, und der naheliegende nächste Schritt ist das Anlegen.
+- Ist der Suchbegriff eine gültige EAN (EAN-13, EAN-8 oder UPC-A, Prüfziffer
+  über `normaliseEan` aus `shared`), sagt der leere Katalog „Die EAN … ist
+  noch nicht erfasst.“ und bietet „Neuen Artikel erfassen“ an. Der Link führt
+  direkt zu `/products/new?ean=<13 Stellen>`, nicht über die Scannen-Seite:
+  Die würde die EAN nur noch einmal nachschlagen und dann dorthin springen.
+- Abgestimmt mit dem Projektinhaber: Das gilt für gescannte **und** getippte
+  EANs, denn eine getippte gültige EAN ist genauso eindeutig.
+- Abgestimmt mit dem Projektinhaber (Variante a): Sind außer der Suche Filter
+  gesetzt, beweist die leere Liste nichts – „von mir bewertet“ oder eine
+  Kategorie können den Artikel nur ausblenden. Dann fragt die Seite zuerst
+  `GET /api/v1/products/by-ean/:ean` (neuer Hook `useProductByEan`, eine
+  Abfrage statt der Mutation der Scannen-Seite). Gibt es den Artikel, heißt
+  es „… ist erfasst, wird aber von den Filtern ausgeblendet.“ mit „Artikel
+  öffnen“; sonst wie oben, jeweils mit „Filter zurücksetzen“. Bis die Antwort
+  da ist oder wenn sie scheitert, bleibt der bisherige Hinweis stehen. Ohne
+  weitere Filter entfällt die zusätzliche Anfrage.
+- Ein Eintrag im Papierkorb gilt wie bisher als nicht vorhanden; das
+  Anlegeformular holt ihn beim Speichern zurück.
+- Nur das Frontend ist betroffen; Docker und Debian-Paket bleiben unverändert.
+
+---
+
 ## 2026-11-01 – Markierung „Preisbeobachtung“ (0.11.0)
 
 - Anlass: Manche Artikel landen nur wegen des Preises im Katalog (Gouda in

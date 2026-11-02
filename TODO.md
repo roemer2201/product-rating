@@ -431,6 +431,12 @@ Gerichten bedeutet der Preis „Kosten pro Portion“.
       diese“. Produktseite, Bewertung, Fotos und Notizen bleiben unverändert
       (abgestimmt mit dem Projektinhaber am 01.11.2026); mit Export/Import und
       Offline-Erfassung
+- [x] Katalog: Findet eine Suche nach einer gültigen EAN (gescannt oder
+      getippt) nichts, bietet der Hinweis „Neuen Artikel erfassen“ mit
+      vorbelegter EAN an (`/products/new?ean=…`). Sind außer der Suche Filter
+      gesetzt, fragt die Seite erst `GET /products/by-ean/:ean` und führt zum
+      Artikel, wenn ihn nur die Filter ausblenden (abgestimmt mit dem
+      Projektinhaber am 02.11.2026)
 - [ ] Aktionspreis-Markierung an vorhandenen Preiseinträgen nachträglich
       setzen oder entfernen – bisher gibt es kein Bearbeiten eines Preises,
       nur Erfassen und Löschen (vom Projektinhaber am 30.10.2026 vorerst

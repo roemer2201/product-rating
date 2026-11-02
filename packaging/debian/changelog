@@ -1,3 +1,11 @@
+product-rating (0.12.0) unstable; urgency=medium
+
+  * Catalogue: a search for a valid EAN that finds nothing offers to enter
+    the product with the EAN filled in. With further filters set, the EAN
+    lookup tells a missing product from one the filters only hide.
+
+ -- roemer2201 <roemer2201@users.noreply.github.com>  Mon, 02 Nov 2026 00:00:00 +0000
+
 product-rating (0.11.0) unstable; urgency=medium
 
   * New "Preisbeobachtung" mark on catalogue entries (migration 0012,
