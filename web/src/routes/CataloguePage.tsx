@@ -117,8 +117,11 @@ export function CataloguePage() {
 
   const categories = useCategories();
 
+  // EAN input may contain spaces or hyphens. Search for its canonical value,
+  // just as the by-EAN lookup and product form do, to avoid false "unknown" hits.
+  const searchedEan = term === '' ? null : normaliseEan(term);
   const list = useProductList({
-    ...(term === '' ? {} : { q: term }),
+    ...(term === '' ? {} : { q: searchedEan ?? term }),
     ...(category === '' ? {} : { categoryId: category }),
     ...(kind === '' ? {} : { kind }),
     ...(minStars === '' ? {} : { minStars: Number(minStars) }),
@@ -144,8 +147,6 @@ export function CataloguePage() {
   ].filter(Boolean).length;
   const filtered = term !== '' || activeFilters > 0;
 
-  /** The search term as a normalised EAN; `null` for every other search. */
-  const searchedEan = term === '' ? null : normaliseEan(term);
   const emptyResult = !list.isPending && list.error === null && products.length === 0;
   // Only needed when filters could be hiding the product; without them the
   // empty list already says that the EAN is not in the catalogue.

@@ -414,6 +414,29 @@ describe('CataloguePage', () => {
     );
   });
 
+  it('normalises a spaced or hyphenated EAN before searching the catalogue', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([
+      CATEGORIES,
+      { path: '/products', body: makeProductPage([makeProduct({ name: 'Gouda' })]) },
+    ]);
+
+    renderCatalogue();
+    await screen.findByText('Gouda');
+
+    // The same GTIN with separators must still match its stored EAN instead
+    // of wrongly offering to enter an already-existing product.
+    await user.type(screen.getByLabelText(strings.catalogue.search), '4006381-333931');
+
+    await waitFor(() => {
+      expect(lastListUrl(fetchMock.mock.calls)).toContain('q=4006381333931');
+    });
+    expect(screen.getByText('Gouda')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: strings.catalogue.eanCreate }),
+    ).not.toBeInTheDocument();
+  });
+
   it('keeps the plain hint for a search that is no valid EAN', async () => {
     const user = userEvent.setup();
     mockFetch([CATEGORIES, { path: '/products', body: makeProductPage([]) }]);
