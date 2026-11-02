@@ -507,6 +507,13 @@ export const strings = {
     total: (count: number) => (count === 1 ? '1 Eintrag' : `${count} Einträge`),
     empty: 'Der Katalog ist noch leer. Scanne das erste Produkt.',
     emptyFiltered: 'Zu dieser Suche gibt es nichts. Vielleicht mit weniger Filtern?',
+    // A search for a valid EAN that found nothing: an EAN is unique, so this
+    // means the product has not been entered yet - unless a filter hides it.
+    eanUnknown: (ean: string) => `Die EAN ${ean} ist noch nicht erfasst.`,
+    eanHidden: (ean: string) =>
+      `Die EAN ${ean} ist erfasst, wird aber von den Filtern ausgeblendet.`,
+    eanCreate: 'Neuen Artikel erfassen',
+    eanOpen: 'Artikel öffnen',
     photoAlt: (name: string) => `Foto von ${name}`,
     noPhoto: 'Kein Foto',
   },

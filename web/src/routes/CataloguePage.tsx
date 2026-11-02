@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import {
+  normaliseEan,
   PRODUCT_SEARCH_MAX_LENGTH,
   RATING_MAX_STARS,
   type ProductKind,
@@ -15,7 +16,7 @@ import { PullToRefresh } from '@/components/PullToRefresh';
 import { SelectField } from '@/components/Field';
 import { CameraIcon, ChevronDownIcon, CloseIcon } from '@/components/icons';
 import { errorMessage } from '@/lib/api';
-import { useCategories, useProductList } from '@/lib/queries';
+import { useCategories, useProductByEan, useProductList } from '@/lib/queries';
 import { strings } from '@/lib/strings';
 
 /**
@@ -43,6 +44,13 @@ import { strings } from '@/lib/strings';
  * they cost rather than to be rated - stay out of the plain list. A search
  * finds them like anything else, so typing "Gouda" still leads to the price;
  * the filter can show them always or show nothing else.
+ *
+ * A search for a valid EAN - scanned or typed - that comes back empty is not
+ * the vague "try fewer filters": an EAN exists at most once, so it offers to
+ * enter the product with the code already filled in. Without other filters
+ * the empty list is proof enough. With them the product may merely be hidden,
+ * so the screen asks the EAN lookup first and, if the product is there, leads
+ * to it instead.
  */
 
 /** How long a keystroke waits before it turns into a request. */
@@ -136,6 +144,13 @@ export function CataloguePage() {
   ].filter(Boolean).length;
   const filtered = term !== '' || activeFilters > 0;
 
+  /** The search term as a normalised EAN; `null` for every other search. */
+  const searchedEan = term === '' ? null : normaliseEan(term);
+  const emptyResult = !list.isPending && list.error === null && products.length === 0;
+  // Only needed when filters could be hiding the product; without them the
+  // empty list already says that the EAN is not in the catalogue.
+  const eanLookup = useProductByEan(searchedEan, emptyResult && activeFilters > 0);
+
   const handleDetectedEan = useCallback((ean: string): void => {
     // A scan is already a complete search term, so do not make it wait for the
     // typing debounce. Keeping `search` in sync also leaves the EAN visible and
@@ -166,6 +181,63 @@ export function CataloguePage() {
     setCreatedByMe(false);
     setHasPrice(false);
     setPriceWatch('search');
+  };
+
+  const resetButton = (
+    <button type="button" className="button" onClick={resetFilters}>
+      {strings.catalogue.resetFilters}
+    </button>
+  );
+
+  /** What an empty list says, and what it offers instead. */
+  const emptyState = (): { text: string; action: ReactNode } => {
+    if (!filtered) {
+      return {
+        text: strings.catalogue.empty,
+        action: (
+          <Link className="button button--primary" to="/scan">
+            {strings.nav.scan}
+          </Link>
+        ),
+      };
+    }
+
+    if (searchedEan !== null) {
+      const known = activeFilters === 0 ? null : eanLookup.data;
+      // `undefined`: the lookup is still on its way or failed; until it has an
+      // answer the screen does not claim either way.
+      if (known === null) {
+        return {
+          text: strings.catalogue.eanUnknown(searchedEan),
+          action: (
+            <>
+              <Link
+                className="button button--primary"
+                to={`/products/new?ean=${encodeURIComponent(searchedEan)}`}
+              >
+                {strings.catalogue.eanCreate}
+              </Link>
+              {activeFilters > 0 && resetButton}
+            </>
+          ),
+        };
+      }
+      if (known !== undefined) {
+        return {
+          text: strings.catalogue.eanHidden(searchedEan),
+          action: (
+            <>
+              <Link className="button button--primary" to={`/products/${known.id}`}>
+                {strings.catalogue.eanOpen}
+              </Link>
+              {resetButton}
+            </>
+          ),
+        };
+      }
+    }
+
+    return { text: strings.catalogue.emptyFiltered, action: resetButton };
   };
 
   return (
@@ -416,20 +488,7 @@ export function CataloguePage() {
         {list.isPending ? (
           <SkeletonList rows={4} />
         ) : products.length === 0 ? (
-          <EmptyState
-            text={filtered ? strings.catalogue.emptyFiltered : strings.catalogue.empty}
-            action={
-              filtered ? (
-                <button type="button" className="button" onClick={resetFilters}>
-                  {strings.catalogue.resetFilters}
-                </button>
-              ) : (
-                <Link className="button button--primary" to="/scan">
-                  {strings.nav.scan}
-                </Link>
-              )
-            }
-          />
+          <EmptyState {...emptyState()} />
         ) : (
           <>
             <p className="list-total" role="status">

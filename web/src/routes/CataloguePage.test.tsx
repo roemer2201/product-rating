@@ -1,11 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Route, Routes } from 'react-router';
+import { Route, Routes, useLocation, useParams } from 'react-router';
 import { CataloguePage } from '@/routes/CataloguePage';
 import { strings } from '@/lib/strings';
 import { mockFetch } from '@/testing/fetchMock';
-import { CATEGORY_LIST, makeProduct, makeProductPage, makeRating } from '@/testing/fixtures';
+import {
+  CATEGORY_LIST,
+  makeProduct,
+  makeProductDetail,
+  makeProductPage,
+  makeRating,
+} from '@/testing/fixtures';
 import { renderWithProviders } from '@/testing/render';
 
 vi.mock('@/components/BarcodeScanner', () => ({
@@ -32,11 +38,27 @@ vi.mock('@/components/BarcodeScanner', () => ({
 
 const CATEGORIES = { path: '/categories', body: { categories: CATEGORY_LIST } };
 
+/** The EAN the mocked scanner reports. */
+const SCANNED_EAN = '4006381333931';
+
+/** Stands in for the form, to show where a link led and with which EAN. */
+function NewProductStub() {
+  const location = useLocation();
+  return <p>Neu: {location.search}</p>;
+}
+
+function ProductStub() {
+  const { id } = useParams();
+  return <p>Produkt: {id}</p>;
+}
+
 function renderCatalogue() {
   return renderWithProviders(
     <Routes>
       <Route path="/" element={<CataloguePage />} />
       <Route path="/scan" element={<p>Scanner</p>} />
+      <Route path="/products/new" element={<NewProductStub />} />
+      <Route path="/products/:id" element={<ProductStub />} />
     </Routes>,
     { route: '/' },
   );
@@ -49,6 +71,14 @@ function lastListUrl(calls: unknown[][]): string {
     .filter((url) => url.startsWith('/api/v1/products?') || url === '/api/v1/products');
 
   return urls.at(-1) ?? '';
+}
+
+/** The hint shown for an empty list, found by what it says. */
+async function emptyStateWith(text: string): Promise<HTMLElement> {
+  const paragraph = await screen.findByText(text);
+  const box = paragraph.closest<HTMLElement>('.empty-state');
+  if (box === null) throw new Error('the text is not inside the empty state');
+  return box;
 }
 
 /** Unfolds the filters behind "Zusätzliche Filter", whatever its count says. */
@@ -342,6 +372,129 @@ describe('CataloguePage', () => {
     await user.click(screen.getByLabelText(strings.catalogue.ratedByMe));
 
     expect(await screen.findByText(strings.catalogue.emptyFiltered)).toBeInTheDocument();
+  });
+
+  it('offers to enter a scanned EAN the catalogue does not know', async () => {
+    const user = userEvent.setup();
+    mockFetch([CATEGORIES, { path: '/products', body: makeProductPage([]) }]);
+
+    renderCatalogue();
+    await screen.findByText(strings.catalogue.empty);
+
+    await user.click(screen.getByRole('button', { name: strings.catalogue.scanSearch }));
+    await user.click(screen.getByRole('button', { name: 'Test-EAN scannen' }));
+
+    const empty = await emptyStateWith(strings.catalogue.eanUnknown(SCANNED_EAN));
+    // Nothing is filtered but the search, so the hint offers nothing to reset;
+    // the reset beside the filters still clears the search as always.
+    expect(
+      within(empty).queryByRole('button', { name: strings.catalogue.resetFilters }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('link', { name: strings.catalogue.eanCreate }));
+    expect(screen.getByText(`Neu: ?ean=${SCANNED_EAN}`)).toBeInTheDocument();
+  });
+
+  it('offers the same for a typed EAN, in its thirteen digit form', async () => {
+    const user = userEvent.setup();
+    mockFetch([CATEGORIES, { path: '/products', body: makeProductPage([]) }]);
+
+    renderCatalogue();
+    await screen.findByText(strings.catalogue.empty);
+
+    // UPC-A as printed on imports; the catalogue stores it with a leading zero.
+    await user.type(screen.getByLabelText(strings.catalogue.search), '036000291452');
+
+    expect(
+      await screen.findByText(strings.catalogue.eanUnknown('0036000291452')),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: strings.catalogue.eanCreate })).toHaveAttribute(
+      'href',
+      '/products/new?ean=0036000291452',
+    );
+  });
+
+  it('keeps the plain hint for a search that is no valid EAN', async () => {
+    const user = userEvent.setup();
+    mockFetch([CATEGORIES, { path: '/products', body: makeProductPage([]) }]);
+
+    renderCatalogue();
+    await screen.findByText(strings.catalogue.empty);
+
+    // Thirteen digits, but the check digit is wrong.
+    await user.type(screen.getByLabelText(strings.catalogue.search), '4006381333932');
+
+    expect(await screen.findByText(strings.catalogue.emptyFiltered)).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: strings.catalogue.eanCreate }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('asks the lookup under filters, and offers to enter an EAN it does not know', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([
+      CATEGORIES,
+      // Before the list route: its path is a substring of this one.
+      { path: '/products/by-ean/', status: 404, body: { error: { code: 'not_found' } } },
+      { path: '/products', body: makeProductPage([]) },
+    ]);
+
+    renderCatalogue();
+    await screen.findByText(strings.catalogue.empty);
+
+    await openMoreFilters(user);
+    await user.click(screen.getByLabelText(strings.catalogue.ratedByMe));
+    await user.type(screen.getByLabelText(strings.catalogue.search), SCANNED_EAN);
+
+    const empty = await emptyStateWith(strings.catalogue.eanUnknown(SCANNED_EAN));
+    expect(
+      within(empty).getByRole('link', { name: strings.catalogue.eanCreate }),
+    ).toBeInTheDocument();
+    expect(
+      within(empty).getByRole('button', { name: strings.catalogue.resetFilters }),
+    ).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(
+        ([url]) => String(url) === `/api/v1/products/by-ean/${SCANNED_EAN}`,
+      ),
+    ).toBe(true);
+  });
+
+  it('leads to a product the filters hide instead of offering to enter it again', async () => {
+    const user = userEvent.setup();
+    mockFetch([
+      CATEGORIES,
+      { path: '/products/by-ean/', body: { product: makeProductDetail({ id: 'prod-7' }) } },
+      { path: '/products', body: makeProductPage([]) },
+    ]);
+
+    renderCatalogue();
+    await screen.findByText(strings.catalogue.empty);
+
+    await openMoreFilters(user);
+    await user.click(screen.getByLabelText(strings.catalogue.ratedByMe));
+    await user.type(screen.getByLabelText(strings.catalogue.search), SCANNED_EAN);
+
+    expect(await screen.findByText(strings.catalogue.eanHidden(SCANNED_EAN))).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: strings.catalogue.eanCreate }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('link', { name: strings.catalogue.eanOpen }));
+    expect(screen.getByText('Produkt: prod-7')).toBeInTheDocument();
+  });
+
+  it('does not ask the lookup when no filter could hide the product', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([CATEGORIES, { path: '/products', body: makeProductPage([]) }]);
+
+    renderCatalogue();
+    await screen.findByText(strings.catalogue.empty);
+
+    await user.type(screen.getByLabelText(strings.catalogue.search), SCANNED_EAN);
+    await screen.findByText(strings.catalogue.eanUnknown(SCANNED_EAN));
+
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/by-ean/'))).toBe(false);
   });
 
   it('shows only the search line until the other filters are unfolded', async () => {

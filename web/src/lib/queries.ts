@@ -330,6 +330,32 @@ export function useEanLookup(): UseMutationResult<ProductDetail | null, Error, s
   });
 }
 
+/**
+ * Whether the catalogue holds an EAN, as a cached query rather than the
+ * mutation the scan screen uses: the catalogue asks it while rendering, when a
+ * search for an EAN came back empty under filters and the screen has to tell
+ * "not entered yet" from "entered, but filtered out". `null` means the former.
+ */
+export function useProductByEan(
+  ean: string | null,
+  enabled: boolean,
+): UseQueryResult<ProductDetail | null, Error> {
+  return useQuery({
+    queryKey: queryKeys.products.byEan(ean ?? ''),
+    queryFn: async () => {
+      if (ean === null) return null;
+      try {
+        return (await api.products.byEan(ean)).product;
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) return null;
+        throw error;
+      }
+    },
+    enabled: enabled && ean !== null,
+    staleTime: CACHE_TIMES.catalogue,
+  });
+}
+
 export function useCreateProduct(): UseMutationResult<Product, Error, CreateProductInput> {
   const client = useQueryClient();
 
