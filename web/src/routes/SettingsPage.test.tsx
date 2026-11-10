@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { onlineManager } from '@tanstack/react-query';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router';
 import { SettingsPage } from '@/routes/SettingsPage';
+import { rememberedAppearance } from '@/lib/appearance';
 import { strings } from '@/lib/strings';
 import { enqueueCapture, listCaptures } from '@/lib/offlineQueue';
 import { mockFetch, testUser } from '@/testing/fetchMock';
@@ -145,6 +146,72 @@ describe('SettingsPage', () => {
       const request = fetchMock.mock.calls.find(([url]) => String(url).includes('/auth/profile'));
       expect(JSON.parse(String((request?.[1] as RequestInit).body))).toEqual({ displayName: null });
     });
+  });
+
+  it('shows the appearance of the account and saves a choice at once', async () => {
+    const user = userEvent.setup();
+    const chosen = { ...testUser.appearance, palette: 'forest' } as const;
+    const fetchMock = mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      SESSIONS,
+      {
+        path: '/auth/profile',
+        method: 'PATCH',
+        body: { user: { ...testUser, appearance: chosen } },
+      },
+    ]);
+
+    renderSettings();
+
+    const scheme = await screen.findByRole('group', { name: strings.settings.scheme });
+    expect(
+      within(scheme).getByRole('radio', { name: strings.settings.schemes.system }),
+    ).toBeChecked();
+
+    const palette = screen.getByRole('group', { name: strings.settings.palette });
+    await user.click(
+      within(palette).getByRole('radio', { name: strings.settings.palettes.forest }),
+    );
+
+    // The document follows the tap, without waiting for the server.
+    expect(document.documentElement.dataset.palette).toBe('forest');
+
+    await waitFor(() => {
+      const request = fetchMock.mock.calls.find(([url]) => String(url).includes('/auth/profile'));
+      // Only the one choice travels; the others stay whatever they are.
+      expect(JSON.parse(String((request?.[1] as RequestInit).body))).toEqual({
+        appearance: { palette: 'forest' },
+      });
+    });
+
+    await waitFor(() => {
+      expect(
+        within(palette).getByRole('radio', { name: strings.settings.palettes.forest }),
+      ).toBeChecked();
+    });
+    // Remembered for the next start, when the server has not been asked yet.
+    expect(rememberedAppearance()).toEqual(chosen);
+  });
+
+  it('goes back to what the account has when a choice cannot be saved', async () => {
+    const user = userEvent.setup();
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      SESSIONS,
+      { path: '/auth/profile', method: 'PATCH', networkError: true },
+    ]);
+
+    renderSettings();
+
+    const scheme = await screen.findByRole('group', { name: strings.settings.scheme });
+    await user.click(within(scheme).getByRole('radio', { name: strings.settings.schemes.dark }));
+
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(document.documentElement.dataset.scheme).toBe('system');
+    expect(
+      within(scheme).getByRole('radio', { name: strings.settings.schemes.system }),
+    ).toBeChecked();
+    expect(rememberedAppearance().scheme).toBe('system');
   });
 
   it('lists what was captured offline and transfers it on request', async () => {

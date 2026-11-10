@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router';
 import { AppLayout } from '@/components/AppLayout';
@@ -36,6 +36,31 @@ describe('AppLayout', () => {
     expect(screen.getByText('anna')).toBeInTheDocument();
     expect(screen.getByText('Katalogansicht')).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: strings.nav.label })).toBeInTheDocument();
+  });
+
+  it('puts the appearance of the account onto the document', async () => {
+    mockFetch([
+      {
+        path: '/auth/me',
+        body: {
+          user: {
+            ...testUser,
+            appearance: { layout: 'gallery', scheme: 'dark', palette: 'berry' },
+          },
+        },
+      },
+    ]);
+
+    renderLayout();
+    await screen.findByText(strings.session.loggedInAsLabel);
+
+    await waitFor(() => {
+      expect(document.documentElement.dataset).toMatchObject({
+        layout: 'gallery',
+        scheme: 'dark',
+        palette: 'berry',
+      });
+    });
   });
 
   it('leaves logging out to the settings page', async () => {

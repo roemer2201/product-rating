@@ -556,6 +556,24 @@ export const strings = {
         : `Du erscheinst jetzt als ${name}.`,
     displayNameNone: 'Nicht gesetzt',
 
+    appearanceTitle: 'Darstellung',
+    appearanceIntro:
+      'Gilt für dein Konto und damit auf jedem Gerät, auf dem du angemeldet bist. ' +
+      'An den Funktionen ändert sich nichts.',
+    scheme: 'Modus',
+    schemes: {
+      system: 'System',
+      light: 'Hell',
+      dark: 'Dunkel',
+    },
+    palette: 'Farbpalette',
+    palettes: {
+      blue: 'Blau',
+      forest: 'Wald',
+      berry: 'Beere',
+      graphite: 'Graphit',
+    },
+
     passwordTitle: 'Passwort ändern',
     passwordIntro: 'Nach der Änderung werden alle anderen Sitzungen abgemeldet.',
     passwordSubmit: 'Passwort ändern',

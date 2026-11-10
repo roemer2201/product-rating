@@ -11,8 +11,10 @@
     <!-- Safari would otherwise turn a 13 digit EAN into a phone number link. -->
     <meta name="format-detection" content="telephone=no" />
 
-    <!-- The status bar continues the header, in both themes. The manifest can
-         only carry one colour, so the second one is stated here. -->
+    <!-- The status bar continues the header, in both schemes. The manifest can
+         only carry one colour, so the second one is stated here. These two are
+         what holds before the script has run; after that `lib/appearance.ts`
+         writes the colour of the appearance the account chose into both. -->
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#1c1e22" media="(prefers-color-scheme: dark)" />
 

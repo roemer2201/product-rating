@@ -11,7 +11,9 @@ import {
   type UseMutationResult,
   type UseQueryResult,
 } from '@tanstack/react-query';
+import { resolveAppearance } from '@product-rating/shared';
 import type {
+  Appearance,
   Category,
   ChangePasswordInput,
   CreateCategoryInput,
@@ -41,6 +43,7 @@ import type {
   UpsertRatingInput,
   User,
 } from '@product-rating/shared';
+import { applyAppearance } from '@/lib/appearance';
 import {
   ApiError,
   api,
@@ -690,6 +693,37 @@ export function useUpdateProfile(): UseMutationResult<User, Error, UpdateProfile
       // catalogue and the product pages carry the old one until they refetch.
       void client.invalidateQueries({ queryKey: queryKeys.products.all });
       void client.invalidateQueries({ queryKey: queryKeys.ratings.all });
+    },
+  });
+}
+
+/**
+ * Changes how the interface looks for this account, one choice at a time.
+ *
+ * The document changes before the server has answered: someone tapping through
+ * four palettes wants to see each of them at once, not after a round trip. If
+ * the server then refuses, or cannot be reached, the look goes back to what
+ * the account really has - which is what the session cache still says, because
+ * it is only written from an answer.
+ *
+ * Unlike the display name this concerns nobody else, so no list is refetched.
+ */
+export function useUpdateAppearance(): UseMutationResult<User, Error, Partial<Appearance>> {
+  const client = useQueryClient();
+  const stored = (): Appearance =>
+    resolveAppearance(client.getQueryData<User | null>(queryKeys.session)?.appearance);
+
+  return useMutation({
+    mutationFn: async (change: Partial<Appearance>) =>
+      (await api.auth.updateProfile({ appearance: change })).user,
+    onMutate: (change) => {
+      applyAppearance({ ...stored(), ...change });
+    },
+    onSuccess: (user) => {
+      client.setQueryData(queryKeys.session, user);
+    },
+    onError: () => {
+      applyAppearance(stored());
     },
   });
 }
