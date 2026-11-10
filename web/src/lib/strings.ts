@@ -560,6 +560,15 @@ export const strings = {
     appearanceIntro:
       'Gilt für dein Konto und damit auf jedem Gerät, auf dem du angemeldet bist. ' +
       'An den Funktionen ändert sich nichts.',
+    layout: 'Layout',
+    layouts: {
+      classic: {
+        name: 'Klassisch',
+        hint: 'Karten mit allen Sternen, Navigation mit Beschriftung.',
+      },
+      compact: { name: 'Kompakt', hint: 'Dichte Liste, mehr Einträge auf einem Bildschirm.' },
+      gallery: { name: 'Galerie', hint: 'Kacheln mit großen Fotos, schwebende Navigation.' },
+    },
     scheme: 'Modus',
     schemes: {
       system: 'System',

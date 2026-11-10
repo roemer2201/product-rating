@@ -7,6 +7,7 @@ import { startAppearance } from '@/lib/appearance';
 import { createQueryClient } from '@/lib/queries';
 import '@/styles/theme.css';
 import '@/styles/app.css';
+import '@/styles/layouts.css';
 
 const container = document.getElementById('root');
 

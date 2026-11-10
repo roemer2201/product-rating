@@ -21,6 +21,12 @@ export function formatStars(stars: number): string {
   return '★'.repeat(stars) + '☆'.repeat(RATING_MAX_STARS - stars);
 }
 
+/**
+ * The one star that stands in front of a rating written as a number, where a
+ * layout has no room for the whole row of them.
+ */
+export const SCORE_GLYPH = '★';
+
 /** An average with one decimal, or a dash where there is nothing to average. */
 export function formatAverage(average: number | null): string {
   if (average === null) return '–';

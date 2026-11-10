@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import {
+  APPEARANCE_LAYOUTS,
   APPEARANCE_PALETTES,
   APPEARANCE_SCHEMES,
   changePasswordSchema,
@@ -237,6 +238,21 @@ export function SettingsPage() {
           {updateAppearance.error !== null && (
             <ErrorNotice message={errorMessage(updateAppearance.error)} />
           )}
+
+          <ChoiceGroup
+            legend={strings.settings.layout}
+            name="appearance-layout"
+            variant="stacked"
+            value={appearance.layout}
+            options={APPEARANCE_LAYOUTS.map((layout) => ({
+              value: layout,
+              label: strings.settings.layouts[layout].name,
+              hint: strings.settings.layouts[layout].hint,
+            }))}
+            onChange={(layout) => {
+              updateAppearance.mutate({ layout });
+            }}
+          />
 
           <ChoiceGroup
             legend={strings.settings.scheme}

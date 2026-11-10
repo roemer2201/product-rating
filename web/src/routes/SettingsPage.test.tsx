@@ -193,6 +193,44 @@ describe('SettingsPage', () => {
     expect(rememberedAppearance()).toEqual(chosen);
   });
 
+  it('offers the three layouts and says what each of them does', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      SESSIONS,
+      {
+        path: '/auth/profile',
+        method: 'PATCH',
+        body: { user: { ...testUser, appearance: { ...testUser.appearance, layout: 'compact' } } },
+      },
+    ]);
+
+    renderSettings();
+
+    const layout = await screen.findByRole('group', { name: strings.settings.layout });
+    expect(within(layout).getAllByRole('radio')).toHaveLength(3);
+    expect(
+      within(layout).getByRole('radio', {
+        name: new RegExp(strings.settings.layouts.classic.name),
+      }),
+    ).toBeChecked();
+    expect(within(layout).getByText(strings.settings.layouts.gallery.hint)).toBeInTheDocument();
+
+    await user.click(
+      within(layout).getByRole('radio', {
+        name: new RegExp(strings.settings.layouts.compact.name),
+      }),
+    );
+
+    expect(document.documentElement.dataset.layout).toBe('compact');
+    await waitFor(() => {
+      const request = fetchMock.mock.calls.find(([url]) => String(url).includes('/auth/profile'));
+      expect(JSON.parse(String((request?.[1] as RequestInit).body))).toEqual({
+        appearance: { layout: 'compact' },
+      });
+    });
+  });
+
   it('goes back to what the account has when a choice cannot be saved', async () => {
     const user = userEvent.setup();
     mockFetch([

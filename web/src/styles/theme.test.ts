@@ -1,23 +1,26 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { APPEARANCE_PALETTES } from '@product-rating/shared';
+import { APPEARANCE_LAYOUTS, APPEARANCE_PALETTES } from '@product-rating/shared';
 
 /**
  * The stylesheet against the vocabulary of `shared/appearance.ts`.
  *
- * No test can see a colour, but two mistakes are cheap to catch by reading the
- * file: a palette that the settings screen offers and the stylesheet does not
- * define, and the two copies of the dark scheme drifting apart.
+ * No test can see a colour or a layout, but some mistakes are cheap to catch by
+ * reading the files: a palette or a layout that the settings screen offers and
+ * the stylesheets do not define, the two copies of the dark scheme drifting
+ * apart, and a layout rule that leaks into the classic layout.
  */
 
 // Read from disk rather than imported: the test run does not process CSS, so
 // an import would hand over an empty string. The run starts in the repository
 // root, which is where the path begins.
-const css = readFileSync(join(process.cwd(), 'web/src/styles/theme.css'), 'utf8').replace(
-  /\/\*[\s\S]*?\*\//g,
-  '',
-);
+function readStylesheet(name: string): string {
+  return readFileSync(join(process.cwd(), 'web/src/styles', name), 'utf8').replace(
+    /\/\*[\s\S]*?\*\//g,
+    '',
+  );
+}
 
 interface Rule {
   selector: string;
@@ -65,7 +68,8 @@ function parseRules(source: string, media: string | null = null): Rule[] {
   return rules;
 }
 
-const rules = parseRules(css);
+const rules = parseRules(readStylesheet('theme.css'));
+const layoutRules = parseRules(readStylesheet('layouts.css'));
 
 describe('theme.css', () => {
   it('defines every palette the settings screen offers, in both schemes', () => {
@@ -103,5 +107,37 @@ describe('theme.css', () => {
 
     expect(fromDevice.length).toBeGreaterThan(0);
     expect(chosen).toEqual(fromDevice);
+  });
+});
+
+describe('layouts.css', () => {
+  const layouts = APPEARANCE_LAYOUTS.filter((layout) => layout !== 'classic');
+
+  it('draws every layout the settings screen offers besides the classic one', () => {
+    for (const layout of layouts) {
+      // The rule on the document itself: where a layout sets its tokens.
+      const root = layoutRules.find((rule) => rule.selector === `[data-layout='${layout}']`);
+
+      expect(root, `layout "${layout}"`).toBeDefined();
+      // Screens and notices are padded by it; a layout that moves the
+      // navigation without saying how tall it is hides content behind it.
+      expect(
+        root?.declarations.some((declaration) => declaration.startsWith('--nav-height:')),
+        `--nav-height of "${layout}"`,
+      ).toBe(true);
+    }
+  });
+
+  it('touches nothing unless a layout was chosen', () => {
+    const known = layouts.map((layout) => `[data-layout='${layout}']`);
+
+    for (const rule of layoutRules) {
+      for (const selector of rule.selector.split(',').map((part) => part.trim())) {
+        expect(
+          known.some((prefix) => selector.startsWith(prefix)),
+          `selector "${selector}"`,
+        ).toBe(true);
+      }
+    }
   });
 });

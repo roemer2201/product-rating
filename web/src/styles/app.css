@@ -932,6 +932,20 @@ a {
   flex: none;
 }
 
+/*
+ * The rating as one star and a number. Only the layouts that have no room for
+ * ten stars show it (`layouts.css`); here the row of stars says it already.
+ */
+.product-card__score {
+  display: none;
+  flex: none;
+  font-weight: 600;
+}
+
+.product-card__score-glyph {
+  color: var(--color-star);
+}
+
 .product-card__average,
 .product-card__comment {
   min-width: 0;
