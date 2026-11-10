@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { Appearance } from '@product-rating/shared';
 import { onlineManager } from '@tanstack/react-query';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -256,8 +257,8 @@ describe('SettingsPage', () => {
     const user = userEvent.setup();
     const fetchMock = mockFetch([{ path: '/auth/me', body: { user: testUser } }, SESSIONS]);
     const originalFetch = globalThis.fetch;
-    const replies: Array<(appearance: typeof testUser.appearance) => void> = [];
-    const requests: Array<{ appearance: Partial<typeof testUser.appearance> }> = [];
+    const replies: Array<(appearance: Appearance) => void> = [];
+    const requests: Array<{ appearance: Partial<Appearance> }> = [];
 
     vi.stubGlobal(
       'fetch',
