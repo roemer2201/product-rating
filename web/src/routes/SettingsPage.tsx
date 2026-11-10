@@ -1,8 +1,16 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { changePasswordSchema, updateProfileSchema } from '@product-rating/shared';
+import {
+  APPEARANCE_LAYOUTS,
+  APPEARANCE_PALETTES,
+  APPEARANCE_SCHEMES,
+  changePasswordSchema,
+  resolveAppearance,
+  updateProfileSchema,
+} from '@product-rating/shared';
 import { EmptyState, ErrorNotice, SkeletonList } from '@/components/Feedback';
 import { CaptureQueue } from '@/components/CaptureQueue';
+import { ChoiceGroup } from '@/components/ChoiceGroup';
 import { Field } from '@/components/Field';
 import { errorMessage, isApiError } from '@/lib/api';
 import { describeUserAgent, formatDate, formatRelative } from '@/lib/format';
@@ -14,6 +22,7 @@ import {
   useRevokeSession,
   useServerVersion,
   useSession,
+  useUpdateAppearance,
   useUpdateProfile,
 } from '@/lib/queries';
 import { strings } from '@/lib/strings';
@@ -32,6 +41,10 @@ import { APP_VERSION, compareVersions } from '@/lib/version';
  * without an administrator: it is what the others in the household see at a
  * rating, so whoever wears the name decides what it is.
  *
+ * The appearance is the other thing an account decides for itself. Each choice
+ * is saved the moment it is made - there is nothing to submit, because the
+ * screen already shows what the choice does.
+ *
  * Top right stands the version of the app on this device. Where the server
  * reports another one, it is named below - a newer server means the update
  * prompt is due, and the app here is still the old one.
@@ -44,6 +57,7 @@ export function SettingsPage() {
   const serverVersion = useServerVersion();
   const changePassword = useChangePassword();
   const updateProfile = useUpdateProfile();
+  const updateAppearance = useUpdateAppearance();
   const revoke = useRevokeSession();
   const logout = useLogout();
 
@@ -111,6 +125,13 @@ export function SettingsPage() {
       : isApiError(changePassword.error) && changePassword.error.status === 401
         ? strings.settings.passwordWrong
         : errorMessage(changePassword.error);
+
+  // While a choice is on its way the radios show it, not what the account
+  // still has: otherwise the dot would jump back until the server answered.
+  const appearance = {
+    ...resolveAppearance(user?.appearance),
+    ...(updateAppearance.isPending ? updateAppearance.variables : {}),
+  };
 
   const server = serverVersion.data ?? null;
   const serverHint =
@@ -206,6 +227,60 @@ export function SettingsPage() {
               {updateProfile.isPending ? strings.common.saving : strings.settings.displayNameSubmit}
             </button>
           </form>
+        </section>
+      )}
+
+      {user != null && (
+        <section className="section">
+          <h2 className="section__title">{strings.settings.appearanceTitle}</h2>
+          <p className="section__intro">{strings.settings.appearanceIntro}</p>
+
+          {updateAppearance.error !== null && (
+            <ErrorNotice message={errorMessage(updateAppearance.error)} />
+          )}
+
+          <ChoiceGroup
+            legend={strings.settings.layout}
+            name="appearance-layout"
+            variant="stacked"
+            value={appearance.layout}
+            options={APPEARANCE_LAYOUTS.map((layout) => ({
+              value: layout,
+              label: strings.settings.layouts[layout].name,
+              hint: strings.settings.layouts[layout].hint,
+            }))}
+            onChange={(layout) => {
+              updateAppearance.mutate({ layout });
+            }}
+          />
+
+          <ChoiceGroup
+            legend={strings.settings.scheme}
+            name="appearance-scheme"
+            value={appearance.scheme}
+            options={APPEARANCE_SCHEMES.map((scheme) => ({
+              value: scheme,
+              label: strings.settings.schemes[scheme],
+            }))}
+            onChange={(scheme) => {
+              updateAppearance.mutate({ scheme });
+            }}
+          />
+
+          <ChoiceGroup
+            legend={strings.settings.palette}
+            name="appearance-palette"
+            variant="wide"
+            value={appearance.palette}
+            options={APPEARANCE_PALETTES.map((palette) => ({
+              value: palette,
+              label: strings.settings.palettes[palette],
+              swatch: palette,
+            }))}
+            onChange={(palette) => {
+              updateAppearance.mutate({ palette });
+            }}
+          />
         </section>
       )}
 

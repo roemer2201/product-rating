@@ -8,6 +8,7 @@ import {
   PRODUCT_KINDS,
   RATING_MAX_STARS,
   RATING_MIN_STARS,
+  resolveAppearance,
 } from '@product-rating/shared';
 import type { AppConfig } from '../config/index.js';
 import type { AppDatabase, DbHandle } from '../db/index.js';
@@ -22,7 +23,7 @@ import {
   type ProductRow,
 } from '../db/index.js';
 import { categoryKey, resolveCategoryNames, setProductCategories } from './categories.js';
-import { insertLockedUser } from './users.js';
+import { insertLockedUser, storedAppearance, type StoredAppearance } from './users.js';
 import { APP_VERSION } from '../version.js';
 import { ValidationError } from './errors.js';
 import { photoFilePath, storePhoto } from './photos.js';
@@ -91,6 +92,19 @@ const exportedUserSchema = z.object({
   displayName: z.string().nullish(),
   email: z.string().nullish(),
   role: z.enum(['admin', 'user']).default('user'),
+  /**
+   * How the interface looks for the account; only the choices it made. Absent
+   * in files written before it existed. The values are plain strings here and
+   * are checked when the account is created: a layout this version does not
+   * know is a reason to fall back to the default, not to refuse the file.
+   */
+  appearance: z
+    .object({
+      layout: z.string().nullish(),
+      scheme: z.string().nullish(),
+      palette: z.string().nullish(),
+    })
+    .nullish(),
   createdAt: z.string().optional(),
   disabledAt: z.string().nullish(),
 });
@@ -237,7 +251,9 @@ export interface ExportResult {
  *
  * What travels is what the other side needs in order to attribute a rating and
  * to know who may administer the instance: both names, the role, the e-mail
- * address and the two dates. The password hash deliberately stays behind.
+ * address and the two dates. The appearance comes along where the account
+ * chose one, so a moved household does not have to set it again. The password
+ * hash deliberately stays behind.
  */
 function collectUsers(db: DbHandle): ExportedUser[] {
   return db
@@ -245,14 +261,18 @@ function collectUsers(db: DbHandle): ExportedUser[] {
     .from(users)
     .orderBy(asc(users.username))
     .all()
-    .map((row) => ({
-      username: row.username,
-      displayName: row.displayName,
-      email: row.email,
-      role: row.role,
-      createdAt: row.createdAt.toISOString(),
-      disabledAt: row.disabledAt?.toISOString() ?? null,
-    }));
+    .map((row) => {
+      const appearance = storedAppearance(row);
+      return {
+        username: row.username,
+        displayName: row.displayName,
+        email: row.email,
+        role: row.role,
+        ...(appearance === null ? {} : { appearance }),
+        createdAt: row.createdAt.toISOString(),
+        disabledAt: row.disabledAt?.toISOString() ?? null,
+      };
+    });
 }
 
 /** The category list, alphabetically, with the entries no product uses yet. */
@@ -712,6 +732,24 @@ export async function readExportFile(source: string): Promise<ExportFile> {
   return result.data;
 }
 
+/**
+ * The choices of an exported appearance that this version can draw.
+ *
+ * A file from a newer version may name a layout that does not exist here. Such
+ * a choice is dropped rather than stored: the account then gets the default,
+ * exactly as if it had never chosen.
+ */
+function knownAppearance(exported: ExportedUser['appearance']): StoredAppearance {
+  if (exported === null || exported === undefined) return {};
+
+  const resolved = resolveAppearance(exported);
+  return {
+    ...(exported.layout === resolved.layout ? { layout: resolved.layout } : {}),
+    ...(exported.scheme === resolved.scheme ? { scheme: resolved.scheme } : {}),
+    ...(exported.palette === resolved.palette ? { palette: resolved.palette } : {}),
+  };
+}
+
 /** Turns a date from the file into a `Date`, falling back to the import time. */
 function momentOf(value: string | undefined, fallback: Date): Date {
   if (value === undefined) return fallback;
@@ -799,6 +837,7 @@ export async function importCatalogue(options: ImportOptions): Promise<ImportRes
           displayName: account.displayName ?? null,
           email: account.email ?? null,
           role: account.role,
+          appearance: knownAppearance(account.appearance),
           createdAt: momentOf(account.createdAt, now),
           disabledAt:
             account.disabledAt === null || account.disabledAt === undefined

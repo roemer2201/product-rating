@@ -2,14 +2,80 @@
  * Design tokens.
  *
  * Plain CSS with custom properties instead of a framework: the app has a
- * handful of screens, and a token set plus a light and a dark block is less to
- * carry than a build step and a class vocabulary. Every colour is defined once
- * here; no component file contains a literal colour.
+ * handful of screens, and a token set is less to carry than a build step and a
+ * class vocabulary. Every colour is defined once here; no component file
+ * contains a literal colour.
  *
- * The dark theme follows the system setting. A switch in the interface is not
- * planned — on iOS the choice belongs to the device, and the PWA should look
- * like the rest of the phone.
+ * What an account chose arrives as three attributes on `<html>`, set by
+ * `lib/appearance.ts`:
+ *
+ *   data-scheme   system | light | dark     this file
+ *   data-palette  blue | forest | berry | graphite   this file
+ *   data-layout   classic | compact | gallery        layouts.css
+ *
+ * A document without any of them - the first paint before the script has run,
+ * or an account that never chose - shows the defaults: the scheme of the
+ * device, the blue accent, the classic layout.
  */
+
+/* --- Palettes ------------------------------------------------------------- */
+
+/*
+ * A palette is the accent in both schemes: the colour itself, its hover
+ * shade, the text that stands on it and the soft tint behind a chip. Each of
+ * them was checked for a contrast of at least 4.5:1 - the accent against
+ * every background it is written on, and the text against the accent.
+ *
+ * The selectors do not ask for `:root`, so the attribute also works on a
+ * single element. The swatches of the settings screen use that to show a
+ * palette that is not the active one.
+ */
+:root,
+[data-palette='blue'] {
+  --accent-light: #2f5fd0;
+  --accent-light-hover: #244cab;
+  --accent-light-text: #ffffff;
+  --accent-light-soft: #e6ecfb;
+  --accent-dark: #8ba9f5;
+  --accent-dark-hover: #a3bcff;
+  --accent-dark-text: #10131a;
+  --accent-dark-soft: #23293a;
+}
+
+[data-palette='forest'] {
+  --accent-light: #2a7048;
+  --accent-light-hover: #1f5737;
+  --accent-light-text: #ffffff;
+  --accent-light-soft: #e3f1e8;
+  --accent-dark: #7fcf9e;
+  --accent-dark-hover: #9bdcb4;
+  --accent-dark-text: #0f1a13;
+  --accent-dark-soft: #1f2f25;
+}
+
+[data-palette='berry'] {
+  --accent-light: #a8326b;
+  --accent-light-hover: #8a2857;
+  --accent-light-text: #ffffff;
+  --accent-light-soft: #f8e6ee;
+  --accent-dark: #f09bbd;
+  --accent-dark-hover: #f5b5cf;
+  --accent-dark-text: #1d0f15;
+  --accent-dark-soft: #36212a;
+}
+
+[data-palette='graphite'] {
+  --accent-light: #3d4450;
+  --accent-light-hover: #2b313a;
+  --accent-light-text: #ffffff;
+  --accent-light-soft: #e7e9ed;
+  --accent-dark: #c3c9d4;
+  --accent-dark-hover: #d8dce4;
+  --accent-dark-text: #14161a;
+  --accent-dark-soft: #2a2d33;
+}
+
+/* --- Light scheme, and everything that does not depend on the scheme ------ */
 
 :root {
   color-scheme: light dark;
@@ -20,10 +86,6 @@
   --color-border: #d7d7de;
   --color-text: #1a1a1f;
   --color-text-muted: #5a5a66;
-  --color-accent: #2f5fd0;
-  --color-accent-hover: #244cab;
-  --color-accent-text: #ffffff;
-  --color-accent-soft: #e6ecfb;
   --color-danger: #b3261e;
   --color-danger-soft: #fbe9e7;
   --color-star: #d99400;
@@ -51,18 +113,41 @@
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
+/* The accent of the palette in force, for the light scheme. */
+:root,
+[data-palette] {
+  --color-accent: var(--accent-light);
+  --color-accent-hover: var(--accent-light-hover);
+  --color-accent-text: var(--accent-light-text);
+  --color-accent-soft: var(--accent-light-soft);
+}
+
+:root[data-scheme='light'] {
+  color-scheme: light;
+}
+
+/* --- Dark scheme ---------------------------------------------------------- */
+
+/*
+ * The dark tokens stand here twice: once for a device that is dark while the
+ * account follows it, once for an account that asked for dark outright. CSS
+ * has no way to say "either of these" in one rule without `light-dark()`,
+ * which needs Safari 17.5 - more than this app may assume of the iPhones it
+ * is used on.
+ *
+ * The two blocks must stay identical. `theme.test.ts` compares them, so a
+ * colour changed in only one of them fails the test run instead of showing up
+ * as a setting that looks slightly different from the system default.
+ */
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-scheme='light']) {
     --color-bg: #131417;
     --color-surface: #1c1e22;
     --color-surface-muted: #26282e;
     --color-border: #34363d;
     --color-text: #e9e9ee;
     --color-text-muted: #a2a3ad;
-    --color-accent: #8ba9f5;
-    --color-accent-hover: #a3bcff;
-    --color-accent-text: #10131a;
-    --color-accent-soft: #23293a;
     --color-danger: #f2857c;
     --color-danger-soft: #3a1f1d;
     --color-star: #f0b429;
@@ -70,4 +155,52 @@
     --shadow-card: 0 1px 2px rgb(0 0 0 / 40%);
     --shadow-nav: 0 -1px 3px rgb(0 0 0 / 40%);
   }
+
+  :root:not([data-scheme='light']),
+  :root:not([data-scheme='light']) [data-palette] {
+    --color-accent: var(--accent-dark);
+    --color-accent-hover: var(--accent-dark-hover);
+    --color-accent-text: var(--accent-dark-text);
+    --color-accent-soft: var(--accent-dark-soft);
+  }
+}
+
+:root[data-scheme='dark'] {
+  color-scheme: dark;
+
+  --color-bg: #131417;
+  --color-surface: #1c1e22;
+  --color-surface-muted: #26282e;
+  --color-border: #34363d;
+  --color-text: #e9e9ee;
+  --color-text-muted: #a2a3ad;
+  --color-danger: #f2857c;
+  --color-danger-soft: #3a1f1d;
+  --color-star: #f0b429;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow-nav: 0 -1px 3px rgb(0 0 0 / 40%);
+}
+
+:root[data-scheme='dark'],
+:root[data-scheme='dark'] [data-palette] {
+  --color-accent: var(--accent-dark);
+  --color-accent-hover: var(--accent-dark-hover);
+  --color-accent-text: var(--accent-dark-text);
+  --color-accent-soft: var(--accent-dark-soft);
+}
+
+/* --- Colours that follow from the ones above ------------------------------ */
+
+/*
+ * `--color-page` is what lies behind everything, `--color-field` what an input
+ * is filled with, and `--color-chrome` the colour at the very top of the
+ * screen - the one the status bar of the phone has to continue, which
+ * `lib/appearance.ts` reads from here. In the classic layout that is the
+ * header. A layout in `layouts.css` may point them elsewhere.
+ */
+:root {
+  --color-page: var(--color-bg);
+  --color-field: var(--color-surface);
+  --color-chrome: var(--color-surface);
 }

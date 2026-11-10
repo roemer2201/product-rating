@@ -3,15 +3,21 @@ import { createRoot } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router';
 import App from '@/App';
+import { startAppearance } from '@/lib/appearance';
 import { createQueryClient } from '@/lib/queries';
 import '@/styles/theme.css';
 import '@/styles/app.css';
+import '@/styles/layouts.css';
 
 const container = document.getElementById('root');
 
 if (!container) {
   throw new Error('missing #root element');
 }
+
+// Before anything is drawn, so the first screen already has the look of the
+// last visit rather than the defaults.
+startAppearance();
 
 // One client for the life of the page; a new one per render would throw the
 // whole cache away on every state change.

@@ -6,6 +6,8 @@
  * live next to these types.
  */
 
+import type { Appearance } from './appearance.js';
+
 /** Roles a user account can hold. */
 export type UserRole = 'admin' | 'user';
 
@@ -37,6 +39,11 @@ export interface User {
    * follows a reset link.
    */
   passwordResetRequired: boolean;
+  /**
+   * How the interface looks for this account. Always complete: where the
+   * account never chose, the defaults stand in.
+   */
+  appearance: Appearance;
   createdAt: string;
   disabledAt: string | null;
 }

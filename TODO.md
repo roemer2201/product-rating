@@ -391,6 +391,50 @@ Gerichten bedeutet der Preis „Kosten pro Portion“.
 
 ---
 
+## M18 – Darstellung: Layouts, Modus, Farbpaletten
+
+Abgestimmt mit dem Projektinhaber am 10.11.2026: Die Darstellung ist je Konto
+wählbar und gilt auf allen Geräten des Kontos. Layout, Modus und Farbpalette
+sind drei getrennte Einstellungen; die Funktionen bleiben in jedem Layout
+dieselben. Der Schalter für hell und dunkel, der bis dahin bewusst nicht
+vorgesehen war, gehört dazu. Die drei Layouts (Klassisch, Kompakt, Galerie)
+und vier Paletten (Blau, Wald, Beere, Graphit) wurden als Entwurf vorgelegt und
+so freigegeben.
+
+- [x] **[M]** Migration `0013`: `users.appearance_layout`, `_scheme`,
+      `_palette` als optionaler Text; `NULL` und unbekannte Werte werden als
+      Standard gelesen. `PATCH /api/v1/auth/profile` nimmt `appearance`,
+      `GET /api/v1/auth/me` liefert sie vollständig; Export und Import nehmen
+      die gewählten Werte mit
+- [x] **[M]** Modus und Paletten: `theme.css` auf Attribute an `<html>`
+      umgestellt, dunkler Modus erzwingbar, vier Paletten je für hell und
+      dunkel; Abschnitt „Darstellung“ in den Einstellungen, jede Wahl wird
+      sofort gespeichert; Kopie der letzten Darstellung im Browser für den
+      Start vor der ersten Serverantwort; `theme-color` folgt der Darstellung
+- [x] **[M]** Layouts Kompakt und Galerie in `styles/layouts.css`, ohne
+      zweites Markup; Bewertung in Listen dort als ein Stern mit Zahl
+- [ ] **[M]** Auf einem echten iPhone prüfen, als App vom Home-Bildschirm: alle
+      drei Layouts je hell und dunkel; Farbe und Lesbarkeit der Statusleiste,
+      vor allem bei erzwungenem Modus entgegen dem Gerät; Abstand des Docks
+      (Galerie) zum Home-Indikator; Kopfbereich ohne Kopfzeile (Kompakt,
+      Galerie) im Querformat neben der Notch. Geprüft ist bisher nur in
+      Chromium bei 390 × 844 und 1100 × 800
+- [ ] **[S]** Aufblitzen beim Kaltstart beheben, wenn ein Modus entgegen dem
+      Gerät erzwungen ist: bis das Bundle läuft, gilt die Media-Query. Braucht
+      ein Skript, das vor dem Stylesheet läuft – ein Inline-Skript verbietet
+      die CSP, eine eigene Datei in `web/public/` wäre reines JavaScript und
+      berührt damit die Festlegung „TypeScript im gesamten Repo“. Erst
+      angehen, wenn es auf dem Gerät stört, und dann mit dem Projektinhaber
+      abstimmen
+- [ ] **[S]** Manifest: `theme_color` und `background_color` stehen fest auf
+      den Farben des klassischen hellen Layouts, weil das Manifest beim Bau
+      entsteht. Prüfen, ob das beim Start der installierten App sichtbar ist
+- [ ] **[S]** Aktualisierungshinweis, Offline-Hinweis und Synchronisations-Rückfrage
+      in den drei Layouts auf dem Gerät ansehen (liegen über der Navigation
+      und rechnen mit `--nav-height`)
+
+---
+
 ## Backlog (nach dem MVP)
 
 - [x] Mehrere Fotos pro Produkt inklusive Sortierung

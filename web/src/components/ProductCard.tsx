@@ -2,7 +2,7 @@ import { Link } from 'react-router';
 import type { ProductWithRatings } from '@product-rating/shared';
 import { StarDisplay } from '@/components/StarRating';
 import { api } from '@/lib/api';
-import { formatAverage } from '@/lib/format';
+import { formatAverage, SCORE_GLYPH } from '@/lib/format';
 import { strings } from '@/lib/strings';
 
 /**
@@ -20,6 +20,15 @@ import { strings } from '@/lib/strings';
  * empty, and none of the lines wraps: long texts are cut with an ellipsis, and
  * the average next to the stars uses the short form "9,0 (2)", which fits
  * beside ten stars even on a narrow phone.
+ *
+ * That describes the classic layout. The other layouts arrange the same
+ * elements differently - a dense two-line row, a tile under a large picture -
+ * and do so in `styles/layouts.css` alone: the markup here is one and the same
+ * for all of them. The only element that exists for their sake is the score, a
+ * single star with the number behind it. It replaces the row of ten stars
+ * where there is no room for one, and is hidden where there is. Because the
+ * row of stars stays in the markup and keeps its label, a screen reader hears
+ * the same in every layout; the score is decoration and marked as such.
  */
 
 interface ProductCardProps {
@@ -71,6 +80,9 @@ export function ProductCard({ product, showOwnRating = false }: ProductCardProps
             {showOwnRating && own !== null ? (
               <>
                 <StarDisplay stars={own.stars} />
+                <span className="product-card__score" aria-hidden="true">
+                  <span className="product-card__score-glyph">{SCORE_GLYPH}</span> {own.stars}
+                </span>
                 {own.comment !== null && (
                   <span className="product-card__comment">{own.comment}</span>
                 )}
@@ -80,6 +92,10 @@ export function ProductCard({ product, showOwnRating = false }: ProductCardProps
             ) : (
               <>
                 <StarDisplay stars={Math.round(product.ratings.average ?? 0)} labelled={false} />
+                {/* The number follows in the average right behind it. */}
+                <span className="product-card__score" aria-hidden="true">
+                  <span className="product-card__score-glyph">{SCORE_GLYPH}</span>
+                </span>
                 <span className="product-card__average">
                   <span aria-hidden="true">
                     {strings.rating.averageShort(

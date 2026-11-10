@@ -1,4 +1,5 @@
 import { Outlet } from 'react-router';
+import { AppearanceSync } from '@/components/AppearanceSync';
 import { BottomNav } from '@/components/BottomNav';
 import { OfflineBanner } from '@/components/OfflineNotice';
 import { SyncGate } from '@/components/SyncGate';
@@ -17,6 +18,9 @@ import { strings } from '@/lib/strings';
  * about the app someone is using, and all need the room above the navigation
  * that only this layout knows about. On the login screen an offline phone
  * announces itself through the failing request anyway.
+ *
+ * `AppearanceSync` sits here for a related reason: the appearance belongs to
+ * the account, and this is the first place that is sure to have one.
  */
 
 export function AppLayout() {
@@ -24,6 +28,8 @@ export function AppLayout() {
 
   return (
     <div className="app-shell">
+      <AppearanceSync />
+
       <header className="app-header">
         <span className="app-header__title">{strings.app.name}</span>
 

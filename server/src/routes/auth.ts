@@ -159,20 +159,32 @@ export function registerAuthRoutes(app: FastifyInstance): void {
   });
 
   /**
-   * Changes what the others see: the display name, and nothing else.
+   * Changes what an account decides about itself: the display name the others
+   * see, and how the interface looks for it.
    *
-   * Everybody may name themselves, so this needs no administrator — a name is
-   * neither a role nor a permission, and the username underneath it stays
-   * exactly as it was. `null` gives the name up again; the username stands in
-   * for it from then on.
+   * Everybody may do both, so this needs no administrator — a name is neither
+   * a role nor a permission, and the username underneath it stays exactly as it
+   * was; the appearance concerns nobody else at all. `null` gives the name up
+   * again, and the username stands in for it from then on. Whatever the body
+   * leaves out is not touched.
    */
   app.patch('/api/v1/auth/profile', { preHandler: app.requireUser }, async (request) => {
     const input = updateProfileSchema.parse(request.body);
     const user = currentUser(request);
 
-    const updated = updateUser(app.db, user.id, { displayName: input.displayName });
+    const updated = updateUser(app.db, user.id, {
+      displayName: input.displayName,
+      appearance: input.appearance,
+    });
 
-    request.log.info({ userId: user.id }, 'display name changed');
+    request.log.info(
+      {
+        userId: user.id,
+        displayName: input.displayName !== undefined,
+        appearance: input.appearance !== undefined,
+      },
+      'profile changed',
+    );
     return { user: updated satisfies User };
   });
 

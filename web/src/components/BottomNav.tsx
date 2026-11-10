@@ -44,7 +44,9 @@ export function BottomNav() {
                 className={entry.primary === true ? 'nav-link nav-link--scan' : 'nav-link'}
               >
                 <Icon className="nav-link__icon" />
-                {entry.label}
+                {/* Its own element so a layout can show the icon alone while
+                    the name stays what a screen reader announces. */}
+                <span className="nav-link__label">{entry.label}</span>
               </NavLink>
             </li>
           );

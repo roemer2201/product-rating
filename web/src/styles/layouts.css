@@ -1,0 +1,417 @@
+/*
+ * The layouts an account can choose besides the classic one.
+ *
+ * `app.css` is the classic layout and stays untouched by this file: every rule
+ * here starts with the attribute `lib/appearance.ts` sets on `<html>`, so an
+ * account that never chose a layout runs none of it.
+ *
+ * A layout rearranges, it does not add or remove: the markup is the same in all
+ * three, and so is what a screen reader hears. Where something disappears from
+ * the screen - the labels under the icons, the row of ten stars - it is hidden
+ * from the eye only and keeps its place in the accessibility tree.
+ *
+ * Three things every layout has to keep, because the rest of the app counts on
+ * them: `--nav-height` is the room the navigation takes at the bottom (the
+ * screen and the notices above it are padded by it), every control stays at
+ * least `--tap-target` tall, and the scan entry is the one that stands out.
+ */
+
+/* --- Shared by the layouts without a header ------------------------------- */
+
+/*
+ * The header only names the app and the account, and the account is named on
+ * the settings screen as well. Without it the screen itself has to stay clear
+ * of the notch, which the sticky header did until now.
+ */
+[data-layout='compact'] .app-header,
+[data-layout='gallery'] .app-header {
+  display: none;
+}
+
+[data-layout='compact'] .app-main,
+[data-layout='gallery'] .app-main {
+  padding-top: calc(var(--space-4) + env(safe-area-inset-top));
+}
+
+/*
+ * One star and a number instead of ten stars. The row of stars leaves the
+ * screen but not the document: where it carries the label of the rating, a
+ * screen reader still finds it.
+ */
+[data-layout='compact'] .product-card__rating .stars-display,
+[data-layout='gallery'] .product-card__rating .stars-display {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+[data-layout='compact'] .product-card__score,
+[data-layout='gallery'] .product-card__score {
+  display: inline;
+}
+
+/* --- Compact -------------------------------------------------------------- */
+
+/*
+ * As much of a list on the screen as a thumb can still hit: rows of two lines
+ * instead of cards of four, divided by a line instead of framed, and a
+ * navigation that is exactly as tall as a tap target needs.
+ *
+ * The page takes the colour of the cards and the fields take the colour of the
+ * page, so a list reads as one sheet rather than as a stack of boxes.
+ */
+[data-layout='compact'] {
+  --color-page: var(--color-surface);
+  --color-field: var(--color-bg);
+  --color-chrome: var(--color-surface);
+
+  --radius-md: 0.375rem;
+  --radius-lg: 0.625rem;
+
+  --space-4: 0.75rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+
+  --nav-height: 3rem;
+}
+
+[data-layout='compact'] .page__title {
+  font-size: 1.1875rem;
+}
+
+[data-layout='compact'] .filters {
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+[data-layout='compact'] .list-total {
+  margin: 0 0 var(--space-1);
+}
+
+[data-layout='compact'] .product-list {
+  gap: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+[data-layout='compact'] .product-card__link {
+  gap: var(--space-3);
+  min-height: 3.5rem;
+  padding: var(--space-2) 0;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
+  background: none;
+}
+
+[data-layout='compact'] .product-card__thumb {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+/*
+ * Two lines: the name above, variant and brand below, and the rating to the
+ * right of both. The variant takes at most its own width and never more than
+ * three fifths of the line, so a long one cannot push the brand out entirely.
+ */
+[data-layout='compact'] .product-card__body {
+  display: grid;
+  flex: 1;
+  grid-template-columns: fit-content(60%) minmax(0, 1fr) auto;
+  gap: 0;
+}
+
+[data-layout='compact'] .product-card__name {
+  grid-row: 1;
+  grid-column: 1 / 3;
+  font-size: 0.9375rem;
+}
+
+[data-layout='compact'] .product-card__variant {
+  grid-row: 2;
+  grid-column: 1;
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+
+/* The line a product without a variant keeps empty has nothing to keep here. */
+[data-layout='compact'] .product-card__variant[aria-hidden='true'] {
+  display: none;
+}
+
+[data-layout='compact'] .product-card__brand {
+  grid-row: 2;
+  grid-column: 2;
+}
+
+/* Without a variant the brand starts the line and takes all of it. */
+[data-layout='compact'] .product-card__variant[aria-hidden='true'] + .product-card__brand {
+  grid-column: 1 / 3;
+}
+
+[data-layout='compact'] .product-card__variant:not([aria-hidden]) + .product-card__brand::before {
+  margin: 0 0.3em;
+  content: '·';
+}
+
+[data-layout='compact'] .product-card__rating {
+  grid-row: 1 / 3;
+  grid-column: 3;
+  flex-direction: column;
+  gap: 0;
+  align-items: flex-end;
+  align-self: center;
+  max-width: 7.5rem;
+  margin-left: var(--space-2);
+  text-align: right;
+}
+
+/* The comment of an own rating, and "not rated yet", may take two lines. */
+[data-layout='compact'] .product-card__comment,
+[data-layout='compact'] .product-card__unrated {
+  max-width: 100%;
+  font-size: 0.75rem;
+  line-height: 1.3;
+}
+
+[data-layout='compact'] .product-card__unrated {
+  max-width: 5.5rem;
+}
+
+/* Score and average share a line, as if they were one number. */
+[data-layout='compact'] .product-card__rating:has(.product-card__average) {
+  flex-direction: row;
+  gap: var(--space-1);
+  align-items: baseline;
+}
+
+[data-layout='compact'] .product-card__average {
+  color: var(--color-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+[data-layout='compact'] .skeleton-card {
+  padding: var(--space-2) 0;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
+  background: none;
+}
+
+[data-layout='compact'] .skeleton--thumb {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+[data-layout='compact'] .skeleton-list {
+  gap: 0;
+}
+
+/*
+ * The navigation with the icons alone. The names stay in the document - they
+ * are what a screen reader announces and what the tests look for.
+ */
+[data-layout='compact'] .app-nav {
+  box-shadow: none;
+}
+
+[data-layout='compact'] .nav-link__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Still the one filled entry, but a lozenge that fits the lower bar. */
+[data-layout='compact'] .nav-link--scan .nav-link__icon {
+  width: 4rem;
+  height: 2.25rem;
+  padding: 0.375rem 1.25rem;
+}
+
+/* --- Gallery -------------------------------------------------------------- */
+
+/*
+ * The picture first: products as tiles under their photo, two to a row on a
+ * phone, with soft corners and a shadow instead of a frame. The navigation
+ * floats above the page as a dock.
+ */
+[data-layout='gallery'] {
+  --color-chrome: var(--color-bg);
+
+  --radius-md: 0.875rem;
+  --radius-lg: 1.25rem;
+
+  --shadow-tile: 0 1px 3px rgb(0 0 0 / 10%);
+  --shadow-dock: 0 0.375rem 1.5rem rgb(0 0 0 / 18%), 0 1px 2px rgb(0 0 0 / 10%);
+
+  /* The dock, and the gap that keeps it off the lower edge. */
+  --dock-height: 4rem;
+  --dock-offset: var(--space-3);
+  --nav-height: calc(var(--dock-height) + var(--dock-offset));
+}
+
+[data-layout='gallery'] .page__title {
+  font-size: 1.875rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+/* The search field as a lozenge, with the camera button as its round twin. */
+[data-layout='gallery'] .filters__search .field__input,
+[data-layout='gallery'] .filters__scan {
+  border-color: transparent;
+  border-radius: 999px;
+  box-shadow: var(--shadow-tile);
+}
+
+[data-layout='gallery'] .filters__search .field__input {
+  padding-left: var(--space-4);
+}
+
+[data-layout='gallery'] .filters__clear {
+  border-radius: 999px;
+}
+
+[data-layout='gallery'] .product-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+@media (min-width: 36rem) {
+  [data-layout='gallery'] .product-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Every tile of a row is as tall as the tallest one. */
+[data-layout='gallery'] .product-card {
+  display: flex;
+}
+
+[data-layout='gallery'] .product-card__link {
+  flex: 1;
+  flex-direction: column;
+  gap: 0;
+  align-items: stretch;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-tile);
+}
+
+/* Square: most product photos are taken upright, and a wide frame would cut
+   the top and the bottom off every one of them. */
+[data-layout='gallery'] .product-card__thumb {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: 0;
+}
+
+[data-layout='gallery'] .product-card__body {
+  padding: var(--space-2) var(--space-3) var(--space-3);
+}
+
+[data-layout='gallery'] .product-card__variant {
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+
+[data-layout='gallery'] .product-card__rating {
+  gap: var(--space-1);
+  margin-top: 0.125rem;
+}
+
+[data-layout='gallery'] .product-card__average {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+[data-layout='gallery'] .skeleton-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+[data-layout='gallery'] .skeleton-card {
+  flex-direction: column;
+  align-items: stretch;
+  border: 0;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-tile);
+}
+
+[data-layout='gallery'] .skeleton--thumb {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+}
+
+/*
+ * The dock. It keeps the distance to the home indicator the bar had, plus its
+ * own gap, and it never grows wider than a hand: on a tablet it stays in the
+ * middle instead of stretching from edge to edge.
+ */
+[data-layout='gallery'] .app-nav {
+  right: calc(var(--space-4) + env(safe-area-inset-right));
+  bottom: calc(var(--dock-offset) + env(safe-area-inset-bottom));
+  left: calc(var(--space-4) + env(safe-area-inset-left));
+  max-width: 26rem;
+  margin: 0 auto;
+  padding: 0.375rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  box-shadow: var(--shadow-dock);
+}
+
+[data-layout='gallery'] .app-nav__list {
+  gap: 0.25rem;
+  max-width: none;
+}
+
+[data-layout='gallery'] .nav-link {
+  min-height: calc(var(--dock-height) - 0.75rem - 2px);
+  border-radius: 999px;
+}
+
+[data-layout='gallery'] .nav-link[aria-current='page'] {
+  background: var(--color-accent-soft);
+}
+
+/* The whole entry is filled, so the icon inside it no longer needs a disc. */
+[data-layout='gallery'] .nav-link--scan,
+[data-layout='gallery'] .nav-link--scan[aria-current='page'] {
+  gap: 0.125rem;
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  font-weight: 600;
+}
+
+[data-layout='gallery'] .nav-link--scan .nav-link__icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  background: none;
+  color: inherit;
+}
+
+/* On the scan screen itself a ring says "you are here"; the fill cannot. */
+[data-layout='gallery'] .nav-link--scan[aria-current='page'] {
+  box-shadow:
+    0 0 0 2px var(--color-surface),
+    0 0 0 4px var(--color-accent);
+}
+
+/* The notices float as well, so they get the shadow of the dock. */
+[data-layout='gallery'] .toast {
+  box-shadow: var(--shadow-dock);
+}

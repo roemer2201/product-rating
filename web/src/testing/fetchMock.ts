@@ -62,6 +62,7 @@ export const testUser = {
   email: null,
   role: 'user',
   passwordResetRequired: false,
+  appearance: { layout: 'classic', scheme: 'system', palette: 'blue' },
   createdAt: '2026-08-01T10:00:00.000Z',
   disabledAt: null,
 } as const;

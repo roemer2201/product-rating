@@ -1,9 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import type { Appearance } from '@product-rating/shared';
 import { onlineManager } from '@tanstack/react-query';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router';
 import { SettingsPage } from '@/routes/SettingsPage';
+import { rememberedAppearance } from '@/lib/appearance';
 import { strings } from '@/lib/strings';
 import { enqueueCapture, listCaptures } from '@/lib/offlineQueue';
 import { mockFetch, testUser } from '@/testing/fetchMock';
@@ -145,6 +147,180 @@ describe('SettingsPage', () => {
       const request = fetchMock.mock.calls.find(([url]) => String(url).includes('/auth/profile'));
       expect(JSON.parse(String((request?.[1] as RequestInit).body))).toEqual({ displayName: null });
     });
+  });
+
+  it('shows the appearance of the account and saves a choice at once', async () => {
+    const user = userEvent.setup();
+    const chosen = { ...testUser.appearance, palette: 'forest' } as const;
+    const fetchMock = mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      SESSIONS,
+      {
+        path: '/auth/profile',
+        method: 'PATCH',
+        body: { user: { ...testUser, appearance: chosen } },
+      },
+    ]);
+
+    renderSettings();
+
+    const scheme = await screen.findByRole('group', { name: strings.settings.scheme });
+    expect(
+      within(scheme).getByRole('radio', { name: strings.settings.schemes.system }),
+    ).toBeChecked();
+
+    const palette = screen.getByRole('group', { name: strings.settings.palette });
+    await user.click(
+      within(palette).getByRole('radio', { name: strings.settings.palettes.forest }),
+    );
+
+    // The document follows the tap, without waiting for the server.
+    expect(document.documentElement.dataset.palette).toBe('forest');
+
+    await waitFor(() => {
+      const request = fetchMock.mock.calls.find(([url]) => String(url).includes('/auth/profile'));
+      // Only the one choice travels; the others stay whatever they are.
+      expect(JSON.parse(String((request?.[1] as RequestInit).body))).toEqual({
+        appearance: { palette: 'forest' },
+      });
+    });
+
+    await waitFor(() => {
+      expect(
+        within(palette).getByRole('radio', { name: strings.settings.palettes.forest }),
+      ).toBeChecked();
+    });
+    // Remembered for the next start, when the server has not been asked yet.
+    expect(rememberedAppearance()).toEqual(chosen);
+  });
+
+  it('offers the three layouts and says what each of them does', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      SESSIONS,
+      {
+        path: '/auth/profile',
+        method: 'PATCH',
+        body: { user: { ...testUser, appearance: { ...testUser.appearance, layout: 'compact' } } },
+      },
+    ]);
+
+    renderSettings();
+
+    const layout = await screen.findByRole('group', { name: strings.settings.layout });
+    expect(within(layout).getAllByRole('radio')).toHaveLength(3);
+    expect(
+      within(layout).getByRole('radio', {
+        name: new RegExp(strings.settings.layouts.classic.name),
+      }),
+    ).toBeChecked();
+    expect(within(layout).getByText(strings.settings.layouts.gallery.hint)).toBeInTheDocument();
+
+    await user.click(
+      within(layout).getByRole('radio', {
+        name: new RegExp(strings.settings.layouts.compact.name),
+      }),
+    );
+
+    expect(document.documentElement.dataset.layout).toBe('compact');
+    await waitFor(() => {
+      const request = fetchMock.mock.calls.find(([url]) => String(url).includes('/auth/profile'));
+      expect(JSON.parse(String((request?.[1] as RequestInit).body))).toEqual({
+        appearance: { layout: 'compact' },
+      });
+    });
+  });
+
+  it('goes back to what the account has when a choice cannot be saved', async () => {
+    const user = userEvent.setup();
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      SESSIONS,
+      { path: '/auth/profile', method: 'PATCH', networkError: true },
+    ]);
+
+    renderSettings();
+
+    const scheme = await screen.findByRole('group', { name: strings.settings.scheme });
+    await user.click(within(scheme).getByRole('radio', { name: strings.settings.schemes.dark }));
+
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(document.documentElement.dataset.scheme).toBe('system');
+    expect(
+      within(scheme).getByRole('radio', { name: strings.settings.schemes.system }),
+    ).toBeChecked();
+    expect(rememberedAppearance().scheme).toBe('system');
+  });
+
+  it('keeps rapid independent appearance choices while saving them in order', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([{ path: '/auth/me', body: { user: testUser } }, SESSIONS]);
+    const originalFetch = globalThis.fetch;
+    const replies: Array<(appearance: Appearance) => void> = [];
+    const requests: Array<{ appearance: Partial<Appearance> }> = [];
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: unknown, init?: RequestInit) => {
+        if (String(url).includes('/auth/profile') && init?.method === 'PATCH') {
+          requests.push(JSON.parse(String(init.body)));
+          return new Promise<Response>((resolve) => {
+            replies.push((appearance) => {
+              const body = { user: { ...testUser, appearance } };
+              resolve({
+                ok: true,
+                status: 200,
+                json: async () => body,
+                text: async () => JSON.stringify(body),
+              } as Response);
+            });
+          });
+        }
+        return originalFetch(url as RequestInfo | URL, init);
+      }),
+    );
+
+    const { client } = renderSettings();
+    const layout = await screen.findByRole('group', { name: strings.settings.layout });
+    const palette = screen.getByRole('group', { name: strings.settings.palette });
+
+    await user.click(within(layout).getByRole('radio', { name: /Galerie/u }));
+    await waitFor(() => expect(replies).toHaveLength(1));
+    await user.click(within(palette).getByRole('radio', { name: strings.settings.palettes.berry }));
+
+    // Both choices remain on screen even though the first request has not
+    // finished. The second request is queued, so saves cannot race.
+    expect(document.documentElement.dataset.layout).toBe('gallery');
+    expect(document.documentElement.dataset.palette).toBe('berry');
+    expect(requests).toEqual([{ appearance: { layout: 'gallery' } }]);
+    expect(client.getQueryData<typeof testUser>(queryKeys.session)?.appearance).toEqual({
+      layout: 'gallery',
+      scheme: 'system',
+      palette: 'berry',
+    });
+
+    replies[0]!({ ...testUser.appearance, layout: 'gallery' });
+    await waitFor(() => expect(replies).toHaveLength(2));
+
+    // The older server response must not undo the newer optimistic palette.
+    expect(document.documentElement.dataset.palette).toBe('berry');
+    expect(requests[1]).toEqual({ appearance: { palette: 'berry' } });
+    replies[1]!({ ...testUser.appearance, layout: 'gallery', palette: 'berry' });
+
+    await waitFor(() => {
+      expect(client.getQueryData<typeof testUser>(queryKeys.session)?.appearance).toEqual({
+        layout: 'gallery',
+        scheme: 'system',
+        palette: 'berry',
+      });
+      expect(rememberedAppearance()).toEqual({
+        layout: 'gallery',
+        scheme: 'system',
+        palette: 'berry',
+      });
+    });
+    expect(fetchMock).toHaveBeenCalled();
   });
 
   it('lists what was captured offline and transfers it on request', async () => {
