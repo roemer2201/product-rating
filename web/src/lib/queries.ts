@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { captureOwner, confirmCaptureOwner, useCaptureOwner } from '@/lib/captureIdentity';
 import {
   MutationCache,
@@ -698,32 +699,61 @@ export function useUpdateProfile(): UseMutationResult<User, Error, UpdateProfile
 }
 
 /**
- * Changes how the interface looks for this account, one choice at a time.
+ * Changes the appearance immediately, even when several choices are made while
+ * an earlier save is still in flight.
  *
- * The document changes before the server has answered: someone tapping through
- * four palettes wants to see each of them at once, not after a round trip. If
- * the server then refuses, or cannot be reached, the look goes back to what
- * the account really has - which is what the session cache still says, because
- * it is only written from an answer.
- *
- * Unlike the display name this concerns nobody else, so no list is refetched.
+ * A mutation's server reply contains the whole user. Without coordination an
+ * older response could overwrite a newer optimistic choice, or concurrent
+ * requests could reach the server out of order. Serialise writes and overlay
+ * all still-pending choices on the last confirmed server response. A failed
+ * write removes only its own change, not the choices made after it.
  */
 export function useUpdateAppearance(): UseMutationResult<User, Error, Partial<Appearance>> {
   const client = useQueryClient();
-  const stored = (): Appearance =>
-    resolveAppearance(client.getQueryData<User | null>(queryKeys.session)?.appearance);
+  const pending = useRef<Array<{ id: number; change: Partial<Appearance> }>>([]);
+  const confirmed = useRef<User | null>(null);
+  const nextId = useRef(0);
+
+  const showPending = (): void => {
+    const user = confirmed.current;
+    if (user === null) return;
+
+    const appearance = pending.current.reduce<Appearance>(
+      (current, { change }) => ({ ...current, ...change }),
+      resolveAppearance(user.appearance),
+    );
+    // A 401 clears the session globally; never restore it from an old reply.
+    client.setQueryData<User | null>(queryKeys.session, (current) =>
+      current == null ? current : { ...user, appearance },
+    );
+    applyAppearance(appearance);
+  };
+
+  const removePending = (id: number): void => {
+    pending.current = pending.current.filter((item) => item.id !== id);
+  };
 
   return useMutation({
+    scope: { id: 'appearance-update' },
     mutationFn: async (change: Partial<Appearance>) =>
       (await api.auth.updateProfile({ appearance: change })).user,
     onMutate: (change) => {
-      applyAppearance({ ...stored(), ...change });
+      if (pending.current.length === 0) {
+        confirmed.current = client.getQueryData<User | null>(queryKeys.session) ?? null;
+      }
+      const id = ++nextId.current;
+      pending.current.push({ id, change });
+      showPending();
+      return { id };
     },
-    onSuccess: (user) => {
-      client.setQueryData(queryKeys.session, user);
+    onSuccess: (user, _change, context) => {
+      confirmed.current = user;
+      removePending(context.id);
+      showPending();
     },
-    onError: () => {
-      applyAppearance(stored());
+    onError: (_error, _change, context) => {
+      if (context !== undefined) removePending(context.id);
+      showPending();
     },
   });
 }
