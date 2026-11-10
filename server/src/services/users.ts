@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { asc, eq, sql } from 'drizzle-orm';
-import type { NamedAccount, User, UserRole } from '@product-rating/shared';
+import {
+  resolveAppearance,
+  type Appearance,
+  type NamedAccount,
+  type User,
+  type UserRole,
+} from '@product-rating/shared';
 import type { DbHandle } from '../db/index.js';
 import { users, passwordResets, type UserRow } from '../db/index.js';
 import { ConflictError, NotFoundError, ValidationError } from './errors.js';
@@ -37,6 +43,28 @@ export function normaliseDisplayName(value: string | null | undefined): string |
   return trimmed.length === 0 ? null : trimmed;
 }
 
+/**
+ * The choices of an appearance that were actually made. A choice that is
+ * absent is one the account never made, and is stored as `null`.
+ */
+export type StoredAppearance = { [K in keyof Appearance]?: Appearance[K] | undefined };
+
+/** The appearance of a row exactly as stored: only what was chosen. */
+export function storedAppearance(row: UserRow): StoredAppearance | null {
+  const resolved = resolveAppearance({
+    layout: row.appearanceLayout,
+    scheme: row.appearanceScheme,
+    palette: row.appearancePalette,
+  });
+
+  const chosen: StoredAppearance = {
+    ...(row.appearanceLayout === null ? {} : { layout: resolved.layout }),
+    ...(row.appearanceScheme === null ? {} : { scheme: resolved.scheme }),
+    ...(row.appearancePalette === null ? {} : { palette: resolved.palette }),
+  };
+  return Object.keys(chosen).length === 0 ? null : chosen;
+}
+
 /** Maps a database row to the shape the API hands out. Never the hash. */
 export function toPublicUser(row: UserRow): User {
   return {
@@ -46,6 +74,11 @@ export function toPublicUser(row: UserRow): User {
     email: row.email,
     role: row.role,
     passwordResetRequired: row.passwordResetRequired,
+    appearance: resolveAppearance({
+      layout: row.appearanceLayout,
+      scheme: row.appearanceScheme,
+      palette: row.appearancePalette,
+    }),
     createdAt: row.createdAt.toISOString(),
     disabledAt: row.disabledAt?.toISOString() ?? null,
   };
@@ -117,6 +150,8 @@ export interface InsertUserOptions {
   /** Keeps the original creation date when an account arrives by import. */
   createdAt?: Date;
   disabledAt?: Date | null;
+  /** Choices that arrive with an imported account; a new one has none. */
+  appearance?: StoredAppearance;
 }
 
 /**
@@ -135,6 +170,9 @@ export function insertUser(db: DbHandle, options: InsertUserOptions): User {
     passwordHash: options.passwordHash,
     role: options.role ?? 'user',
     passwordResetRequired: options.passwordResetRequired ?? false,
+    appearanceLayout: options.appearance?.layout ?? null,
+    appearanceScheme: options.appearance?.scheme ?? null,
+    appearancePalette: options.appearance?.palette ?? null,
     createdAt: options.createdAt ?? new Date(),
     disabledAt: options.disabledAt ?? null,
   };
@@ -158,6 +196,7 @@ export interface InsertLockedUserOptions {
   role?: UserRole;
   createdAt?: Date;
   disabledAt?: Date | null;
+  appearance?: StoredAppearance;
 }
 
 /**
@@ -179,6 +218,7 @@ export function insertLockedUser(db: DbHandle, options: InsertLockedUserOptions)
     passwordResetRequired: true,
     ...(options.createdAt === undefined ? {} : { createdAt: options.createdAt }),
     ...(options.disabledAt === undefined ? {} : { disabledAt: options.disabledAt }),
+    ...(options.appearance === undefined ? {} : { appearance: options.appearance }),
   });
 }
 
@@ -261,12 +301,14 @@ export interface UpdateUserOptions {
   email?: string | null | undefined;
   /** `null` gives the display name up; the username is shown again then. */
   displayName?: string | null | undefined;
+  /** Only the choices that are given change; the others stay as stored. */
+  appearance?: StoredAppearance | undefined;
 }
 
 /**
- * Changes role, enabled state, e-mail or display name. The last enabled
- * administrator can neither be demoted nor disabled — otherwise nobody could
- * manage the instance any more.
+ * Changes role, enabled state, e-mail, display name or appearance. The last
+ * enabled administrator can neither be demoted nor disabled — otherwise nobody
+ * could manage the instance any more.
  *
  * The display name goes through here as well, although an account changes its
  * own: it is one column of one row either way, and the route decides who is
@@ -297,6 +339,15 @@ export function updateUser(db: DbHandle, userId: string, options: UpdateUserOpti
   }
   if (options.displayName !== undefined) {
     changes.displayName = normaliseDisplayName(options.displayName);
+  }
+  if (options.appearance?.layout !== undefined) {
+    changes.appearanceLayout = options.appearance.layout;
+  }
+  if (options.appearance?.scheme !== undefined) {
+    changes.appearanceScheme = options.appearance.scheme;
+  }
+  if (options.appearance?.palette !== undefined) {
+    changes.appearancePalette = options.appearance.palette;
   }
 
   db.update(users).set(changes).where(eq(users.id, userId)).run();

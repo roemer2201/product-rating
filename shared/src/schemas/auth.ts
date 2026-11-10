@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { APPEARANCE_LAYOUTS, APPEARANCE_PALETTES, APPEARANCE_SCHEMES } from '../appearance.js';
 
 /**
  * Validation schemas for everything around accounts, sessions and invites.
@@ -102,13 +103,33 @@ export const updateUserSchema = z
   .refine((value) => Object.keys(value).length > 0, { message: 'no changes given' });
 
 /**
- * Body of `PATCH /api/v1/auth/profile`: what an account may change about
- * itself without an administrator. `null` gives the display name up again, and
- * the username is shown from then on.
+ * The three choices of the appearance, each validated against the list of what
+ * this version can draw. See `appearance.ts` for what they mean.
  */
-export const updateProfileSchema = z.object({
-  displayName: displayNameSchema.nullable(),
+export const appearanceSchema = z.object({
+  layout: z.enum(APPEARANCE_LAYOUTS),
+  scheme: z.enum(APPEARANCE_SCHEMES),
+  palette: z.enum(APPEARANCE_PALETTES),
 });
+
+/**
+ * Body of `PATCH /api/v1/auth/profile`: what an account may change about
+ * itself without an administrator.
+ *
+ * Both parts are optional, and what is left out stays as it is: the display
+ * name is saved from a form, the appearance one choice at a time. For the
+ * display name `null` gives it up again, and the username is shown from then
+ * on. An empty body changes nothing and is refused, so a client that sends one
+ * by mistake hears about it.
+ */
+export const updateProfileSchema = z
+  .object({
+    displayName: displayNameSchema.nullable().optional(),
+    appearance: appearanceSchema.partial().optional(),
+  })
+  .refine((value) => value.displayName !== undefined || value.appearance !== undefined, {
+    message: 'no changes given',
+  });
 
 export const resetPasswordSchema = z.object({
   newPassword: passwordSchema,

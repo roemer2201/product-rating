@@ -484,6 +484,96 @@ describe('PATCH /api/v1/auth/profile', () => {
 
     expect(response.statusCode).toBe(401);
   });
+
+  it('hands out the default appearance for an account that never chose', async () => {
+    await makeUser('anna');
+    const cookie = sessionCookie(await login('anna'));
+
+    const me = await harness.app.inject({
+      method: 'GET',
+      url: '/api/v1/auth/me',
+      headers: { cookie },
+    });
+
+    expect(me.json().user.appearance).toEqual({
+      layout: 'classic',
+      scheme: 'system',
+      palette: 'blue',
+    });
+  });
+
+  it('stores one choice of the appearance and leaves the rest alone', async () => {
+    await makeUser('anna');
+    const cookie = sessionCookie(await login('anna'));
+
+    await harness.app.inject({
+      method: 'PATCH',
+      url: '/api/v1/auth/profile',
+      headers: writeHeaders(cookie),
+      payload: { displayName: 'Anna', appearance: { layout: 'gallery', scheme: 'dark' } },
+    });
+
+    const response = await harness.app.inject({
+      method: 'PATCH',
+      url: '/api/v1/auth/profile',
+      headers: writeHeaders(cookie),
+      payload: { appearance: { palette: 'forest' } },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().user.appearance).toEqual({
+      layout: 'gallery',
+      scheme: 'dark',
+      palette: 'forest',
+    });
+    // A body without a display name is not a request to give the name up.
+    expect(response.json().user.displayName).toBe('Anna');
+
+    // It belongs to the account, not to the session: a second login sees it.
+    const elsewhere = sessionCookie(await login('anna'));
+    const me = await harness.app.inject({
+      method: 'GET',
+      url: '/api/v1/auth/me',
+      headers: { cookie: elsewhere },
+    });
+    expect(me.json().user.appearance.layout).toBe('gallery');
+  });
+
+  it('refuses an appearance outside the lists, and an empty body', async () => {
+    await makeUser('anna');
+    const cookie = sessionCookie(await login('anna'));
+
+    for (const payload of [{ appearance: { layout: 'holographic' } }, {}]) {
+      const response = await harness.app.inject({
+        method: 'PATCH',
+        url: '/api/v1/auth/profile',
+        headers: writeHeaders(cookie),
+        payload,
+      });
+
+      expect(response.statusCode).toBe(400);
+    }
+  });
+
+  it('reads a stored value it does not know as the default', async () => {
+    const id = await makeUser('anna');
+    // What a newer version may have left behind before a downgrade.
+    harness.app.db
+      .update(users)
+      .set({ appearanceLayout: 'holographic' })
+      .where(eq(users.id, id))
+      .run();
+    const cookie = sessionCookie(await login('anna'));
+
+    const me = await harness.app.inject({
+      method: 'GET',
+      url: '/api/v1/auth/me',
+      headers: { cookie },
+    });
+
+    expect(me.statusCode).toBe(200);
+    expect(me.json().user.appearance.layout).toBe('classic');
+  });
 });
 
 describe('POST /api/v1/auth/password', () => {

@@ -10,7 +10,7 @@ import { createCategory, listCategories } from './categories.js';
 import { listProductPhotos, storePhoto } from './photos.js';
 import { createPrice, listProductPrices } from './prices.js';
 import { listProducts, trashProduct, updateProduct } from './products.js';
-import { listUsers } from './users.js';
+import { listUsers, updateUser } from './users.js';
 import { ValidationError } from './errors.js';
 import {
   exportCatalogue,
@@ -867,6 +867,49 @@ describe('importing', () => {
       }).products.map((product) => product.createdBy),
     );
     expect(owners.size).toBe(2);
+
+    fresh.database.close();
+  });
+
+  it('carries the appearance an account chose, and only that', async () => {
+    const fresh = newInstance(false);
+    fresh.database.db.run(sql`delete from users`);
+
+    updateUser(source.database.db, ANNA, { appearance: { layout: 'gallery', palette: 'forest' } });
+
+    await exportCatalogue({
+      db: source.database.db,
+      config: source.config,
+      target: directory,
+    });
+
+    const path = join(directory, EXPORT_JSON_FILE);
+    const file = JSON.parse(readFileSync(path, 'utf8')) as {
+      users: { username: string; appearance?: Record<string, string> }[];
+    };
+    const anna = file.users.find((user) => user.username === 'anna');
+    const bert = file.users.find((user) => user.username === 'bert');
+    // Only what was chosen is written; the scheme was never touched.
+    expect(anna?.appearance).toEqual({ layout: 'gallery', palette: 'forest' });
+    expect(bert !== undefined && 'appearance' in bert).toBe(false);
+
+    // A file from a newer version may name a layout this one cannot draw.
+    if (anna?.appearance !== undefined) anna.appearance.layout = 'holographic';
+    writeFileSync(path, JSON.stringify(file));
+
+    await importCatalogue({ db: fresh.database.db, config: fresh.config, source: directory });
+
+    const accounts = listUsers(fresh.database.db);
+    expect(accounts.find((user) => user.username === 'anna')?.appearance).toEqual({
+      layout: 'classic',
+      scheme: 'system',
+      palette: 'forest',
+    });
+    expect(accounts.find((user) => user.username === 'bert')?.appearance).toEqual({
+      layout: 'classic',
+      scheme: 'system',
+      palette: 'blue',
+    });
 
     fresh.database.close();
   });

@@ -69,6 +69,17 @@ export const users = sqliteTable(
     passwordResetRequired: integer('password_reset_required', { mode: 'boolean' })
       .notNull()
       .default(false),
+    /**
+     * How the interface looks for this account: layout, light or dark, accent
+     * colour. `null` means "never chosen" and is read as the default, so the
+     * default can stay a decision of the code instead of being frozen into
+     * every row. Plain text without a CHECK on purpose: the list of layouts
+     * grows with the client, and a value an older version does not know is
+     * read as the default as well (`resolveAppearance()`).
+     */
+    appearanceLayout: text('appearance_layout'),
+    appearanceScheme: text('appearance_scheme'),
+    appearancePalette: text('appearance_palette'),
     createdAt: createdAt(),
     /** Set instead of deleting an account, so its ratings stay attributable. */
     disabledAt: integer('disabled_at', { mode: 'timestamp_ms' }),
