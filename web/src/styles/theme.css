@@ -132,7 +132,8 @@
  * The dark tokens stand here twice: once for a device that is dark while the
  * account follows it, once for an account that asked for dark outright. CSS
  * has no way to say "either of these" in one rule without `light-dark()`,
- * which the iPhones this app is used on do not all know yet.
+ * which needs Safari 17.5 - more than this app may assume of the iPhones it
+ * is used on.
  *
  * The two blocks must stay identical. `theme.test.ts` compares them, so a
  * colour changed in only one of them fails the test run instead of showing up

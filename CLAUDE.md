@@ -63,6 +63,9 @@ web/                    React-PWA
   src/components/       UI-Bausteine
   src/lib/api.ts        typisierter API-Client
   src/lib/scanner.ts    zxing-wasm-Kapselung
+  src/lib/appearance.ts Darstellung des Kontos als Attribute an <html>
+  src/styles/           theme.css (Tokens, Modus, Paletten), app.css (klassisches
+                        Layout), layouts.css (Kompakt, Galerie)
   public/               Icons: zwei SVG-Quellen, daraus erzeugte PNG
   scripts/              generate-icons.ts (Rasterung der Icons)
 shared/                 Gemeinsame Typen und Zod-Schemata für Server und Web
@@ -180,6 +183,15 @@ Request auf `main` scheitern, dessen Version nicht höher ist als die dort.
   erklären statt kommentarlos zu scheitern.
 - Layout mit `viewport-fit=cover` und `env(safe-area-inset-*)`, Bedienelemente
   daumenfreundlich; primäre Aktion ist der Scan-Button.
+
+- Die Darstellung (Layout, Modus, Farbpalette; README 2.1) ist je Konto wählbar
+  und kommt als `data-*`-Attribut an `<html>` an. Ein Layout ordnet nur um:
+  gleiches Markup, gleiche Funktionen, und nichts verschwindet aus dem
+  Accessibility-Tree. Layout-Spezifisches gehört nach `styles/layouts.css`
+  hinter `[data-layout=…]`, nie nach `app.css`; Farben nur als Token in
+  `theme.css`. Neue Ansichten und Bausteine sind in allen drei Layouts und in
+  beiden Modi anzusehen. Neue Layouts oder Paletten brauchen die Zustimmung
+  des Projektinhabers.
 
 **Shell-Skripte** (Maintainer-Skripte, Backup-Skript, Entrypoint)
 

@@ -5,6 +5,96 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-11-10 – Darstellung je Konto: Layouts, Modus, Farbpaletten (0.13.0)
+
+- Anlass: Frage des Projektinhabers, ob sich „Themes“ einbauen lassen, die
+  nicht nur Farben, sondern auch das Layout der PWA ändern – bei gleichen
+  Funktionen. Vor der Umsetzung geplant und abgestimmt (TODO M18): je Konto,
+  drei getrennt wählbare Einstellungen, inklusive Schalter für hell und
+  dunkel. Die Layouts und Paletten hat Claude als Entwurf vorgelegt, der
+  Projektinhaber hat sie so freigegeben.
+- **Drei Einstellungen statt fertiger Themes.** Layout (Klassisch, Kompakt,
+  Galerie), Modus (System, Hell, Dunkel) und Farbpalette (Blau, Wald, Beere,
+  Graphit) sind unabhängig; jede Kombination ist erlaubt. Die Liste der Werte
+  steht einmal in `shared/src/appearance.ts`.
+- **Speicherung am Konto.** Migration `0013_user_appearance.sql` fügt
+  `users` drei optionale Textspalten hinzu – reines `ADD COLUMN`, kein Neubau
+  der Tabelle, kein Datenverlust. `NULL` heißt „nie gewählt“; so bleibt der
+  Standard eine Entscheidung des Codes und ist nicht in jeder Zeile
+  eingefroren. Bewusst ohne `CHECK`: die Liste wächst mit der Oberfläche, und
+  ein Wert, den eine ältere Version nicht kennt, wird als Standard gelesen
+  (`resolveAppearance`) statt ein Konto unladbar zu machen. Geschrieben wird
+  über `PATCH /api/v1/auth/profile`, dessen Körper jetzt `displayName` und
+  `appearance` kennt, beide optional; ein leerer Körper wird abgelehnt. Ein
+  älteres Bundle, das nur `displayName` schickt, funktioniert unverändert.
+- **Die Darstellung steht am `User` der API**, nicht in einer eigenen Route:
+  sie kommt mit der Sitzungsabfrage, die ohnehin jede Ansicht stellt. Damit
+  sehen Administratoren in `GET /api/v1/users` auch die Darstellung der
+  anderen; das wurde hingenommen, weil es keine schutzwürdige Angabe ist.
+- **Export und Import** nehmen mit, was ein Konto gewählt hat, und nur das.
+  Die Exportversion bleibt 3: Ein älterer Leser ignoriert das Feld, ohne etwas
+  falsch zu deuten. `users.csv` bleibt unverändert – die Darstellung ist
+  nichts, was man in einer Tabelle auswertet. Ein Wert aus einer neueren
+  Version, den es hier nicht gibt, wird beim Import fallen gelassen.
+- **Attribute statt Klassen oder zweitem Markup.** Die Wahl kommt als
+  `data-layout`, `data-scheme`, `data-palette` an `<html>` an. Die CSP bleibt
+  unverändert (kein Inline-Skript, kein Inline-Style). `app.css` ist das
+  klassische Layout und kennt die Attribute nicht; alles Layout-Spezifische
+  steht in der neuen `styles/layouts.css`, jede Regel hinter
+  `[data-layout=…]`. Verworfen wurden Komponentenvarianten je Layout und
+  eigene Rahmen je Theme: beides vervielfacht Codepfade und Tests für eine
+  Oberfläche dieser Größe ohne Gegenwert.
+- **Dunkler Modus zweimal im Stylesheet.** „System“ soll ohne Skript
+  funktionieren, also bleibt die Media-Query; der erzwungene Modus braucht
+  dieselben Tokens noch einmal unter dem Attribut. `light-dark()` hätte die
+  Doppelung erspart, setzt aber Safari 17.5 voraus; welche iOS-Versionen im
+  Haushalt laufen, ist nirgends festgelegt, also bleibt es bei der Doppelung.
+  `styles/theme.test.ts` vergleicht beide Blöcke, damit eine nur einseitig
+  geänderte Farbe auffällt.
+- **Paletten als Paar.** Jede Palette definiert ihren Akzent für hell und
+  dunkel zugleich (`--accent-light*`, `--accent-dark*`); der Modus wählt nur
+  aus. Die Selektoren verlangen kein `:root`, deshalb zeigen die Farbpunkte in
+  den Einstellungen jede Palette über dasselbe Attribut an einem einzelnen
+  Element. Alle vier sind in beiden Modi auf mindestens 4,5:1 geprüft (Akzent
+  auf jedem Hintergrund, auf dem er als Text steht, und Text auf dem Akzent);
+  der niedrigste Wert ist 4,8:1.
+- **Layouts ordnen nur um.** Zwei Elemente sind dafür neu im Markup: eine
+  Bewertung als „ein Stern mit Zahl“ in der Produktkarte und ein Element um
+  die Beschriftung der Navigationseinträge. Was ein Layout vom Bildschirm
+  nimmt (zehn Sterne, Beschriftung), bleibt im Accessibility-Tree. Kompakt
+  verkleinert zusätzlich die Abstands-Tokens und tauscht Seiten- und
+  Feldfarbe, damit eine Liste als ein Blatt liest. Galerie zeigt die Fotos
+  quadratisch – anders als im Entwurf (4:3), weil hochkant aufgenommene
+  Produktfotos sonst oben und unten beschnitten würden – und behält die
+  Markenzeile, die im Entwurf fehlte: sie gehört zur Frage „ist das das Ding
+  in meiner Hand“.
+- **Kopfzeile entfällt in Kompakt und Galerie.** Sie nennt nur App und Konto,
+  und das Konto steht auch in den Einstellungen. Den Abstand zur Notch, den
+  bisher die Kopfzeile hielt, hält dort die Ansicht selbst.
+- **Sofort sichtbar, dann gespeichert.** Eine Wahl ändert das Dokument, bevor
+  der Server geantwortet hat; scheitert das Speichern, geht die Darstellung
+  auf den Stand des Kontos zurück und die Einstellungen sagen es. Anders als
+  beim Anzeigenamen wird dabei keine Liste neu geladen.
+- **Kopie im Browser.** Die letzte Darstellung liegt zusätzlich im
+  `localStorage`, damit Kaltstart, Start ohne Verbindung und Anmeldemaske
+  nicht im Standard beginnen. Folge: Auf einem gemeinsam genutzten Gerät zeigt
+  die Anmeldemaske die Darstellung des zuletzt angemeldeten Kontos.
+- **Statusleiste.** `theme-color` wird nicht im Code nachgehalten, sondern aus
+  dem Stylesheet gelesen (`--color-chrome`): Klassisch und Kompakt die
+  Flächenfarbe, Galerie die Hintergrundfarbe.
+- Bekannte Grenzen, als offene Punkte in TODO M18: kurzes Aufblitzen der
+  Gerätefarbe beim Kaltstart, wenn der Modus entgegen dem Gerät erzwungen ist;
+  Manifestfarben bleiben die des klassischen hellen Layouts; geprüft wurde in
+  Chromium (390 × 844 und 1100 × 800), nicht auf einem iPhone. Zwei Stellen
+  nutzen `:has()` als reine Verschönerung – ohne es bleibt die Auswahl am
+  Radioknopf erkennbar und die Zahl steht unter statt neben dem Stern.
+- Nur Anwendung und Datenbankschema sind betroffen. Docker und Debian-Paket
+  brauchen keine Anpassung: Die Migration läuft wie jede andere beim Start
+  beziehungsweise über `product-rating migrate`; Konfigurationsschlüssel,
+  CLI-Befehle und Proxy-Beispiele bleiben unverändert.
+
+---
+
 ## 2026-11-02 – Katalog: unbekannte EAN direkt erfassen (0.12.0)
 
 - Anlass: Eine im Katalog gescannte EAN, die es noch nicht gibt, endete im

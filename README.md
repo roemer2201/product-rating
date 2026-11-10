@@ -37,6 +37,9 @@ sich unter iOS zum Home-Bildschirm hinzufügen.
 - Papierkorb: Gelöschtes lässt sich zurückholen
 - Offline erfassen: Ohne Verbindung Eingetipptes wartet auf dem Gerät und geht
   später von selbst hoch, inklusive Rückfrage bei widersprüchlichen Bewertungen
+- Darstellung je Konto: drei Layouts (Klassisch, Kompakt, Galerie), heller oder
+  dunkler Modus oder der des Geräts, vier Farbpaletten – gewählt in den
+  Einstellungen, gültig auf jedem Gerät des Kontos
 - Export nach JSON und CSV, Import zum Umzug (Kommandozeile)
 - Installierbar als PWA auf dem iOS-Home-Bildschirm
 
@@ -107,7 +110,7 @@ mindestens 44 Pixel hoch, Ränder über `env(safe-area-inset-*)`.
 | `/products/new?kind=product` | Anlegeformular für ein Produkt ohne Barcode |
 | `/products/:id` | Produkt: Foto, Durchschnitt, eigene Bewertung, Bearbeiten, Löschen |
 | `/ratings` | Eigene Bewertungen |
-| `/settings` | Konto, Verwaltung (nur Admin), Anzeigename, Passwort, eigene Sitzungen, Abmelden |
+| `/settings` | Konto, Verwaltung (nur Admin), Anzeigename, Darstellung, Passwort, eigene Sitzungen, Abmelden |
 | `/admin` | Verwaltung (nur Administratoren): Übersicht über die vier Bereiche darunter |
 | `/admin/categories` | Kategorienliste: anlegen, umbenennen, „häufig genutzt“, löschen |
 | `/admin/invites` | Einladungscodes erzeugen, weitergeben, zurückziehen |
@@ -160,6 +163,61 @@ einem Weg zurück. Die Rollenprüfung sitzt einmal in
 `web/src/components/AdminLayout.tsx` um alle fünf Ansichten herum – ein Konto
 ohne Rolle landet wieder in den Einstellungen; die eigentliche Sperre ist
 ohnehin der Server, der jede dieser Routen mit `403` beantwortet.
+
+**Darstellung.** Jedes Konto wählt in den Einstellungen drei Dinge
+unabhängig voneinander; jede Wahl wird sofort gespeichert und gilt auf allen
+Geräten des Kontos. An den Funktionen ändert keine davon etwas.
+
+| Wahl | Werte | Wirkung |
+|---|---|---|
+| Layout | Klassisch, Kompakt, Galerie | Anordnung der Ansichten |
+| Modus | System, Hell, Dunkel | „System“ folgt dem Gerät, die beiden anderen übersteuern es |
+| Farbpalette | Blau, Wald, Beere, Graphit | Akzentfarbe, je für hell und dunkel |
+
+| | Klassisch | Kompakt | Galerie |
+|---|---|---|---|
+| Listen | Karten mit vier Zeilen | Zweizeiler mit Trennlinien | Kacheln unter dem Foto, zwei je Reihe (ab 36 rem drei) |
+| Bewertung in Listen | zehn Sterne, dahinter der Schnitt | ein Stern mit Zahl | ein Stern mit Zahl |
+| Kopfzeile | App-Name und Konto | entfällt | entfällt, großer Seitentitel |
+| Navigation | Leiste mit Beschriftung | flache Leiste, nur Symbole | schwebendes Dock mit Beschriftung |
+
+Die Wahl gehört zum Konto und liegt auf dem Server (`users.appearance_*`,
+`PATCH /api/v1/auth/profile`). Im Browser kommt sie als drei Attribute an
+`<html>` an – `data-layout`, `data-scheme`, `data-palette` –, gesetzt von
+`web/src/lib/appearance.ts`; die Liste der gültigen Werte steht einmal in
+`shared/src/appearance.ts`. Darauf antworten zwei Dateien:
+`web/src/styles/theme.css` (Modus und Paletten) und
+`web/src/styles/layouts.css` (Kompakt und Galerie). `app.css` ist das
+klassische Layout und kennt die Attribute nicht; jede Regel in `layouts.css`
+beginnt mit `[data-layout=…]`, sodass ein Konto ohne Wahl nichts davon
+ausführt.
+
+Ein Layout ordnet nur um: Das Markup ist in allen dreien dasselbe. Was vom
+Bildschirm verschwindet – die Beschriftung unter den Symbolen, die Reihe aus
+zehn Sternen –, wird nur dem Auge entzogen und bleibt für Screenreader stehen.
+Drei Dinge muss jedes Layout halten, weil der Rest der Oberfläche damit
+rechnet: `--nav-height` nennt den Platz, den die Navigation unten belegt,
+jedes Bedienelement bleibt mindestens `--tap-target` hoch, und Scannen ist der
+hervorgehobene Eintrag.
+
+Weil der Server vor dem ersten Bild nicht gefragt werden kann, merkt sich der
+Browser die zuletzt gezeigte Darstellung (`localStorage`). Damit starten die
+App, ein Start ohne Verbindung und die Anmeldemaske im gewohnten Aussehen;
+maßgeblich bleibt, was `GET /api/v1/auth/me` antwortet. Auf einem gemeinsam
+genutzten Gerät zeigt die Anmeldemaske deshalb die Darstellung des Kontos, das
+zuletzt angemeldet war. Wer einen Modus entgegen dem Gerät erzwingt, kann beim
+Kaltstart für einen Moment die Farbe des Geräts sehen: bis das Skript läuft,
+gilt die Media-Query. Eine Abhilfe bräuchte ein Skript, das vor dem Stylesheet
+läuft, und steht in [TODO.md](TODO.md).
+
+Ein weiteres Layout oder eine weitere Palette braucht drei Stellen: den Wert in
+`shared/src/appearance.ts`, die Regeln in `layouts.css` beziehungsweise
+`theme.css` und den Namen in `strings.ts`. `web/src/styles/theme.test.ts`
+schlägt fehl, wenn die Liste einen Wert nennt, den das Stylesheet nicht kennt,
+wenn eine Layout-Regel ohne das Attribut auskäme oder wenn die beiden Kopien
+des dunklen Modus – eine für das Gerät, eine für die ausdrückliche Wahl –
+auseinanderlaufen. Die Paletten sind auf einen Kontrast von mindestens 4,5:1
+geprüft, in beiden Modi.
 
 **Kategorien im Produktformular.** Kategorien werden nicht getippt, sondern aus
 der Liste der Verwaltung gewählt, mehrere je Produkt
@@ -238,7 +296,11 @@ Standalone-Modus, Name unter dem Symbol und Symbol selbst kommen aus den
 `default` und nicht `black-translucent` – letzteres erzwingt weiße Symbole, die
 auf der hellen Kopfzeile verschwinden. Die Farbe der Leiste kommt aus
 `theme-color`, das zweimal mit `media`-Abfrage gesetzt ist, weil das Manifest
-nur eine Farbe kennt. `viewport-fit=cover` und `env(safe-area-inset-*)` sorgen
+nur eine Farbe kennt. Sobald das Skript läuft, schreibt `lib/appearance.ts` in
+beide die Farbe am oberen Bildschirmrand der gewählten Darstellung – gelesen
+aus dem Stylesheet (`--color-chrome`), nicht ein zweites Mal im Code
+festgehalten. Das Manifest selbst bleibt bei den Farben des klassischen hellen
+Layouts; es wird beim Bau geschrieben und kennt kein Konto. `viewport-fit=cover` und `env(safe-area-inset-*)` sorgen
 dafür, dass die untere Navigationsleiste nicht unter dem Home-Indikator liegt.
 `format-detection: telephone=no` verhindert, dass Safari eine 13-stellige EAN in
 einen Telefonlink verwandelt.
@@ -368,7 +430,8 @@ wie PostgreSQL – `NULL`-Werte darin als verschieden behandelt.
 
 ```
 users     (id, username, display_name, email, password_hash, role,
-           password_reset_required, created_at, disabled_at)
+           password_reset_required, appearance_layout, appearance_scheme,
+           appearance_palette, created_at, disabled_at)
 sessions  (id, user_id, expires_at, user_agent, created_at, last_seen_at)
 password_resets (id = SHA-256 des Tokens, user_id, created_by, expires_at,
            used_at, created_at)
@@ -387,6 +450,11 @@ prices    (id, product_id, user_id, cents, currency, shop, note, special,
 
 products_fts (name, variant, brand, ean, product_id)  FTS5, Trigramme, per Trigger gepflegt
 ```
+
+Die drei `appearance_*`-Spalten halten die Darstellung eines Kontos (2.1). Sie
+sind einfacher Text ohne `CHECK` und dürfen leer sein: `NULL` heißt „nie
+gewählt“ und wird als Standard gelesen, ebenso ein Wert, den diese Version
+nicht kennt – etwa nach der Rückkehr von einer neueren.
 
 Fotos werden **nicht** als BLOB in der Datenbank abgelegt: das Dateisystem ist
 schneller, hält DB-Backups klein und erlaubt HTTP-Caching und Range-Requests.
@@ -862,6 +930,10 @@ Let's-Encrypt-Zertifikat (DNS-Challenge funktioniert auch ohne offenen Port 80).
   Umlauten. Er ist **bewusst nicht eindeutig** und keine Anmeldekennung –
   angemeldet wird sich weiterhin mit dem Benutzernamen. Ohne Anzeigename steht
   überall der Benutzername.
+- Ebenfalls Sache des Kontos ist seine **Darstellung** – Layout, Modus und
+  Farbpalette (2.1). Sie wird in den Einstellungen gewählt, liegt am Konto und
+  gilt damit auf jedem Gerät; ein Administrator braucht und kann sie nicht
+  setzen.
 - Konten werden nie gelöscht, sondern deaktiviert – Bewertungen und Fotos
   behalten damit einen gültigen Eigentümer. Mit dem Deaktivieren verfallen alle
   Sessions des Kontos.
@@ -880,7 +952,7 @@ Let's-Encrypt-Zertifikat (DNS-Challenge funktioniert auch ohne offenen Port 80).
 | `POST /api/v1/auth/logout` | angemeldet | Aktuelle Sitzung widerrufen |
 | `GET /api/v1/auth/me` | angemeldet | Eigenes Konto |
 | `POST /api/v1/auth/register` | – | Konto mit gültigem Einladungscode anlegen |
-| `PATCH /api/v1/auth/profile` | angemeldet | Eigenen Anzeigenamen setzen; `null` entfernt ihn |
+| `PATCH /api/v1/auth/profile` | angemeldet | Eigenen Anzeigenamen (`displayName`; `null` entfernt ihn) und die eigene Darstellung setzen (`appearance` mit `layout`, `scheme`, `palette`, einzeln oder zusammen); was fehlt, bleibt unverändert |
 | `POST /api/v1/auth/password` | angemeldet | Passwort ändern, verwirft die übrigen Sitzungen |
 | `GET /api/v1/auth/sessions` | angemeldet | Eigene Sitzungen auflisten |
 | `DELETE /api/v1/auth/sessions/:id` | angemeldet | Eine eigene Sitzung widerrufen |
@@ -1500,9 +1572,13 @@ product-rating user reset-link anna                # Link je Konto weitergeben
 ```
 
 **Konten reisen mit, ihre Passwörter nicht.** Der Export enthält
-Benutzername, Anzeigename, Rolle, E-Mail-Adresse und die beiden Daten – **keine
-Passwort-Hashes**; eine Datei, die welche mitnähme, wäre ein Satz Zugangsdaten
-und keine Datensicherung.
+Benutzername, Anzeigename, Rolle, E-Mail-Adresse, die beiden Daten und – wo ein
+Konto eine gewählt hat – die Darstellung (`appearance`, nur in der JSON-Datei,
+nicht in `users.csv`), aber **keine Passwort-Hashes**; eine Datei, die welche
+mitnähme, wäre ein Satz Zugangsdaten und keine Datensicherung. Nennt eine Datei
+aus einer neueren Version ein Layout oder eine Palette, die es hier nicht gibt,
+bekommt das Konto an dieser Stelle den Standard; der Import scheitert daran
+nicht.
 
 Der Import legt die Konten deshalb **ohne Passwort** an: sie sind mit
 `password_reset_required` markiert, tragen den Sperrvermerk als Hash und lassen
