@@ -65,6 +65,7 @@ interface ProductFormProps {
   /** Shows entries with a similar name below the name field. */
   showSimilar?: boolean;
   initial?: Partial<ProductFormValues>;
+  onChange?: (values: ProductFormValues) => void;
   /** The categories the product carries, with names, for when the list is not there. */
   initialCategories?: CategoryRef[];
   onSubmit: (values: ProductFormValues) => void;
@@ -95,6 +96,7 @@ export function ProductForm({
   eanEditable = false,
   showSimilar = false,
   initial,
+  onChange,
   initialCategories,
   onSubmit,
   submitLabel,
@@ -106,13 +108,23 @@ export function ProductForm({
   children,
   actionsRef,
 }: ProductFormProps) {
-  const [ean, setEan] = useState(initial?.ean ?? '');
-  const [name, setName] = useState(initial?.name ?? '');
-  const [variant, setVariant] = useState(initial?.variant ?? '');
-  const [brand, setBrand] = useState(initial?.brand ?? '');
-  const [categoryIds, setCategoryIds] = useState(initial?.categoryIds ?? []);
-  const [notes, setNotes] = useState(initial?.notes ?? '');
-  const [priceWatch, setPriceWatch] = useState(initial?.priceWatch ?? false);
+  const [values, setValues] = useState<ProductFormValues>({
+    ean: '',
+    name: '',
+    variant: '',
+    brand: '',
+    categoryIds: [],
+    notes: '',
+    priceWatch: false,
+    ...initial,
+  });
+  const { ean, name, variant, brand, categoryIds, notes, priceWatch } = values;
+
+  const change = (patch: Partial<ProductFormValues>): void => {
+    const next = { ...values, ...patch };
+    setValues(next);
+    onChange?.(next);
+  };
 
   // The same query the picker reads; asked for here to check the choice
   // against the list once more before it goes out.
@@ -129,13 +141,9 @@ export function ProductForm({
         ? categoryIds
         : categoryIds.filter((id) => list.some((entry) => entry.id === id));
     onSubmit({
+      ...values,
       ean: eanEditable ? ean : '',
-      name,
-      variant,
-      brand,
       categoryIds: chosen,
-      notes,
-      priceWatch,
     });
   };
 
@@ -149,7 +157,7 @@ export function ProductForm({
         label={strings.fields.name}
         name="name"
         value={name}
-        onChange={(event) => setName(event.target.value)}
+        onChange={(event) => change({ name: event.target.value })}
         maxLength={PRODUCT_NAME_MAX_LENGTH}
         hint={dish ? strings.product.dishNameHint : strings.product.nameHint}
         error={errors.name}
@@ -163,7 +171,7 @@ export function ProductForm({
         label={strings.fields.variant}
         name="variant"
         value={variant}
-        onChange={(event) => setVariant(event.target.value)}
+        onChange={(event) => change({ variant: event.target.value })}
         maxLength={PRODUCT_VARIANT_MAX_LENGTH}
         hint={dish ? strings.product.dishVariantHint : strings.product.variantHint}
         error={errors.variant}
@@ -175,7 +183,7 @@ export function ProductForm({
         label={dish ? strings.fields.source : strings.fields.brand}
         name="brand"
         value={brand}
-        onChange={(event) => setBrand(event.target.value)}
+        onChange={(event) => change({ brand: event.target.value })}
         maxLength={PRODUCT_BRAND_MAX_LENGTH}
         hint={dish ? strings.product.sourceHint : strings.product.brandHint}
         error={errors.brand}
@@ -188,7 +196,7 @@ export function ProductForm({
           label={strings.fields.ean}
           name="ean"
           value={ean}
-          onChange={(event) => setEan(event.target.value)}
+          onChange={(event) => change({ ean: event.target.value })}
           // Same keyboard as the manual entry on the scan screen.
           inputMode="numeric"
           hint={strings.product.eanAddHint}
@@ -200,7 +208,7 @@ export function ProductForm({
 
       <CategoryPicker
         value={categoryIds}
-        onChange={setCategoryIds}
+        onChange={(categoryIds) => change({ categoryIds })}
         known={initialCategories ?? []}
         error={errors.categoryIds}
       />
@@ -209,7 +217,7 @@ export function ProductForm({
         label={strings.fields.notes}
         name="notes"
         value={notes}
-        onChange={(event) => setNotes(event.target.value)}
+        onChange={(event) => change({ notes: event.target.value })}
         maxLength={PRODUCT_NOTES_MAX_LENGTH}
         hint={dish ? strings.product.dishNotesHint : strings.product.notesHint}
         error={errors.notes}
@@ -224,7 +232,7 @@ export function ProductForm({
             checked={priceWatch}
             aria-describedby="product-price-watch-hint"
             onChange={(event) => {
-              setPriceWatch(event.target.checked);
+              change({ priceWatch: event.target.checked });
             }}
           />
           {strings.product.priceWatch}

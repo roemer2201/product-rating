@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react';
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router';
+import { Link, Navigate, useLocation, useSearchParams } from 'react-router';
 import { createProductSchema, normaliseEan, type ProductKind } from '@product-rating/shared';
 import { ErrorNotice } from '@/components/Feedback';
 import { OfflineCapture } from '@/components/OfflineCapture';
 import { PhotoPreview, PhotoSources, usePhotoPick } from '@/components/PhotoPicker';
+import { useProductDraft } from '@/components/ProductDrafts';
 import { ProductForm, type ProductFormValues } from '@/components/ProductForm';
 import { errorMessage, isApiError } from '@/lib/api';
 import { emptyToNull, fieldErrors, type FieldErrors } from '@/lib/forms';
@@ -53,31 +54,50 @@ import { strings } from '@/lib/strings';
  */
 export function ProductNewPage() {
   const [params] = useSearchParams();
-  const navigate = useNavigate();
-  const create = useCreateProduct();
-  const upload = useUploadPhoto();
-  const capture = useEnqueueCapture();
-
-  const [errors, setErrors] = useState<FieldErrors>({});
-  /** What the form holds, so the offline offer can take it as it stands. */
-  const [values, setValues] = useState<ProductFormValues | null>(null);
-  /** Set once the product exists; from then on only the photo is left. */
-  const [created, setCreated] = useState<string | null>(null);
-  const [progress, setProgress] = useState<number | null>(null);
-
-  // The button row the picture is meant to stand above.
-  const actionsRef = useRef<HTMLDivElement>(null);
-
-  const pick = usePhotoPick({ onStart: () => upload.reset() });
-  // As constants, because the narrowing has to survive into the callbacks.
-  const { picked, preview } = pick;
-
+  const { key } = useLocation();
   const given = params.get('ean');
   const asked = params.get('kind');
   const ean = given === null ? null : normaliseEan(given);
   const kind: ProductKind | null =
     given !== null ? 'product' : asked === 'dish' || asked === 'product' ? asked : null;
   if (kind === null || (given !== null && ean === null)) return <Navigate to="/scan" replace />;
+
+  return <NewProductForm key={key} kind={kind} ean={ean} />;
+}
+
+function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }) {
+  const { draft, update } = useProductDraft();
+  const create = useCreateProduct();
+  const upload = useUploadPhoto();
+  const capture = useEnqueueCapture();
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [progress, setProgress] = useState<number | null>(null);
+  // The button row the picture is meant to stand above.
+  const actionsRef = useRef<HTMLDivElement>(null);
+  /**
+   * Whether the next loaded picture should bring the buttons into view. Set
+   * for a fresh pick and for the switch to the upload step, not for a draft
+   * restored on the way back, which should open where the reader left it.
+   */
+  const revealPhoto = useRef(false);
+
+  const pick = usePhotoPick({
+    initial: draft?.photo ?? null,
+    onStart: () => {
+      revealPhoto.current = true;
+    },
+    onChange: (photo) => update({ photo }),
+  });
+  // As constants, because the narrowing has to survive into the callbacks.
+  const { picked, preview } = pick;
+  const {
+    created = null,
+    createError = null,
+    uploadError = null,
+    pending = false,
+    destination,
+  } = draft ?? {};
+  if (destination !== undefined) return <Navigate to={destination} replace />;
 
   const dish = kind === 'dish';
   const title =
@@ -97,7 +117,7 @@ export function ProductNewPage() {
   const capturedPhotos = picked === null ? [] : [{ blob: picked.blob, filename: picked.filename }];
 
   const toProduct = (productId: string): void => {
-    void navigate(`/products/${productId}`, { replace: true });
+    update({ destination: `/products/${productId}` });
   };
 
   /**
@@ -111,8 +131,9 @@ export function ProductNewPage() {
     }
 
     setProgress(0);
-    upload.mutate(
-      {
+    update({ created: productId, pending: true, uploadError: null });
+    void upload
+      .mutateAsync({
         productId,
         file: picked.blob,
         options: {
@@ -121,20 +142,19 @@ export function ProductNewPage() {
             setProgress(fraction);
           },
         },
-      },
-      {
-        onSuccess: () => {
-          toProduct(productId);
-        },
+      })
+      .then(
+        () => toProduct(productId),
         // The prepared picture stays; the retry button uses it again.
-        onError: () => {
+        (error: Error) => {
           setProgress(null);
+          update({ pending: false, uploadError: error });
         },
-      },
-    );
+      );
   };
 
   const onSubmit = (values: ProductFormValues): void => {
+    if (pending || pick.preparing) return;
     const parsed = createProductSchema.safeParse({
       kind,
       ean,
@@ -152,15 +172,17 @@ export function ProductNewPage() {
     }
 
     setErrors({});
-    setValues(values);
-    create.mutate(parsed.data, {
-      onSuccess: (product) => {
-        // Without a picture the screen is done and hands over; the state in
-        // between would only flash by.
-        if (picked !== null) setCreated(product.id);
+    update({ submitted: values, pending: true, createError: null });
+    // Not `mutate` with callbacks: those are dropped once the screen is left,
+    // and the save has to go on and leave its outcome in the draft.
+    void create.mutateAsync(parsed.data).then(
+      (product) => {
+        // The upload step shows the picture anew; its buttons come into view.
+        revealPhoto.current = true;
         uploadPhoto(product.id);
       },
-    });
+      (error: Error) => update({ pending: false, createError: error }),
+    );
   };
 
   /**
@@ -168,15 +190,16 @@ export function ProductNewPage() {
    * a height, and before that the buttons are not yet where they will end up.
    */
   const revealActions = (): void => {
-    if (actionsRef.current === null) return;
+    if (!revealPhoto.current || actionsRef.current === null) return;
+    revealPhoto.current = false;
     scrollToBottomEdge(actionsRef.current);
   };
 
   /** The product someone else created in the meantime, if that is what failed. */
   const conflictId =
-    isApiError(create.error) && create.error.status === 409
-      ? typeof create.error.details?.productId === 'string'
-        ? create.error.details.productId
+    isApiError(createError) && createError.status === 409
+      ? typeof createError.details?.productId === 'string'
+        ? createError.details.productId
         : null
       : null;
 
@@ -203,14 +226,16 @@ export function ProductNewPage() {
       {created === null ? (
         <>
           <OfflineCapture
-            error={create.error}
+            error={createError}
             onKeep={
               ean === null
                 ? null
                 : () => {
-                    if (values === null) return;
-                    capture.mutate(
-                      {
+                    const values = draft?.submitted;
+                    if (values === undefined || pick.preparing) return;
+                    update({ pending: true });
+                    void capture
+                      .mutateAsync({
                         ean,
                         label: values.name,
                         product: {
@@ -222,34 +247,36 @@ export function ProductNewPage() {
                           priceWatch: values.priceWatch,
                         },
                         photos: capturedPhotos,
-                      },
-                      {
-                        onSuccess: () => {
-                          // There is no product to go to yet; the catalogue is
-                          // where the notice about the queue lives.
-                          void navigate('/', { replace: true });
-                        },
-                      },
-                    );
+                      })
+                      .then(
+                        // There is no product to go to yet; the catalogue is
+                        // where the notice about the queue lives.
+                        () => update({ destination: '/' }),
+                        () => update({ pending: false }),
+                      );
                   }
             }
             kept={capture.isSuccess}
-            pending={capture.isPending}
+            pending={pending || pick.preparing}
           />
 
           <ProductForm
             kind={kind}
             showSimilar={ean === null}
+            initial={draft?.values ?? {}}
+            onChange={(values) => update({ values })}
             onSubmit={onSubmit}
             submitLabel={dish ? strings.product.createDish : strings.product.create}
             pendingLabel={strings.product.creating}
-            pending={create.isPending}
+            pending={pending || pick.preparing}
             errors={errors}
-            error={create.error === null || conflictId !== null ? null : errorMessage(create.error)}
+            error={createError === null || conflictId !== null ? null : errorMessage(createError)}
             secondaryAction={
-              <Link className="button" to="/scan">
-                {strings.common.cancel}
-              </Link>
+              !pending && (
+                <Link className="button" to="/scan" onClick={() => update(null)}>
+                  {strings.common.cancel}
+                </Link>
+              )
             }
             actionsRef={actionsRef}
           >
@@ -257,7 +284,7 @@ export function ProductNewPage() {
               <h2 className="section__title">{strings.photo.newTitle}</h2>
               <p className="section__intro">{strings.photo.newHint}</p>
 
-              <PhotoSources pick={pick} />
+              {!pending && <PhotoSources pick={pick} />}
 
               {pick.preparing && <p role="status">{strings.photo.preparing}</p>}
 
@@ -270,7 +297,7 @@ export function ProductNewPage() {
                       type="button"
                       className="button"
                       onClick={pick.clear}
-                      disabled={create.isPending}
+                      disabled={pending}
                     >
                       {strings.photo.discard}
                     </button>
@@ -302,24 +329,31 @@ export function ProductNewPage() {
             </PhotoPreview>
           )}
 
-          {upload.error !== null && <ErrorNotice message={errorMessage(upload.error)} />}
+          {uploadError !== null && <ErrorNotice message={errorMessage(uploadError)} />}
 
           {/* The product is on the server, only the picture is not. The queue
               finds it again by its EAN and adds the photo to it. */}
           <OfflineCapture
-            error={upload.error}
+            error={uploadError}
             onKeep={
               ean === null
                 ? null
                 : () => {
-                    capture.mutate(
-                      { ean, label: values?.name ?? ean, photos: capturedPhotos },
-                      { onSuccess: () => toProduct(created) },
-                    );
+                    update({ pending: true });
+                    void capture
+                      .mutateAsync({
+                        ean,
+                        label: draft?.submitted?.name ?? ean,
+                        photos: capturedPhotos,
+                      })
+                      .then(
+                        () => toProduct(created),
+                        () => update({ pending: false }),
+                      );
                   }
             }
             kept={capture.isSuccess}
-            pending={capture.isPending}
+            pending={pending}
           />
 
           <div className="form__actions" ref={actionsRef}>
@@ -327,12 +361,17 @@ export function ProductNewPage() {
               type="button"
               className="button button--primary"
               onClick={() => uploadPhoto(created)}
-              disabled={upload.isPending}
+              disabled={pending}
             >
-              {upload.isPending ? strings.photo.uploading : strings.photo.retry}
+              {pending ? strings.photo.uploading : strings.photo.retry}
             </button>
 
-            <Link className="button" to={`/products/${created}`} replace>
+            <Link
+              className="button"
+              to={`/products/${created}`}
+              replace
+              onClick={() => update(null)}
+            >
               {strings.product.toCreated}
             </Link>
           </div>

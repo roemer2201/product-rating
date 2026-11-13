@@ -437,6 +437,7 @@ so freigegeben.
 
 ## Backlog (nach dem MVP)
 
+- [x] Entwurf einer Produkterfassung samt Foto beim Zurücknavigieren wiederherstellen
 - [x] Mehrere Fotos pro Produkt inklusive Sortierung
 - [x] Attribut „Sorte“ am Produkt (Name „5 Minuten Terrine“, Sorte „Spaghetti
       Bolognese“), auch in Suche, Export und Offline-Erfassung

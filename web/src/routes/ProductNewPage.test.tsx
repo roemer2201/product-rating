@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, within } from '@testing-library/react';
+import { act, fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Route, Routes } from 'react-router';
+import { Link, Outlet, Route, Routes, useNavigate } from 'react-router';
+import { AppLayout } from '@/components/AppLayout';
+import { ProductDrafts } from '@/components/ProductDrafts';
 import { ProductNewPage } from '@/routes/ProductNewPage';
 import { listCaptures } from '@/lib/offlineQueue';
 import { strings } from '@/lib/strings';
@@ -21,16 +23,41 @@ import { mockUpload } from '@/testing/xhrMock';
 
 const CATEGORIES = { path: '/categories', body: { categories: CATEGORY_LIST } };
 
-function renderNew() {
+function renderNew(withNavigation = false) {
   return renderWithProviders(
     <Routes>
-      <Route path="/products/new" element={<ProductNewPage />} />
-      <Route path="/products/:id" element={<p>Produktseite</p>} />
-      <Route path="/scan" element={<p>Scannen</p>} />
-      <Route path="/" element={<p>Katalog</p>} />
+      <Route element={withNavigation ? <AppLayout /> : <DraftLayout />}>
+        <Route path="/products/new" element={<ProductNewPage />} />
+        <Route path="/products/:id" element={<p>Produktseite</p>} />
+        <Route path="/settings" element={<HistoryBack label="Zurück aus Einstellungen" />} />
+        <Route
+          path="/scan"
+          element={
+            <>
+              <p>Scannen</p>
+              <Link to={`/products/new?ean=${TEST_EAN}`}>Neu erfassen</Link>
+              <HistoryBack label="Zurück vom Scanner" />
+            </>
+          }
+        />
+        <Route path="/" element={<p>Katalog</p>} />
+      </Route>
     </Routes>,
     { route: `/products/new?ean=${TEST_EAN}` },
   );
+}
+
+function DraftLayout() {
+  return (
+    <ProductDrafts>
+      <Outlet />
+    </ProductDrafts>
+  );
+}
+
+function HistoryBack({ label }: { label: string }) {
+  const navigate = useNavigate();
+  return <button onClick={() => void navigate(-1)}>{label}</button>;
 }
 
 /** The name is the only field the save insists on. */
@@ -101,10 +128,12 @@ describe('ProductNewPage', () => {
     ]);
 
     renderWithProviders(
-      <Routes>
-        <Route path="/products/new" element={<ProductNewPage />} />
-        <Route path="/products/:id" element={<p>Produktseite</p>} />
-      </Routes>,
+      <ProductDrafts>
+        <Routes>
+          <Route path="/products/new" element={<ProductNewPage />} />
+          <Route path="/products/:id" element={<p>Produktseite</p>} />
+        </Routes>
+      </ProductDrafts>,
       { route: '/products/new?kind=dish' },
     );
 
@@ -143,9 +172,11 @@ describe('ProductNewPage', () => {
     ]);
 
     renderWithProviders(
-      <Routes>
-        <Route path="/products/new" element={<ProductNewPage />} />
-      </Routes>,
+      <ProductDrafts>
+        <Routes>
+          <Route path="/products/new" element={<ProductNewPage />} />
+        </Routes>
+      </ProductDrafts>,
       { route: '/products/new?kind=product' },
     );
 
@@ -174,6 +205,60 @@ describe('ProductNewPage', () => {
     await user.click(screen.getByRole('button', { name: strings.product.create }));
 
     expect(await screen.findByText('Produktseite')).toBeInTheDocument();
+  });
+
+  it('restores the draft after opening settings and going back in history', async () => {
+    const user = userEvent.setup();
+    mockFetch([
+      CATEGORIES,
+      { path: '/auth/me', body: { user: testUser } },
+      { path: '/products', method: 'POST', status: 201, body: { product: makeProduct() } },
+    ]);
+    const upload = mockUpload();
+
+    renderNew(true);
+    await screen.findByText(testUser.displayName ?? testUser.username);
+    await fillName(user);
+    await user.type(screen.getByLabelText(new RegExp(strings.fields.notes)), 'Ohne Zucker');
+    await user.click(await screen.findByRole('checkbox', { name: 'Getränke' }));
+    await user.click(screen.getByRole('checkbox', { name: strings.product.priceWatch }));
+    await user.upload(screen.getByLabelText(strings.photo.choose), pickedFile());
+    await screen.findByAltText(strings.photo.previewAlt);
+
+    await user.click(screen.getByRole('link', { name: strings.nav.settings }));
+    expect(screen.queryByLabelText(strings.fields.name)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Zurück aus Einstellungen' }));
+
+    expect(screen.getByLabelText(strings.fields.name)).toHaveValue('Apfelsaft');
+    expect(screen.getByLabelText(new RegExp(strings.fields.notes))).toHaveValue('Ohne Zucker');
+    expect(screen.getByRole('checkbox', { name: 'Getränke' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: strings.product.priceWatch })).toBeChecked();
+    expect(await screen.findByAltText(strings.photo.previewAlt)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: strings.product.create }));
+    await screen.findByText(strings.product.created);
+    expect(upload().url).toContain('/products/prod-1/photos');
+
+    await user.click(screen.getByRole('link', { name: strings.nav.settings }));
+    await act(async () => upload().respond(201, { photo: { id: 'photo-1' } }));
+    await user.click(screen.getByRole('button', { name: 'Zurück aus Einstellungen' }));
+    expect(await screen.findByText('Produktseite')).toBeInTheDocument();
+  });
+
+  it('starts a fresh form after cancel and when the same EAN is opened again', async () => {
+    const user = userEvent.setup();
+    mockFetch([CATEGORIES, { path: '/auth/me', body: { user: testUser } }]);
+
+    renderNew(true);
+    await screen.findByText(testUser.displayName ?? testUser.username);
+    await fillName(user);
+    await user.click(screen.getByRole('link', { name: strings.common.cancel }));
+    await user.click(screen.getByRole('button', { name: 'Zurück vom Scanner' }));
+    expect(screen.getByLabelText(strings.fields.name)).toHaveValue('');
+
+    await fillName(user);
+    await user.click(screen.getByRole('link', { name: strings.nav.scan }));
+    await user.click(screen.getByRole('link', { name: 'Neu erfassen' }));
+    expect(screen.getByLabelText(strings.fields.name)).toHaveValue('');
   });
 
   it('offers the frequent categories as boxes and the others in a dropdown', async () => {

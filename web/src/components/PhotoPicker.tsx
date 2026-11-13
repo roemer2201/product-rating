@@ -71,32 +71,52 @@ export interface PhotoPick {
 }
 
 interface PhotoPickOptions {
+  /** A picture prepared earlier, for a screen that is shown again. */
+  initial?: PreparedPhoto | null;
+  /** Runs with every new picture and with `null` when it is discarded. */
+  onChange?: (photo: PreparedPhoto | null) => void;
   /** Runs before a new file is prepared, so a screen can clear what it showed. */
   onStart?: () => void;
 }
 
 /** Holds the picked picture; `PhotoSources` and `PhotoPreview` display it. */
-export function usePhotoPick({ onStart }: PhotoPickOptions = {}): PhotoPick {
+export function usePhotoPick({
+  initial = null,
+  onChange,
+  onStart,
+}: PhotoPickOptions = {}): PhotoPick {
   // One ref per source: whichever one was used has to be emptied afterwards,
   // or picking the same file again fires no `change` event.
   const cameraRef = useRef<HTMLInputElement>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
 
-  const [picked, setPicked] = useState<PreparedPhoto | null>(null);
+  const [picked, setPicked] = useState(initial);
   const [preview, setPreview] = useState<string | null>(null);
   const [preparing, setPreparing] = useState(false);
+  const latestPick = useRef(0);
 
   // An object URL is a reference the browser holds until it is told otherwise.
   useEffect(() => {
-    if (preview === null) return;
+    const url = picked === null ? null : URL.createObjectURL(picked.blob);
+    setPreview(url);
     return () => {
-      URL.revokeObjectURL(preview);
+      if (url !== null) URL.revokeObjectURL(url);
     };
-  }, [preview]);
+  }, [picked]);
+
+  // A picture still being prepared when the screen goes away is dropped, as
+  // is one overtaken by a newer pick or a discard.
+  useEffect(() => {
+    return () => {
+      latestPick.current += 1;
+    };
+  }, []);
 
   const clear = (): void => {
+    latestPick.current += 1;
     setPicked(null);
-    setPreview(null);
+    setPreparing(false);
+    onChange?.(null);
     for (const ref of [cameraRef, libraryRef]) {
       if (ref.current !== null) ref.current.value = '';
     }
@@ -106,15 +126,17 @@ export function usePhotoPick({ onStart }: PhotoPickOptions = {}): PhotoPick {
     const file = event.target.files?.[0];
     if (file === undefined) return;
 
+    const request = ++latestPick.current;
     onStart?.();
     setPreparing(true);
 
     try {
       const prepared = await preparePhoto(file);
+      if (request !== latestPick.current) return;
       setPicked(prepared);
-      setPreview(URL.createObjectURL(prepared.blob));
+      onChange?.(prepared);
     } finally {
-      setPreparing(false);
+      if (request === latestPick.current) setPreparing(false);
     }
   };
 
