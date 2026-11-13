@@ -5,6 +5,18 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-11-13 – Entwurf beim Zurücknavigieren wiederherstellen
+
+- Beim Wechsel von der Produkterfassung in einen anderen Bereich der PWA
+  bleiben Formulardaten und ausgewähltes Foto am Eintrag im Browserverlauf.
+  Beim Zurücknavigieren lässt sich die Erfassung dort fortsetzen. Eine neu
+  geöffnete Erfassung beginnt leer, auch bei identischer EAN.
+- Abbrechen verwirft den Entwurf. Ein laufender Speichervorgang bleibt beim
+  Seitenwechsel erhalten und führt beim Zurücknavigieren zum gespeicherten
+  Produkt oder zeigt den Stand des Foto-Uploads.
+- Entwürfe bleiben im Arbeitsspeicher der angemeldeten App. Sie sind bis zum
+  Neuladen oder Abmelden verfügbar.
+
 ## 2026-11-10 – Darstellung je Konto: Layouts, Modus, Farbpaletten (0.13.0)
 
 - Anlass: Frage des Projektinhabers, ob sich „Themes“ einbauen lassen, die

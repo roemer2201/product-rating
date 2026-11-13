@@ -2,6 +2,7 @@ import { Outlet } from 'react-router';
 import { AppearanceSync } from '@/components/AppearanceSync';
 import { BottomNav } from '@/components/BottomNav';
 import { OfflineBanner } from '@/components/OfflineNotice';
+import { ProductDrafts } from '@/components/ProductDrafts';
 import { SyncGate } from '@/components/SyncGate';
 import { UpdatePrompt } from '@/components/UpdatePrompt';
 import { useSession } from '@/lib/queries';
@@ -46,7 +47,9 @@ export function AppLayout() {
       </header>
 
       <main className="app-main">
-        <Outlet />
+        <ProductDrafts key={session.data?.id}>
+          <Outlet />
+        </ProductDrafts>
       </main>
 
       <div className="toast-stack">
