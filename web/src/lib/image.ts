@@ -34,7 +34,11 @@ export interface PreparedPhoto {
 }
 
 /** `canvas.toBlob` as a promise; it reports failure as `null`. */
-function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob> {
+export function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  type: string,
+  quality: number,
+): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
       (blob) => {
@@ -48,7 +52,7 @@ function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number):
 }
 
 /** Replaces the extension, since the re-encoded picture is always a JPEG. */
-function jpegName(filename: string): string {
+export function jpegName(filename: string): string {
   const base = filename.replace(/\.[^./\\]+$/, '');
   return `${base === '' ? 'photo' : base}.jpg`;
 }

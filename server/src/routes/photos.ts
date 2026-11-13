@@ -7,6 +7,7 @@ import {
   deletePhoto,
   findPhotoById,
   movePhoto,
+  replacePhoto,
   setPrimaryPhoto,
   statPhotoFile,
   storePhoto,
@@ -96,6 +97,18 @@ export function parseByteRange(
 export function registerPhotoRoutes(app: FastifyInstance): void {
   const limitMb = app.config.uploads.max_file_size_mb;
 
+  async function readUpload(request: FastifyRequest) {
+    try {
+      const part = await request.file();
+      if (part === undefined) {
+        throw new ValidationError(`no image in the request; expected the field "${PHOTO_FIELD}"`);
+      }
+      return { data: await part.toBuffer(), mimetype: part.mimetype };
+    } catch (error) {
+      throw uploadError(error, limitMb);
+    }
+  }
+
   /**
    * Adds a photo to a product. The image arrives as `multipart/form-data` in
    * the field `photo`; anything the client says about type or file name is
@@ -107,18 +120,7 @@ export function registerPhotoRoutes(app: FastifyInstance): void {
     async (request, reply) => {
       const user = currentUser(request);
 
-      let data: Buffer;
-      let claimed: { filename: string; mimetype: string };
-      try {
-        const part = await request.file();
-        if (part === undefined) {
-          throw new ValidationError(`no image in the request; expected the field "${PHOTO_FIELD}"`);
-        }
-        claimed = { filename: part.filename, mimetype: part.mimetype };
-        data = await part.toBuffer();
-      } catch (error) {
-        throw uploadError(error, limitMb);
-      }
+      const { data, mimetype } = await readUpload(request);
 
       const stored = await storePhoto({
         db: app.db,
@@ -134,13 +136,37 @@ export function registerPhotoRoutes(app: FastifyInstance): void {
           productId: request.params.id,
           by: user.id,
           source: stored.sourceFormat,
-          claimedMime: claimed.mimetype,
+          claimedMime: mimetype,
           bytes: stored.bytes,
         },
         'photo stored',
       );
 
       return reply.code(201).send({ photo: stored.photo satisfies Photo });
+    },
+  );
+
+  app.put<{ Params: { id: string } }>(
+    '/api/v1/photos/:id/image',
+    { preHandler: app.requireUser },
+    async (request) => {
+      const user = currentUser(request);
+      const { data } = await readUpload(request);
+      const stored = await replacePhoto(
+        app.db,
+        app.config,
+        user,
+        request.params.id,
+        data,
+        (err) => {
+          request.log.error({ err, photoId: request.params.id }, 'photo cleanup failed');
+        },
+      );
+      request.log.info(
+        { photoId: stored.photo.id, previousId: request.params.id, by: user.id },
+        'photo replaced',
+      );
+      return { photo: stored.photo };
     },
   );
 

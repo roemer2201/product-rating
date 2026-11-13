@@ -3,7 +3,12 @@ import { Link, Navigate, useLocation, useSearchParams } from 'react-router';
 import { createProductSchema, normaliseEan, type ProductKind } from '@product-rating/shared';
 import { ErrorNotice } from '@/components/Feedback';
 import { OfflineCapture } from '@/components/OfflineCapture';
-import { PhotoPreview, PhotoSources, usePhotoPick } from '@/components/PhotoPicker';
+import {
+  EditPickedPhoto,
+  PhotoPreview,
+  PhotoSources,
+  usePhotoPick,
+} from '@/components/PhotoPicker';
 import { useProductDraft } from '@/components/ProductDrafts';
 import { ProductForm, type ProductFormValues } from '@/components/ProductForm';
 import { errorMessage, isApiError } from '@/lib/api';
@@ -290,9 +295,8 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
 
               {preview !== null && picked !== null && (
                 <PhotoPreview src={preview} onShown={revealActions}>
-                  {/* Its own row, so the button keeps the width it needs
-                      instead of stretching across the preview. */}
                   <div className="form__actions">
+                    <EditPickedPhoto pick={pick} disabled={pending} />
                     <button
                       type="button"
                       className="button"

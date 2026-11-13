@@ -7,7 +7,7 @@ import { PHOTO_FIELD, type Photo, type PhotoSize } from '@product-rating/shared'
 import type { AppConfig } from '../config/index.js';
 import type { DbHandle } from '../db/index.js';
 import { photos, products, type PhotoRow } from '../db/index.js';
-import { ForbiddenError, NotFoundError, ValidationError } from './errors.js';
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from './errors.js';
 
 /**
  * Product photos: storing them, serving them and finding the ones that got
@@ -376,6 +376,62 @@ export async function storePhoto(options: StorePhotoOptions): Promise<StoredPhot
 export interface RemovedPhoto {
   photo: Photo;
   filesRemoved: number;
+}
+
+/** Replace the gallery entry only after both new derivatives are available. */
+export async function replacePhoto(
+  db: DbHandle,
+  config: AppConfig,
+  user: { id: string; role: string },
+  photoId: string,
+  data: Buffer,
+  onCleanupError: (error: unknown) => void,
+): Promise<StoredPhoto> {
+  const previous = findPhotoById(db, photoId);
+  if (previous === undefined) throw new NotFoundError('photo not found');
+  requireOwnership(previous, user);
+
+  const image = await processImage(config, data);
+  const id = randomUUID();
+  const replacement: PhotoRow = {
+    ...previous,
+    id,
+    filename: newDetailPath(previous.productId, id),
+    mime: PHOTO_MIME,
+    width: image.width,
+    height: image.height,
+  };
+
+  let saved: PhotoRow;
+  try {
+    await writeAtomically(config, photoFilePath(config, replacement, 'full'), image.detail);
+    await writeAtomically(config, photoFilePath(config, replacement, 'thumb'), image.thumbnail);
+    // Update only image fields so a concurrent reorder remains in effect.
+    const row = db
+      .update(photos)
+      .set({
+        id,
+        filename: replacement.filename,
+        mime: PHOTO_MIME,
+        width: image.width,
+        height: image.height,
+      })
+      .where(eq(photos.id, photoId))
+      .returning()
+      .get();
+    if (row === undefined) throw new ConflictError('the photo has changed');
+    saved = row;
+  } catch (error) {
+    await removePhotoFiles(config, [replacement]).catch(onCleanupError);
+    throw error;
+  }
+
+  await removePhotoFiles(config, [previous]).catch(onCleanupError);
+  return {
+    photo: toPublicPhoto(saved),
+    sourceFormat: image.sourceFormat,
+    bytes: image.detail.length + image.thumbnail.length,
+  };
 }
 
 /** Removes a photo and its files. Owner or administrator. */

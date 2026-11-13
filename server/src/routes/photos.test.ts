@@ -87,6 +87,16 @@ async function uploadPhoto(cookie = annaCookie, product = productId): Promise<Ph
   return response.json().photo as Photo;
 }
 
+function editPhoto(photo: Photo, data: Buffer, cookie = annaCookie) {
+  const body = multipart(data);
+  return harness.app.inject({
+    method: 'PUT',
+    url: `/api/v1/photos/${photo.id}/image`,
+    headers: { ...writeHeaders(cookie), 'content-type': body.contentType },
+    payload: body.payload,
+  });
+}
+
 async function readProduct(id = productId, cookie = annaCookie): Promise<ProductDetail> {
   const response = await harness.app.inject({
     method: 'GET',
@@ -138,6 +148,51 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await harness.close();
+});
+
+describe('replacing a photo', () => {
+  it('keeps ownership and gallery order, and serves new bytes under a new ID', async () => {
+    const original = await uploadPhoto();
+    const second = await uploadPhoto();
+    const originalRow = findPhotoById(harness.app.db, original.id)!;
+
+    const result = await editPhoto(original, await testJpeg(300, 450), adminCookie);
+    expect(result.statusCode).toBe(200);
+    const edited = result.json().photo as Photo;
+    expect(edited).toMatchObject({
+      userId: annaId,
+      productId,
+      createdAt: original.createdAt,
+      width: 300,
+      height: 450,
+      isPrimary: true,
+    });
+    expect(edited.id).not.toBe(original.id);
+    expect((await readProduct()).photos.map(({ id }) => id)).toEqual([edited.id, second.id]);
+    expect(existsSync(photoFilePath(harness.config, originalRow, 'full'))).toBe(false);
+    expect(existsSync(photoFilePath(harness.config, originalRow, 'thumb'))).toBe(false);
+    for (const size of ['full', 'thumb']) {
+      const response = await harness.app.inject({
+        method: 'GET',
+        url: `/api/v1/media/${edited.id}?size=${size}`,
+        headers: { cookie: annaCookie },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.headers.etag).toBe(`"${edited.id}-${size}"`);
+      const metadata = await sharp(response.rawPayload).metadata();
+      expect(metadata.height).toBeGreaterThan(metadata.width);
+    }
+  });
+
+  it('keeps the original after an invalid file or a save by another account', async () => {
+    const original = await uploadPhoto();
+    expect((await editPhoto(original, await testJpeg(), bertCookie)).statusCode).toBe(403);
+    expect((await editPhoto(original, Buffer.from('invalid'), annaCookie)).statusCode).toBe(400);
+    expect((await readProduct()).photos).toEqual([original]);
+    const row = findPhotoById(harness.app.db, original.id)!;
+    expect(existsSync(photoFilePath(harness.config, row, 'full'))).toBe(true);
+    expect(existsSync(photoFilePath(harness.config, row, 'thumb'))).toBe(true);
+  });
 });
 
 describe('uploading a photo', () => {

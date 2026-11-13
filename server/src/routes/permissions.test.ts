@@ -263,6 +263,12 @@ const ROUTES: RouteRule[] = [
   },
   {
     method: 'PUT',
+    url: `/api/v1/photos/${UNKNOWN_ID}/image`,
+    pattern: '/api/v1/photos/:id/image',
+    access: 'user',
+  },
+  {
+    method: 'PUT',
     url: `/api/v1/photos/${UNKNOWN_ID}/primary`,
     pattern: '/api/v1/photos/:id/primary',
     access: 'user',

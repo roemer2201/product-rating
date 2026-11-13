@@ -7,6 +7,7 @@ import {
   type RefObject,
 } from 'react';
 import { CameraIcon, PhotoIcon } from '@/components/icons';
+import { PhotoEditButton } from '@/components/PhotoEditor';
 import { preparePhoto, type PreparedPhoto } from '@/lib/image';
 import { strings } from '@/lib/strings';
 
@@ -67,6 +68,7 @@ export interface PhotoPick {
   cameraRef: RefObject<HTMLInputElement | null>;
   libraryRef: RefObject<HTMLInputElement | null>;
   onPick: (event: ChangeEvent<HTMLInputElement>) => void;
+  replace: (photo: PreparedPhoto) => void;
   clear: () => void;
 }
 
@@ -133,11 +135,15 @@ export function usePhotoPick({
     try {
       const prepared = await preparePhoto(file);
       if (request !== latestPick.current) return;
-      setPicked(prepared);
-      onChange?.(prepared);
+      replace(prepared);
     } finally {
       if (request === latestPick.current) setPreparing(false);
     }
+  };
+
+  const replace = (photo: PreparedPhoto): void => {
+    setPicked(photo);
+    onChange?.(photo);
   };
 
   return {
@@ -147,6 +153,7 @@ export function usePhotoPick({
     cameraRef,
     libraryRef,
     onPick: (event) => void take(event),
+    replace,
     clear,
   };
 }
@@ -170,6 +177,19 @@ export function PhotoSources({ pick }: { pick: PhotoPick }) {
         onPick={pick.onPick}
       />
     </div>
+  );
+}
+
+export function EditPickedPhoto({ pick, disabled }: { pick: PhotoPick; disabled: boolean }) {
+  const { picked, preview } = pick;
+  if (picked === null || preview === null) return null;
+  return (
+    <PhotoEditButton
+      src={preview}
+      filename={picked.filename}
+      disabled={disabled || pick.preparing}
+      onSave={(blob, filename) => pick.replace({ ...picked, blob, filename })}
+    />
   );
 }
 

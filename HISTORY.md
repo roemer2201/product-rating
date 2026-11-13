@@ -5,6 +5,17 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-11-13 – Fotoeditor für Vorschau und Galerie
+
+- Der Fotoeditor bietet einen frei wählbaren Ausschnitt, Drehungen um 90 Grad
+  und einen Portrait-Effekt mit einstellbarem Schärfebereich. Die Berechnung
+  bleibt im Browser. In der Vorschau übernimmt die App das Ergebnis für den
+  späteren Upload, einschließlich der Offline-Erfassung.
+- In der Galerie dürfen Eigentümer und Administratoren ein Bild ersetzen.
+  Beide neuen Ableitungen werden vor dem Austausch geschrieben. Die Bild-ID
+  wechselt für die zwischengespeicherten URLs. Eigentümer, Erstellungszeitpunkt
+  und Galerieposition bleiben erhalten.
+
 ## 2026-11-13 – Entwurf beim Zurücknavigieren wiederherstellen (0.13.1)
 
 - Beim Wechsel von der Produkterfassung in einen anderen Bereich der PWA

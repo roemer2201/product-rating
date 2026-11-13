@@ -537,6 +537,25 @@ export interface PhotoVariables {
   productId: string;
 }
 
+interface ReplacePhotoVariables extends PhotoVariables {
+  file: Blob;
+  filename: string;
+}
+
+export function useReplacePhoto() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ photoId, file, filename }: ReplacePhotoVariables) =>
+      (await api.photos.replace(photoId, file, filename)).photo,
+    onSettled: (_photo, _error, { productId }) => {
+      void client.invalidateQueries({ queryKey: queryKeys.products.byId(productId) });
+      void client.invalidateQueries({ queryKey: queryKeys.products.all });
+      void client.invalidateQueries({ queryKey: queryKeys.ratings.all });
+    },
+  });
+}
+
 export function useDeletePhoto(): UseMutationResult<void, Error, PhotoVariables> {
   const client = useQueryClient();
 

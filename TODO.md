@@ -437,6 +437,7 @@ so freigegeben.
 
 ## Backlog (nach dem MVP)
 
+- [x] Fotos in der Vorschau und in der Galerie zuschneiden, drehen und mit einem Portrait-Effekt bearbeiten
 - [x] Entwurf einer Produkterfassung samt Foto beim Zurücknavigieren wiederherstellen
 - [x] Mehrere Fotos pro Produkt inklusive Sortierung
 - [x] Attribut „Sorte“ am Produkt (Name „5 Minuten Terrine“, Sorte „Spaghetti
