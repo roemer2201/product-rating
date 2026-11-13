@@ -71,7 +71,9 @@ export interface PhotoPick {
 }
 
 interface PhotoPickOptions {
+  /** A picture prepared earlier, for a screen that is shown again. */
   initial?: PreparedPhoto | null;
+  /** Runs with every new picture and with `null` when it is discarded. */
   onChange?: (photo: PreparedPhoto | null) => void;
   /** Runs before a new file is prepared, so a screen can clear what it showed. */
   onStart?: () => void;
@@ -102,6 +104,8 @@ export function usePhotoPick({
     };
   }, [picked]);
 
+  // A picture still being prepared when the screen goes away is dropped, as
+  // is one overtaken by a newer pick or a discard.
   useEffect(() => {
     return () => {
       latestPick.current += 1;

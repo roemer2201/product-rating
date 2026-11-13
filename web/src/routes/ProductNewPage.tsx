@@ -72,7 +72,13 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
   const capture = useEnqueueCapture();
   const [errors, setErrors] = useState<FieldErrors>({});
   const [progress, setProgress] = useState<number | null>(null);
+  // The button row the picture is meant to stand above.
   const actionsRef = useRef<HTMLDivElement>(null);
+  /**
+   * Whether the next loaded picture should bring the buttons into view. Set
+   * for a fresh pick and for the switch to the upload step, not for a draft
+   * restored on the way back, which should open where the reader left it.
+   */
   const revealPhoto = useRef(false);
 
   const pick = usePhotoPick({
@@ -82,6 +88,7 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
     },
     onChange: (photo) => update({ photo }),
   });
+  // As constants, because the narrowing has to survive into the callbacks.
   const { picked, preview } = pick;
   const {
     created = null,
@@ -138,6 +145,7 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
       })
       .then(
         () => toProduct(productId),
+        // The prepared picture stays; the retry button uses it again.
         (error: Error) => {
           setProgress(null);
           update({ pending: false, uploadError: error });
@@ -165,8 +173,14 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
 
     setErrors({});
     update({ submitted: values, pending: true, createError: null });
+    // Not `mutate` with callbacks: those are dropped once the screen is left,
+    // and the save has to go on and leave its outcome in the draft.
     void create.mutateAsync(parsed.data).then(
-      (product) => uploadPhoto(product.id),
+      (product) => {
+        // The upload step shows the picture anew; its buttons come into view.
+        revealPhoto.current = true;
+        uploadPhoto(product.id);
+      },
       (error: Error) => update({ pending: false, createError: error }),
     );
   };
@@ -235,6 +249,8 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
                         photos: capturedPhotos,
                       })
                       .then(
+                        // There is no product to go to yet; the catalogue is
+                        // where the notice about the queue lives.
                         () => update({ destination: '/' }),
                         () => update({ pending: false }),
                       );

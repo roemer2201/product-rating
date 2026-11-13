@@ -5,7 +5,7 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
-## 2026-11-13 – Entwurf beim Zurücknavigieren wiederherstellen
+## 2026-11-13 – Entwurf beim Zurücknavigieren wiederherstellen (0.13.1)
 
 - Beim Wechsel von der Produkterfassung in einen anderen Bereich der PWA
   bleiben Formulardaten und ausgewähltes Foto am Eintrag im Browserverlauf.
@@ -16,6 +16,9 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
   Produkt oder zeigt den Stand des Foto-Uploads.
 - Entwürfe bleiben im Arbeitsspeicher der angemeldeten App. Sie sind bis zum
   Neuladen oder Abmelden verfügbar.
+- Review: Nach „Produkt anlegen“ mit Foto rückt die Seite wieder die Knöpfe
+  zum Hochladen in Sichtweite, wie vor der Änderung. Beim Wiederherstellen
+  eines Entwurfs bleibt die Seite dagegen stehen.
 
 ## 2026-11-10 – Darstellung je Konto: Layouts, Modus, Farbpaletten (0.13.0)
 

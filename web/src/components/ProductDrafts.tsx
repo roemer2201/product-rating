@@ -3,12 +3,21 @@ import { useLocation } from 'react-router';
 import type { ProductFormValues } from '@/components/ProductForm';
 import type { PreparedPhoto } from '@/lib/image';
 
+/**
+ * What one product entry holds while it is not on screen. Kept in memory only:
+ * a reload or a sign-out ends it, which is also where the picture would go.
+ */
 interface ProductDraft {
+  /** The form as it stands. */
   values?: ProductFormValues;
+  /** The form as it was sent, for the offer to keep it offline. */
   submitted?: ProductFormValues;
   photo?: PreparedPhoto | null;
+  /** Set once the product exists; from then on only the photo is left. */
   created?: string;
+  /** Where the entry is done and hands over; replaces everything else. */
   destination?: string;
+  /** A save, upload or offline capture still running. */
   pending?: boolean;
   createError?: Error | null;
   uploadError?: Error | null;
