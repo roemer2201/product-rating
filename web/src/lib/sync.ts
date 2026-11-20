@@ -7,6 +7,7 @@ import {
   removeCapture,
   removePhotoReplacementIfCurrent,
   saveCapture,
+  settlePhotoReplacement,
   updatePhotoReplacementIfCurrent,
   type Capture,
   type CaptureConflict,
@@ -353,17 +354,28 @@ async function syncReplacement(entry: PhotoReplacement): Promise<'synced' | 'con
       filename: entry.filename,
       ...requestOwner(entry),
     });
-  } else {
-    try {
-      await api.photos.replace(entry.photoId, entry.blob, entry.filename, requestOwner(entry));
-    } catch (error) {
-      if (!isApiError(error) || error.status !== 404) throw error;
-      await updatePhotoReplacementIfCurrent(entry, { state: 'conflict', lastError: null });
-      return 'conflict';
-    }
+    await removePhotoReplacementIfCurrent(entry);
+    return 'synced';
   }
 
-  await removePhotoReplacementIfCurrent(entry);
+  let replaced: string;
+  try {
+    const { photo } = await api.photos.replace(
+      entry.photoId,
+      entry.blob,
+      entry.filename,
+      requestOwner(entry),
+    );
+    replaced = photo.id;
+  } catch (error) {
+    if (!isApiError(error) || error.status !== 404) throw error;
+    await updatePhotoReplacementIfCurrent(entry, { state: 'conflict', lastError: null });
+    return 'conflict';
+  }
+
+  // A newer edit of the same photo, saved while this one was uploading, now
+  // belongs to the photo under its new identifier.
+  await settlePhotoReplacement(entry.ownerId, entry.photoId, entry.revision, replaced);
   return 'synced';
 }
 

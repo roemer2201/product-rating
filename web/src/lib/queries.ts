@@ -61,6 +61,7 @@ import {
   assignCapture,
   removeCapture,
   removePhotoReplacementIfCurrent,
+  settlePhotoReplacement,
   type Capture,
   type NewCapture,
   type NewPhotoReplacement,
@@ -563,8 +564,12 @@ export function useReplacePhoto() {
           ? undefined
           : await getPhotoReplacement(owner, photoId).catch(() => undefined);
       const { photo } = await api.photos.replace(photoId, file, filename);
-      if (waiting !== undefined) {
-        await removePhotoReplacementIfCurrent(waiting).catch(() => undefined);
+      // The edit this save started from is done; one kept while it was on its
+      // way moves along to the photo's new identifier.
+      if (owner !== null) {
+        await settlePhotoReplacement(owner, photoId, waiting?.revision, photo.id).catch(
+          () => undefined,
+        );
       }
       return photo;
     },

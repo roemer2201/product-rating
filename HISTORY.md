@@ -33,6 +33,16 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
     Update in einem anderen Tab nicht blockiert wird.
   - Gesendet wird mit `x-capture-owner` wie bei den Erfassungen; ein
     Kontowechsel hält den Lauf an.
+- Review (21.11.2026): Jede vorgemerkte Bearbeitung trägt eine `revision`.
+  Eine Antwort auf einen älteren Upload löscht oder ändert einen Eintrag nur
+  noch, wenn dort dieselbe Revision steht, geprüft in derselben
+  IndexedDB-Transaktion. Vorher konnte eine Bearbeitung, die während eines
+  laufenden Uploads gespeichert wurde, verloren gehen oder fälschlich als
+  Konflikt enden. Ergänzend wird eine solche neuere Bearbeitung nach einem
+  erfolgreichen Ersetzen auf die neue Foto-ID umgehängt
+  (`settlePhotoReplacement`); sonst hätte sie beim nächsten Lauf einen `404`
+  bekommen und als neues Foto ein Duplikat erzeugt. Das gilt auch, wenn das
+  Ersetzen direkt aus der Galerie gelingt.
 - Bekannte Grenze: Offline lässt sich nur ein Foto im Editor öffnen, dessen
   Bild in voller Größe schon im Browser-Cache liegt (README 2.3). Steht als
   Prüfpunkt in TODO.md.

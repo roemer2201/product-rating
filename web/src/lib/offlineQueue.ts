@@ -519,6 +519,46 @@ export function removePhotoReplacementIfCurrent(entry: PhotoReplacement): Promis
   });
 }
 
+/**
+ * Settles the queue after a photo was replaced on the server, which gives it a
+ * new identifier.
+ *
+ * The edit that was sent leaves the queue. An edit saved while the request was
+ * on its way - a different revision, or any edit when none was sent from the
+ * queue - is newer work: it is moved to the new identifier, so it replaces the
+ * photo as it is now instead of finding the old identifier gone and ending up
+ * as a conflict, or as a duplicate photo. One transaction, like the checks
+ * above, so another tab cannot slip in between.
+ */
+export async function settlePhotoReplacement(
+  ownerId: string,
+  photoId: string,
+  sentRevision: string | undefined,
+  replacedBy: string,
+): Promise<'removed' | 'moved' | 'none'> {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(REPLACEMENTS, 'readwrite', { durability: 'strict' });
+    const store = transaction.objectStore(REPLACEMENTS);
+    const request = store.get([ownerId, photoId]) as IDBRequest<PhotoReplacement | undefined>;
+    let outcome: 'removed' | 'moved' | 'none' = 'none';
+    request.onsuccess = () => {
+      const current = request.result;
+      if (current === undefined) return;
+      store.delete([ownerId, photoId]);
+      if (sentRevision !== undefined && current.revision === sentRevision) {
+        outcome = 'removed';
+        return;
+      }
+      store.put({ ...current, photoId: replacedBy, updatedAt: Date.now() });
+      outcome = 'moved';
+    };
+    transaction.oncomplete = () => resolve(outcome);
+    transaction.onabort = () =>
+      reject(transaction.error ?? new Error('the photo replacement could not be changed'));
+  });
+}
+
 /** Do not change the status of a newer edit after an older request fails. */
 export function updatePhotoReplacementIfCurrent(
   entry: PhotoReplacement,

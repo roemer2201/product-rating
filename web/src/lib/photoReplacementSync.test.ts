@@ -8,6 +8,7 @@ import {
   listCaptures,
   listPhotoReplacements,
   removePhotoReplacementIfCurrent,
+  settlePhotoReplacement,
   updatePhotoReplacementIfCurrent,
   type PhotoReplacement,
 } from '@/lib/offlineQueue';
@@ -69,6 +70,28 @@ describe('the photo replacement queue', () => {
     ]);
   });
 
+  it('settles a replacement: the sent edit leaves, a newer one moves to the new photo', async () => {
+    const sent = await keep('photo-1', 'sent.jpg');
+    expect(await settlePhotoReplacement(testUser.id, 'photo-1', sent.revision, 'photo-2')).toBe(
+      'removed',
+    );
+    expect(await listPhotoReplacements()).toEqual([]);
+
+    // A save from the gallery that did not start from a queued edit: whatever
+    // is queued by the time it lands is newer and follows the photo.
+    await keep('photo-1', 'queued-meanwhile.jpg');
+    expect(await settlePhotoReplacement(testUser.id, 'photo-1', undefined, 'photo-2')).toBe(
+      'moved',
+    );
+    expect(await listPhotoReplacements()).toMatchObject([
+      { photoId: 'photo-2', filename: 'queued-meanwhile.jpg' },
+    ]);
+
+    expect(await settlePhotoReplacement(testUser.id, 'photo-9', undefined, 'photo-10')).toBe(
+      'none',
+    );
+  });
+
   it('belongs to the account that made the edit', async () => {
     await keep();
     confirmCaptureOwner('someone-else');
@@ -88,7 +111,7 @@ describe('sending photo replacements', () => {
     expect(await listPhotoReplacements()).toEqual([]);
   });
 
-  it('preserves a newer edit queued while the older replacement is uploading', async () => {
+  it('moves a newer edit, queued while the older one was uploading, to the new photo', async () => {
     await keep('photo-1', 'first.jpg');
     let finish: ((response: { photo: ReturnType<typeof makePhoto> }) => void) | undefined;
     const replace = vi.spyOn(api.photos, 'replace').mockImplementation(
@@ -102,11 +125,23 @@ describe('sending photo replacements', () => {
     await vi.waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
     const newer = await keep('photo-1', 'second.jpg');
 
-    finish!({ photo: makePhoto() });
+    // Replacing gives the photo a new identifier; the old one is gone.
+    finish!({ photo: makePhoto({ id: 'photo-2' }) });
     expect((await sending).synced).toBe(1);
     expect(await listPhotoReplacements()).toMatchObject([
-      { revision: newer.revision, filename: 'second.jpg', state: 'pending' },
+      { photoId: 'photo-2', revision: newer.revision, filename: 'second.jpg', state: 'pending' },
     ]);
+
+    // The next run replaces the photo as it is now, not the one that is gone.
+    replace.mockResolvedValue({ photo: makePhoto({ id: 'photo-3' }) });
+    expect((await syncCaptures()).synced).toBe(1);
+    expect(replace).toHaveBeenLastCalledWith(
+      'photo-2',
+      expect.anything(),
+      'second.jpg',
+      expect.anything(),
+    );
+    expect(await listPhotoReplacements()).toEqual([]);
   });
 
   it('does not mark a newer edit as conflicted when an older upload gets 404', async () => {

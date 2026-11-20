@@ -387,6 +387,10 @@ ersetzt die wartende. Die Galerie zeigt das vorgemerkte Bild mit dem Hinweis
 „Änderung vorgemerkt“, und der Editor beginnt beim nächsten Mal dort statt beim
 Bild auf dem Server, sodass sich zwei Bearbeitungen ohne Verbindung addieren.
 Geht ein Speichern doch noch durch, verwirft es die wartende Bearbeitung.
+Jeder Eintrag trägt dafür eine `revision`: Eine Antwort auf einen älteren
+Upload löscht oder ändert nur den Stand, mit dem sie gesendet wurde. Eine
+Bearbeitung, die währenddessen dazukam, wird nach dem Ersetzen auf die neue
+Foto-ID umgehängt und ersetzt beim nächsten Lauf das Foto, wie es dann ist.
 
 Übertragen werden sie im selben Lauf, nach den Erfassungen und nach denselben
 Regeln. Strittig ist hier ein anderer Fall: Das Foto gibt es bei der
