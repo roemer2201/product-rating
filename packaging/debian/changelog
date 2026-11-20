@@ -1,3 +1,11 @@
+product-rating (0.15.0) unstable; urgency=medium
+
+  * Keep edited gallery photos in the offline queue when the replacement
+    finds no connection; they are sent with the next sync, and a photo
+    that is gone by then can be added as a new one.
+
+ -- roemer2201 <roemer2201@users.noreply.github.com>  Fri, 20 Nov 2026 00:00:00 +0000
+
 product-rating (0.14.0) unstable; urgency=medium
 
   * Photo editor: crop, rotate in 90 degree steps and a portrait effect
