@@ -403,13 +403,18 @@ export const strings = {
       right: '90° rechts',
       crop: 'Zuschneiden',
       cropHint: 'Ziehe im Bild ein Rechteck um den gewünschten Ausschnitt.',
+      cropKeys:
+        'Mit der Tastatur verschieben die Pfeiltasten den Ausschnitt, mit gedrückter Umschalttaste ändern sie seine Größe.',
       portrait: 'Portrait-Effekt',
       focus: 'Fokus setzen',
       focusHint: 'Tippe auf das Motiv, das scharf bleiben soll.',
+      focusKeys: 'Mit der Tastatur verschieben die Pfeiltasten den Fokus.',
       focusSize: 'Größe des scharfen Bereichs',
       apply: 'Übernehmen',
       replace: 'Foto ersetzen',
       replaceHint: 'Beim Speichern wird das bisherige Foto in der Galerie ersetzt.',
+      offline:
+        'Ohne Verbindung lässt sich das Foto nicht ersetzen. Sobald die Verbindung zurück ist, geht es weiter.',
       saving: 'Wird gespeichert …',
       reset: 'Zurücksetzen',
     },

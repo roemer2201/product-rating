@@ -262,9 +262,14 @@ Original hoch und `sharp` erledigt es. Der Fortschrittsbalken braucht
 „Bearbeiten“ öffnet in der Vorschau und bei eigenen Galeriefotos einen Editor.
 Der Ausschnitt lässt sich im Bild aufziehen, und jede Drehung erfolgt in
 90-Grad-Schritten. Für den Portrait-Effekt legt ein Tipp den Mittelpunkt des
-scharfen Bereichs fest. Seine Größe ist einstellbar, der Rand geht weich in
-den unscharfen Hintergrund über. Der Browser verarbeitet das Bild lokal.
-Bei einem Galeriefoto ersetzt erst „Foto ersetzen“ das bisherige Bild.
+scharfen Bereichs fest. Der Bereich ist ein Kreis, dessen Radius sich als
+Anteil der kürzeren Bildkante einstellen lässt; der Rand geht weich in den
+unscharfen Hintergrund über. Ohne Zeiger geht beides mit der Tastatur: Die
+Pfeiltasten verschieben Ausschnitt oder Fokus, mit Umschalt ändern sie die
+Größe des Ausschnitts. Der Browser verarbeitet das Bild lokal.
+Bei einem Galeriefoto ersetzt erst „Foto ersetzen“ das bisherige Bild. Das
+braucht eine Verbindung; offline bleibt die Schaltfläche gesperrt, eine
+Warteschlange für das Ersetzen gibt es nicht.
 
 Dieselben zwei Schaltflächen stehen auf dem Formular für ein neues Produkt
 (`web/src/components/PhotoPicker.tsx` ist der gemeinsame Teil): Wer nach einem

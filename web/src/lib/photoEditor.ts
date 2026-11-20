@@ -8,11 +8,19 @@ export interface ImageRect {
 
 export const FULL_IMAGE: ImageRect = { x: 0, y: 0, width: 1, height: 1 };
 
+/** Compared by value: a rectangle moved back to the full frame is no crop. */
+export function isFullImage({ x, y, width, height }: ImageRect): boolean {
+  return x === 0 && y === 0 && width === 1 && height === 1;
+}
+
 export interface PhotoEdits {
+  /** Quarter turns clockwise, 0 to 3. */
   turns: number;
   crop: ImageRect;
   portrait: boolean;
+  /** Centre of the sharp area, relative to the turned frame. */
   focus: { x: number; y: number };
+  /** Radius of the sharp area as a share of the shorter edge. */
   focusSize: number;
 }
 
@@ -43,21 +51,16 @@ function softenBackground(
   const mask = context2d(layer);
   mask.drawImage(blur, 0, 0, width, height);
   mask.globalCompositeOperation = 'destination-in';
-  mask.save();
-  mask.scale(width, height);
-  const fade = mask.createRadialGradient(
-    focus.x,
-    focus.y,
-    focusSize * 0.65,
-    focus.x,
-    focus.y,
-    focusSize,
-  );
+  // Measured in pixels against the shorter edge, so the sharp area is a circle
+  // on a portrait or landscape picture alike instead of a stretched ellipse.
+  const centreX = focus.x * width;
+  const centreY = focus.y * height;
+  const radius = focusSize * Math.min(width, height);
+  const fade = mask.createRadialGradient(centreX, centreY, radius * 0.65, centreX, centreY, radius);
   fade.addColorStop(0, 'transparent');
   fade.addColorStop(1, 'black');
   mask.fillStyle = fade;
-  mask.fillRect(0, 0, 1, 1);
-  mask.restore();
+  mask.fillRect(0, 0, width, height);
   context.drawImage(layer, 0, 0);
 }
 
@@ -89,8 +92,8 @@ export function drawEditedPhoto(
 
   if (edits.portrait) softenBackground(canvas, context, edits.focus, edits.focusSize);
 
+  if (isFullImage(edits.crop)) return;
   const { x, y, width: w, height: h } = edits.crop;
-  if (x === 0 && y === 0 && w === 1 && h === 1) return;
   if (showCrop) {
     context.fillStyle = 'rgba(0, 0, 0, 0.6)';
     context.beginPath();

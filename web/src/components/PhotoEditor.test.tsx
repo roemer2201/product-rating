@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PhotoEditButton } from '@/components/PhotoEditor';
 import * as imageUtils from '@/lib/image';
 import * as photoEditor from '@/lib/photoEditor';
 import { strings } from '@/lib/strings';
+import { setOnline } from '@/testing/online';
 
 vi.mock('@/lib/image', async (importOriginal) => ({
   ...(await importOriginal<typeof imageUtils>()),
@@ -98,5 +99,61 @@ describe('PhotoEditButton', () => {
     );
     expect(onSave).toHaveBeenCalledWith(saved, 'foto.jpg');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('moves and resizes the crop and the focus with the arrow keys', async () => {
+    const user = userEvent.setup();
+    mockBrowserImage();
+    mockDialog();
+    vi.mocked(imageUtils.canvasToBlob).mockResolvedValue(new Blob(['edited']));
+    const onSave = vi.fn();
+    render(<PhotoEditButton src="blob:original" filename="foto.jpg" onSave={onSave} />);
+
+    await user.click(screen.getByRole('button', { name: labels.open }));
+    const canvas = await screen.findByRole('img', { name: strings.photo.preview });
+    expect(screen.getByRole('button', { name: labels.apply })).toBeDisabled();
+
+    canvas.focus();
+    // Shift + left narrows the frame, which then has room to move right.
+    await user.keyboard('{Shift>}{ArrowLeft}{ArrowLeft}{/Shift}{ArrowRight}');
+    await user.click(screen.getByRole('button', { name: labels.portrait }));
+    canvas.focus();
+    await user.keyboard('{ArrowDown}{ArrowLeft}');
+    await user.click(screen.getByRole('button', { name: labels.apply }));
+
+    expect(photoEditor.drawEditedPhoto).toHaveBeenLastCalledWith(
+      expect.any(HTMLCanvasElement),
+      expect.any(HTMLImageElement),
+      expect.objectContaining({
+        crop: { x: 0.02, y: 0, width: 0.96, height: 1 },
+        portrait: true,
+        focus: { x: 0.48, y: 0.52 },
+      }),
+      2048,
+      false,
+    );
+    expect(onSave).toHaveBeenCalled();
+  });
+
+  it('holds back replacing a gallery photo while offline', async () => {
+    const user = userEvent.setup();
+    mockBrowserImage();
+    mockDialog();
+    const onSave = vi.fn();
+    render(<PhotoEditButton src="/media/1" filename="foto.jpg" onSave={onSave} savedPhoto />);
+
+    await user.click(screen.getByRole('button', { name: labels.open }));
+    await screen.findByRole('img', { name: strings.photo.preview });
+    await user.click(screen.getByRole('button', { name: labels.right }));
+    expect(screen.getByRole('button', { name: labels.replace })).toBeEnabled();
+
+    act(() => setOnline(false));
+    expect(screen.getByText(labels.offline)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: labels.replace })).toBeDisabled();
+
+    act(() => setOnline(true));
+    expect(screen.queryByText(labels.offline)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: labels.replace })).toBeEnabled();
+    expect(onSave).not.toHaveBeenCalled();
   });
 });

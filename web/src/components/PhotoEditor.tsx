@@ -1,8 +1,9 @@
-import { useEffect, useId, useRef, useState, type PointerEvent } from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { canvasToBlob, jpegName, UPLOAD_MAX_EDGE } from '@/lib/image';
-import { drawEditedPhoto, FULL_IMAGE, type PhotoEdits } from '@/lib/photoEditor';
+import { drawEditedPhoto, FULL_IMAGE, isFullImage, type PhotoEdits } from '@/lib/photoEditor';
 import { errorMessage } from '@/lib/api';
+import { useOnlineStatus } from '@/lib/online';
 import { strings } from '@/lib/strings';
 
 type SavePhoto = (file: Blob, filename: string) => void | Promise<unknown>;
@@ -17,6 +18,22 @@ const initial: PhotoEdits = {
   focusSize: 0.55,
 };
 const label = strings.photo.editor;
+
+/** How far one arrow key moves the crop or the focus, as a share of the frame. */
+const KEY_STEP = 0.02;
+/** The smallest crop the keyboard leaves, so the frame never vanishes. */
+const MIN_CROP = 0.05;
+const ARROWS: Partial<Record<string, Point>> = {
+  ArrowLeft: { x: -1, y: 0 },
+  ArrowRight: { x: 1, y: 0 },
+  ArrowUp: { x: 0, y: -1 },
+  ArrowDown: { x: 0, y: 1 },
+};
+
+function clamp(value: number, min = 0, max = 1): number {
+  // Rounded, so a few steps back and forth land on the value they started at.
+  return Math.round(Math.min(max, Math.max(min, value)) * 1000) / 1000;
+}
 
 interface PhotoEditButtonProps {
   src: string;
@@ -65,6 +82,10 @@ function PhotoEditor({
   const [savePending, setSavePending] = useState(false);
   const [failed, setFailed] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Replacing a gallery photo is a request; there is no queue for it, so the
+  // button says so before it is pressed rather than failing afterwards.
+  const online = useOnlineStatus();
+  const offline = savedPhoto === true && !online;
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -93,7 +114,7 @@ function PhotoEditor({
     }
   }, [image, edits]);
 
-  const changed = edits.turns !== 0 || edits.portrait || edits.crop !== FULL_IMAGE;
+  const changed = edits.turns !== 0 || edits.portrait || !isFullImage(edits.crop);
   const ready = image !== null && !failed && !savePending;
 
   const rotate = (turns: number): void => {
@@ -118,7 +139,6 @@ function PhotoEditor({
 
   const point = (event: PointerEvent<HTMLCanvasElement>): Point => {
     const bounds = event.currentTarget.getBoundingClientRect();
-    const clamp = (value: number) => Math.min(1, Math.max(0, value));
     return {
       x: clamp((event.clientX - bounds.left) / bounds.width),
       y: clamp((event.clientY - bounds.top) / bounds.height),
@@ -149,8 +169,37 @@ function PhotoEditor({
     }));
   };
 
+  /**
+   * The keyboard way to what a finger does on the picture: arrows move the
+   * focus or the crop, and with Shift they change the size of the crop -
+   * right and down make it larger, left and up smaller.
+   */
+  const nudge = (event: KeyboardEvent<HTMLCanvasElement>): void => {
+    const direction = ARROWS[event.key];
+    if (!ready || direction === undefined) return;
+    event.preventDefault();
+    const dx = direction.x * KEY_STEP;
+    const dy = direction.y * KEY_STEP;
+    const resize = event.shiftKey;
+    setEdits((old) => {
+      if (mode === 'focus') {
+        return { ...old, focus: { x: clamp(old.focus.x + dx), y: clamp(old.focus.y + dy) } };
+      }
+      const { x, y, width, height } = old.crop;
+      const crop = resize
+        ? {
+            x,
+            y,
+            width: clamp(width + dx, MIN_CROP, 1 - x),
+            height: clamp(height + dy, MIN_CROP, 1 - y),
+          }
+        : { x: clamp(x + dx, 0, 1 - width), y: clamp(y + dy, 0, 1 - height), width, height };
+      return { ...old, crop: isFullImage(crop) ? FULL_IMAGE : crop };
+    });
+  };
+
   const save = async (): Promise<void> => {
-    if (image === null || !ready || !changed) return;
+    if (image === null || !ready || !changed || offline) return;
     setSavePending(true);
     setSaveError(null);
     try {
@@ -190,9 +239,11 @@ function PhotoEditor({
         ref={canvasRef}
         className="photo-editor__canvas"
         hidden={image === null || failed}
+        tabIndex={ready ? 0 : -1}
         role="img"
         aria-label={strings.photo.preview}
         aria-describedby={hintId}
+        onKeyDown={nudge}
         onPointerDown={select}
         onPointerMove={resizeCrop}
         onPointerUp={resizeCrop}
@@ -201,7 +252,8 @@ function PhotoEditor({
         }}
       />
       <p id={hintId} className="field__hint">
-        {mode === 'crop' ? label.cropHint : label.focusHint}
+        {mode === 'crop' ? label.cropHint : label.focusHint}{' '}
+        {mode === 'crop' ? label.cropKeys : label.focusKeys}
       </p>
       <div className="form__actions">
         <button type="button" className="button" disabled={!ready} onClick={() => rotate(-1)}>
@@ -259,12 +311,13 @@ function PhotoEditor({
         </label>
       )}
       {savedPhoto && changed && <p className="field__hint">{label.replaceHint}</p>}
+      {offline && <p className="field__hint">{label.offline}</p>}
       {saveError !== null && <p role="alert">{saveError}</p>}
       <div className="form__actions">
         <button
           type="button"
           className="button button--primary"
-          disabled={!ready || !changed}
+          disabled={!ready || !changed || offline}
           onClick={() => void save()}
         >
           {savePending ? label.saving : savedPhoto ? label.replace : label.apply}

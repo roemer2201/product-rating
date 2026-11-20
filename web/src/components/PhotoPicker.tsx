@@ -188,7 +188,8 @@ export function EditPickedPhoto({ pick, disabled }: { pick: PhotoPick; disabled:
       src={preview}
       filename={picked.filename}
       disabled={disabled || pick.preparing}
-      onSave={(blob, filename) => pick.replace({ ...picked, blob, filename })}
+      // Drawn and encoded anew, so it counts as reduced whatever the pick was.
+      onSave={(blob, filename) => pick.replace({ ...picked, blob, filename, reduced: true })}
     />
   );
 }
