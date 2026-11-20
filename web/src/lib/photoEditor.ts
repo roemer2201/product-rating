@@ -106,8 +106,8 @@ export function drawEditedPhoto(
   context.rotate((edits.turns * Math.PI) / 2);
   context.drawImage(
     image,
-    -(image.naturalWidth * scale) / 2,
-    -(image.naturalHeight * scale) / 2,
+    (-image.naturalWidth * scale) / 2,
+    (-image.naturalHeight * scale) / 2,
     image.naturalWidth * scale,
     image.naturalHeight * scale,
   );
@@ -120,7 +120,8 @@ export function drawEditedPhoto(
       x: (edits.focus.x - selection.x) / selection.width,
       y: (edits.focus.y - selection.y) / selection.height,
     };
-    const radius = edits.focusSize * Math.min(orientedWidth, orientedHeight) /
+    const radius =
+      (edits.focusSize * Math.min(orientedWidth, orientedHeight)) /
       Math.min(selectedWidth, selectedHeight);
     softenBackground(canvas, context, focus, radius);
   }
