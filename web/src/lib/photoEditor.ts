@@ -64,7 +64,16 @@ function softenBackground(
   context.drawImage(layer, 0, 0);
 }
 
-/** Render a live view of the full frame, or just the selected output pixels. */
+/**
+ * Render the full turned frame for the interactive preview, but only the
+ * selected pixels for export. Drawing the entire image at the upload size and
+ * then cropping it used to throw away most of the available resolution for
+ * small selections. A crop of a 4000px image must stay 400px wide, not 205px
+ * merely because the full preview was capped at 2048px.
+ *
+ * Drawing directly into the output canvas also avoids a full-frame
+ * getImageData() readback and limits memory to the exported dimensions.
+ */
 export function drawEditedPhoto(
   canvas: HTMLCanvasElement,
   image: HTMLImageElement,
@@ -73,11 +82,16 @@ export function drawEditedPhoto(
   showCrop: boolean,
 ): void {
   const sideways = edits.turns % 2 !== 0;
-  const scale = Math.min(1, maxEdge / Math.max(image.naturalWidth, image.naturalHeight));
-  const sourceWidth = Math.max(1, Math.round(image.naturalWidth * scale));
-  const sourceHeight = Math.max(1, Math.round(image.naturalHeight * scale));
-  const width = sideways ? sourceHeight : sourceWidth;
-  const height = sideways ? sourceWidth : sourceHeight;
+  const orientedWidth = sideways ? image.naturalHeight : image.naturalWidth;
+  const orientedHeight = sideways ? image.naturalWidth : image.naturalHeight;
+  const selection = showCrop ? FULL_IMAGE : edits.crop;
+  const selectedWidth = orientedWidth * selection.width;
+  const selectedHeight = orientedHeight * selection.height;
+  const scale = Math.min(1, maxEdge / Math.max(selectedWidth, selectedHeight));
+  const width = Math.max(1, Math.round(selectedWidth * scale));
+  const height = Math.max(1, Math.round(selectedHeight * scale));
+  const fullWidth = orientedWidth * scale;
+  const fullHeight = orientedHeight * scale;
 
   canvas.width = width;
   canvas.height = height;
@@ -85,32 +99,40 @@ export function drawEditedPhoto(
   context.fillStyle = 'white';
   context.fillRect(0, 0, width, height);
   context.save();
-  context.translate(width / 2, height / 2);
+  // Turn the source around its centre, then offset that full oriented image
+  // so the selected rectangle is the only part painted onto this canvas.
+  context.translate(-selection.x * fullWidth, -selection.y * fullHeight);
+  context.translate(fullWidth / 2, fullHeight / 2);
   context.rotate((edits.turns * Math.PI) / 2);
-  context.drawImage(image, -sourceWidth / 2, -sourceHeight / 2, sourceWidth, sourceHeight);
+  context.drawImage(
+    image,
+    -(image.naturalWidth * scale) / 2,
+    -(image.naturalHeight * scale) / 2,
+    image.naturalWidth * scale,
+    image.naturalHeight * scale,
+  );
   context.restore();
 
-  if (edits.portrait) softenBackground(canvas, context, edits.focus, edits.focusSize);
-
-  if (isFullImage(edits.crop)) return;
-  const { x, y, width: w, height: h } = edits.crop;
-  if (showCrop) {
-    context.fillStyle = 'rgba(0, 0, 0, 0.6)';
-    context.beginPath();
-    context.rect(0, 0, width, height);
-    context.rect(x * width, y * height, w * width, h * height);
-    context.fill('evenodd');
-    context.strokeStyle = 'white';
-    context.strokeRect(x * width, y * height, w * width, h * height);
-    return;
+  if (edits.portrait) {
+    // The user chose the focus on the full turned frame. Keep its actual
+    // position and radius when exporting only a portion of that frame.
+    const focus = {
+      x: (edits.focus.x - selection.x) / selection.width,
+      y: (edits.focus.y - selection.y) / selection.height,
+    };
+    const radius = edits.focusSize * Math.min(orientedWidth, orientedHeight) /
+      Math.min(selectedWidth, selectedHeight);
+    softenBackground(canvas, context, focus, radius);
   }
 
-  const left = Math.min(width - 1, Math.round(x * width));
-  const top = Math.min(height - 1, Math.round(y * height));
-  const cropWidth = Math.max(1, Math.round((x + w) * width) - left);
-  const cropHeight = Math.max(1, Math.round((y + h) * height) - top);
-  const pixels = context.getImageData(left, top, cropWidth, cropHeight);
-  canvas.width = cropWidth;
-  canvas.height = cropHeight;
-  context.putImageData(pixels, 0, 0);
+  if (!showCrop || isFullImage(edits.crop)) return;
+
+  const { x, y, width: w, height: h } = edits.crop;
+  context.fillStyle = 'rgba(0, 0, 0, 0.6)';
+  context.beginPath();
+  context.rect(0, 0, width, height);
+  context.rect(x * width, y * height, w * width, h * height);
+  context.fill('evenodd');
+  context.strokeStyle = 'white';
+  context.strokeRect(x * width, y * height, w * width, h * height);
 }
