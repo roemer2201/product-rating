@@ -5,7 +5,7 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
-## 2026-11-13 – Fotoeditor für Vorschau und Galerie
+## 2026-11-13 – Fotoeditor für Vorschau und Galerie (0.14.0)
 
 - Der Fotoeditor bietet einen frei wählbaren Ausschnitt, Drehungen um 90 Grad
   und einen Portrait-Effekt mit einstellbarem Schärfebereich. Die Berechnung
