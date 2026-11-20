@@ -3,12 +3,11 @@ import { ApiError, api, isApiError } from '@/lib/api';
 import {
   listCaptures,
   getCapture,
-  getPhotoReplacement,
   listPhotoReplacements,
   removeCapture,
-  removePhotoReplacement,
+  removePhotoReplacementIfCurrent,
   saveCapture,
-  savePhotoReplacement,
+  updatePhotoReplacementIfCurrent,
   type Capture,
   type CaptureConflict,
   type CapturedProduct,
@@ -359,12 +358,12 @@ async function syncReplacement(entry: PhotoReplacement): Promise<'synced' | 'con
       await api.photos.replace(entry.photoId, entry.blob, entry.filename, requestOwner(entry));
     } catch (error) {
       if (!isApiError(error) || error.status !== 404) throw error;
-      await savePhotoReplacement({ ...entry, state: 'conflict', lastError: null });
+      await updatePhotoReplacementIfCurrent(entry, { state: 'conflict', lastError: null });
       return 'conflict';
     }
   }
 
-  await removePhotoReplacement(entry.ownerId, entry.photoId);
+  await removePhotoReplacementIfCurrent(entry);
   return 'synced';
 }
 
@@ -387,15 +386,11 @@ async function syncReplacementList(
       else result.synced += 1;
     } catch (error) {
       const transient = isTransient(error);
-      const latest = await getPhotoReplacement(entry.ownerId, entry.photoId);
-      if (latest !== undefined) {
-        await savePhotoReplacement({
-          ...latest,
-          state: transient ? 'pending' : 'failed',
-          attempts: latest.attempts + 1,
-          lastError: messageOf(error),
-        });
-      }
+      await updatePhotoReplacementIfCurrent(entry, {
+        state: transient ? 'pending' : 'failed',
+        attempts: entry.attempts + 1,
+        lastError: messageOf(error),
+      });
 
       if (transient) {
         result.pending += 1;
@@ -408,12 +403,16 @@ async function syncReplacementList(
 
 /** Keeps the picture of a replacement whose photo is gone, as a photo of its own. */
 export async function addReplacementAsNewPhoto(entry: PhotoReplacement): Promise<void> {
-  await savePhotoReplacement({ ...entry, mode: 'add', state: 'pending', lastError: null });
+  await updatePhotoReplacementIfCurrent(entry, {
+    mode: 'add',
+    state: 'pending',
+    lastError: null,
+  });
 }
 
 /** Puts a refused replacement back in line. */
 export async function retryPhotoReplacement(entry: PhotoReplacement): Promise<void> {
-  await savePhotoReplacement({ ...entry, state: 'pending', lastError: null });
+  await updatePhotoReplacementIfCurrent(entry, { state: 'pending', lastError: null });
 }
 
 /* --------------------------------------------------------- conflicts */

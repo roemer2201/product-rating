@@ -55,11 +55,13 @@ import {
 import {
   enqueueCapture,
   enqueuePhotoReplacement,
+  getPhotoReplacement,
   listCaptures,
   listPhotoReplacements,
   assignCapture,
   removeCapture,
   removePhotoReplacement,
+  removePhotoReplacementIfCurrent,
   type Capture,
   type NewCapture,
   type NewPhotoReplacement,
@@ -554,11 +556,17 @@ export function useReplacePhoto() {
 
   return useMutation({
     mutationFn: async ({ photoId, file, filename }: ReplacePhotoVariables) => {
-      const { photo } = await api.photos.replace(photoId, file, filename);
-      // A save that got through supersedes an edit of the same photo still
-      // waiting offline; sending that one later would undo this one.
       const owner = captureOwner();
-      if (owner !== null) await removePhotoReplacement(owner, photoId).catch(() => undefined);
+      // Snapshot the edit at the start. An offline edit queued while the
+      // request is in flight must not be deleted by its success handler.
+      const waiting =
+        owner === null
+          ? undefined
+          : await getPhotoReplacement(owner, photoId).catch(() => undefined);
+      const { photo } = await api.photos.replace(photoId, file, filename);
+      if (waiting !== undefined) {
+        await removePhotoReplacementIfCurrent(waiting).catch(() => undefined);
+      }
       return photo;
     },
     onSettled: (_photo, _error, { productId }) => {
@@ -888,7 +896,7 @@ export function useResolvePhotoReplacement(): UseMutationResult<
       if (entry.ownerId !== captureOwner()) throw new Error('capture account changed');
       if (decision === 'add') return addReplacementAsNewPhoto(entry);
       if (decision === 'retry') return retryPhotoReplacement(entry);
-      return removePhotoReplacement(entry.ownerId, entry.photoId);
+      return removePhotoReplacementIfCurrent(entry).then(() => undefined);
     },
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: queryKeys.captures });

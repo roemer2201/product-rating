@@ -7,6 +7,8 @@ import {
   enqueuePhotoReplacement,
   listCaptures,
   listPhotoReplacements,
+  removePhotoReplacementIfCurrent,
+  updatePhotoReplacementIfCurrent,
   type PhotoReplacement,
 } from '@/lib/offlineQueue';
 import { addReplacementAsNewPhoto, retryPhotoReplacement, syncCaptures } from '@/lib/sync';
@@ -51,6 +53,22 @@ describe('the photo replacement queue', () => {
     ]);
   });
 
+  it('does not remove or change a newer edit using an older edit generation', async () => {
+    const older = await keep('photo-1', 'first.jpg');
+    const newer = await keep('photo-1', 'second.jpg');
+
+    expect(await removePhotoReplacementIfCurrent(older)).toBe(false);
+    expect(
+      await updatePhotoReplacementIfCurrent(older, {
+        state: 'conflict',
+        lastError: 'old error',
+      }),
+    ).toBe(false);
+    expect(await listPhotoReplacements()).toMatchObject([
+      { revision: newer.revision, filename: 'second.jpg', state: 'pending', lastError: null },
+    ]);
+  });
+
   it('belongs to the account that made the edit', async () => {
     await keep();
     confirmCaptureOwner('someone-else');
@@ -68,6 +86,48 @@ describe('sending photo replacements', () => {
       expectedUserId: testUser.id,
     });
     expect(await listPhotoReplacements()).toEqual([]);
+  });
+
+  it('preserves a newer edit queued while the older replacement is uploading', async () => {
+    await keep('photo-1', 'first.jpg');
+    let finish: ((response: { photo: ReturnType<typeof makePhoto> }) => void) | undefined;
+    const replace = vi.spyOn(api.photos, 'replace').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+
+    const sending = syncCaptures();
+    await vi.waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
+    const newer = await keep('photo-1', 'second.jpg');
+
+    finish!({ photo: makePhoto() });
+    expect((await sending).synced).toBe(1);
+    expect(await listPhotoReplacements()).toMatchObject([
+      { revision: newer.revision, filename: 'second.jpg', state: 'pending' },
+    ]);
+  });
+
+  it('does not mark a newer edit as conflicted when an older upload gets 404', async () => {
+    await keep('photo-1', 'first.jpg');
+    let fail: ((error: unknown) => void) | undefined;
+    const replace = vi.spyOn(api.photos, 'replace').mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          fail = reject;
+        }),
+    );
+
+    const sending = syncCaptures();
+    await vi.waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
+    const newer = await keep('photo-1', 'second.jpg');
+
+    fail!(new ApiError({ status: 404, code: 'not_found' }));
+    expect((await sending).conflicts).toBe(1);
+    expect(await listPhotoReplacements()).toMatchObject([
+      { revision: newer.revision, filename: 'second.jpg', state: 'pending' },
+    ]);
   });
 
   it('waits for the next run when the connection is gone', async () => {

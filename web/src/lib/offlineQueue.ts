@@ -141,6 +141,8 @@ export interface PhotoReplacement {
   label: string;
   blob: Blob;
   filename: string;
+  /** Unique edit generation. Older network replies must never overwrite a newer edit. */
+  revision: string;
   createdAt: number;
   updatedAt: number;
   /**
@@ -426,6 +428,7 @@ export async function enqueuePhotoReplacement(
     label: input.label,
     blob: input.blob,
     filename: input.filename,
+    revision: crypto.randomUUID(),
     createdAt: now,
     updatedAt: now,
     state: 'pending',
@@ -474,6 +477,56 @@ export async function savePhotoReplacement(entry: PhotoReplacement): Promise<Pho
 
 export async function removePhotoReplacement(ownerId: string, photoId: string): Promise<void> {
   await withStore('readwrite', (store) => store.delete([ownerId, photoId]), REPLACEMENTS);
+}
+
+/**
+ * Apply a sync outcome only if this is still the edit which was sent.
+ *
+ * A user can save another edit while an earlier image is uploading. Unchecked
+ * delete/put calls would discard that newer work, or turn it into a conflict
+ * because the old request returned 404. Compare generations inside the same
+ * IndexedDB readwrite transaction so a second tab cannot race between the
+ * check and the write.
+ */
+async function changePhotoReplacementIfCurrent(
+  entry: PhotoReplacement,
+  change: (store: IDBObjectStore, current: PhotoReplacement) => void,
+): Promise<boolean> {
+  const db = await openDatabase();
+  return new Promise<boolean>((resolve, reject) => {
+    const transaction = db.transaction(REPLACEMENTS, 'readwrite', { durability: 'strict' });
+    const store = transaction.objectStore(REPLACEMENTS);
+    const request = store.get([entry.ownerId, entry.photoId]) as IDBRequest<
+      PhotoReplacement | undefined
+    >;
+    let matched = false;
+    request.onsuccess = () => {
+      const current = request.result;
+      if (current === undefined || current.revision !== entry.revision) return;
+      matched = true;
+      change(store, current);
+    };
+    transaction.oncomplete = () => resolve(matched);
+    transaction.onabort = () =>
+      reject(transaction.error ?? new Error('the photo replacement could not be changed'));
+  });
+}
+
+/** Do not erase a newer edit after an earlier upload finishes. */
+export function removePhotoReplacementIfCurrent(entry: PhotoReplacement): Promise<boolean> {
+  return changePhotoReplacementIfCurrent(entry, (store) => {
+    store.delete([entry.ownerId, entry.photoId]);
+  });
+}
+
+/** Do not change the status of a newer edit after an older request fails. */
+export function updatePhotoReplacementIfCurrent(
+  entry: PhotoReplacement,
+  changes: Partial<Pick<PhotoReplacement, 'state' | 'mode' | 'lastError' | 'attempts'>>,
+): Promise<boolean> {
+  return changePhotoReplacementIfCurrent(entry, (store, current) => {
+    store.put({ ...current, ...changes, updatedAt: Date.now() });
+  });
 }
 
 /** Only used by the tests, which want a store with nothing in it. */
