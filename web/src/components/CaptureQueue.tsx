@@ -1,10 +1,18 @@
 import { useState } from 'react';
 import type { Capture } from '@/lib/offlineQueue';
+import { BlobImage } from '@/components/BlobImage';
 import { EmptyState, ErrorNotice } from '@/components/Feedback';
 import { errorMessage } from '@/lib/api';
 import { formatDateTime } from '@/lib/format';
 import { formatAmount } from '@/lib/money';
-import { useAssignCapture, useCaptures, useResolveCapture, useSyncCaptures } from '@/lib/queries';
+import {
+  useAssignCapture,
+  useCaptures,
+  usePhotoReplacements,
+  useResolveCapture,
+  useResolvePhotoReplacement,
+  useSyncCaptures,
+} from '@/lib/queries';
 import { strings } from '@/lib/strings';
 
 /**
@@ -49,6 +57,8 @@ export function CaptureQueue() {
   const assign = useAssignCapture();
   const sync = useSyncCaptures();
   const resolve = useResolveCapture();
+  const replacementsQuery = usePhotoReplacements();
+  const resolveReplacement = useResolvePhotoReplacement();
 
   /** The capture whose discard is waiting for a second tap. */
   const [discarding, setDiscarding] = useState<string | null>(null);
@@ -56,6 +66,8 @@ export function CaptureQueue() {
   const entries = captures.data ?? [];
   /** Captures from before the queue knew accounts; adopted one by one. */
   const orphans = unassigned.data ?? [];
+  /** Edited gallery photos; found by their photo, not by an EAN. */
+  const replacements = replacementsQuery.data ?? [];
 
   return (
     <section className="section">
@@ -65,6 +77,12 @@ export function CaptureQueue() {
       {captures.error !== null && <ErrorNotice message={errorMessage(captures.error)} />}
       {sync.error !== null && <ErrorNotice message={errorMessage(sync.error)} />}
       {resolve.error !== null && <ErrorNotice message={errorMessage(resolve.error)} />}
+      {replacementsQuery.error !== null && (
+        <ErrorNotice message={errorMessage(replacementsQuery.error)} />
+      )}
+      {resolveReplacement.error !== null && (
+        <ErrorNotice message={errorMessage(resolveReplacement.error)} />
+      )}
 
       {assign.error !== null && <ErrorNotice message={errorMessage(assign.error)} />}
       {orphans.length > 0 && (
@@ -103,7 +121,7 @@ export function CaptureQueue() {
         </div>
       )}
 
-      {entries.length === 0 ? (
+      {entries.length === 0 && replacements.length === 0 ? (
         // "Nothing open" would contradict the block above, so it only shows
         // once there is nothing left to adopt either.
         orphans.length === 0 && <EmptyState text={strings.offlineCapture.empty} />
@@ -232,6 +250,103 @@ export function CaptureQueue() {
                 </div>
               </li>
             ))}
+
+            {replacements.map((entry) => {
+              const key = `photo:${entry.photoId}`;
+              return (
+                <li className="admin-row" key={key}>
+                  <BlobImage
+                    className="capture-thumb"
+                    blob={entry.blob}
+                    alt={strings.offlineCapture.photoAlt(entry.label)}
+                  />
+                  <div className="admin-row__body">
+                    <span className="admin-row__name">
+                      {entry.label}
+                      <span
+                        className={`badge badge--${entry.state === 'pending' ? 'open' : 'expired'}`}
+                      >
+                        {STATE_LABEL[entry.state]}
+                      </span>
+                    </span>
+                    <span className="admin-row__meta">
+                      {strings.offlineCapture.capturedAt(
+                        formatDateTime(new Date(entry.createdAt).toISOString()),
+                      )}
+                      {' · '}
+                      {strings.offlineCapture.contains}:{' '}
+                      {entry.mode === 'add'
+                        ? strings.offlineCapture.partPhotoAdd
+                        : strings.offlineCapture.partPhotoReplace}
+                    </span>
+
+                    {entry.lastError !== null && (
+                      <span className="admin-row__note">{entry.lastError}</span>
+                    )}
+
+                    {entry.state === 'conflict' && (
+                      <div className="notice" role="alert">
+                        <p>
+                          <strong>{strings.offlineCapture.photoConflictTitle}</strong>
+                        </p>
+                        <p>{strings.offlineCapture.photoConflictText}</p>
+                        <div className="form__actions">
+                          <button
+                            type="button"
+                            className="button button--quiet"
+                            onClick={() => {
+                              resolveReplacement.mutate({ entry, decision: 'add' });
+                            }}
+                            disabled={resolveReplacement.isPending}
+                          >
+                            {strings.offlineCapture.addAsNew}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="admin-row__actions">
+                    {entry.state === 'failed' && (
+                      <button
+                        type="button"
+                        className="button button--quiet"
+                        onClick={() => {
+                          resolveReplacement.mutate({ entry, decision: 'retry' });
+                        }}
+                        disabled={resolveReplacement.isPending}
+                      >
+                        {strings.offlineCapture.retry}
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      className="button button--quiet button--danger"
+                      onClick={() => {
+                        if (discarding === key) {
+                          resolveReplacement.mutate(
+                            { entry, decision: 'discard' },
+                            {
+                              onSettled: () => {
+                                setDiscarding(null);
+                              },
+                            },
+                          );
+                        } else {
+                          setDiscarding(key);
+                        }
+                      }}
+                      disabled={resolveReplacement.isPending}
+                    >
+                      {discarding === key
+                        ? strings.offlineCapture.discardConfirm
+                        : strings.offlineCapture.discard}
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </>
       )}

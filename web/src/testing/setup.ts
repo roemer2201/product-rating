@@ -8,7 +8,7 @@ import 'fake-indexeddb/auto';
 import { cleanup } from '@testing-library/react';
 import { beforeEach, afterEach, vi } from 'vitest';
 import { APPEARANCE_STORAGE_KEY } from '@/lib/appearance';
-import { clearCaptures } from '@/lib/offlineQueue';
+import { clearCaptures, clearPhotoReplacements } from '@/lib/offlineQueue';
 import { restoreOnline } from '@/testing/online';
 import { resetRegisterSWMock } from '@/testing/pwaRegister';
 
@@ -32,6 +32,7 @@ afterEach(async () => {
   resetRegisterSWMock();
   // The queue outlives a test otherwise: it is a database, not a render.
   await clearCaptures();
+  await clearPhotoReplacements();
   // So does the appearance: it sits on `<html>`, which no render replaces, and
   // in the storage of the browser.
   for (const key of ['layout', 'scheme', 'palette']) {

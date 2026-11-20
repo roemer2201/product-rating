@@ -25,8 +25,14 @@ import { captureOwner } from '@/lib/captureIdentity';
  */
 
 const DATABASE_NAME = 'product-rating-offline';
-const DATABASE_VERSION = 1;
+/**
+ * 1: `captures`. 2: `photoReplacements` beside it. An upgrade only ever adds a
+ * store; what is already queued stays where it is.
+ */
+const DATABASE_VERSION = 2;
 const STORE = 'captures';
+const REPLACEMENTS = 'photoReplacements';
+type StoreName = typeof STORE | typeof REPLACEMENTS;
 
 /**
  * `pending` waits for the next sync, `conflict` waits for a person to decide,
@@ -117,6 +123,47 @@ export interface Capture {
   conflict: CaptureConflict | null;
 }
 
+/**
+ * A gallery photo edited while the save could not reach the server.
+ *
+ * Not a capture: a capture is found again by its EAN, this is found by the
+ * photo it is meant to replace, and a dish without a barcode has photos too.
+ * One per photo and account - saving another edit of the same photo replaces
+ * the waiting one, which is also what the editor builds on in the meantime.
+ */
+export interface PhotoReplacement {
+  /** Account that made the edit; part of the key, never inferred. */
+  ownerId: string;
+  /** The photo on the server the picture is meant to replace. */
+  photoId: string;
+  productId: string;
+  /** The product's name, for the list of what is waiting. */
+  label: string;
+  blob: Blob;
+  filename: string;
+  /** Unique edit generation. Older network replies must never overwrite a newer edit. */
+  revision: string;
+  createdAt: number;
+  updatedAt: number;
+  /**
+   * `conflict` when the photo was gone by the time it was sent - deleted, or
+   * replaced on another device, which gives it a new identifier.
+   */
+  state: CaptureState;
+  /** `add` once somebody decided to keep the picture as a photo of its own. */
+  mode: 'replace' | 'add';
+  attempts: number;
+  lastError: string | null;
+}
+
+export interface NewPhotoReplacement {
+  photoId: string;
+  productId: string;
+  label: string;
+  blob: Blob;
+  filename: string;
+}
+
 export interface NewCapture {
   ean: string;
   label: string;
@@ -139,10 +186,21 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORE)) {
         db.createObjectStore(STORE, { keyPath: 'id' });
       }
+      if (!db.objectStoreNames.contains(REPLACEMENTS)) {
+        db.createObjectStore(REPLACEMENTS, { keyPath: ['ownerId', 'photoId'] });
+      }
     };
 
     request.onsuccess = () => {
-      resolve(request.result);
+      const db = request.result;
+      // A newer version of the app wants to upgrade the database, typically
+      // in another tab after an update. Holding on would block it; the next
+      // access here opens the database again, at whatever version it has.
+      db.onversionchange = () => {
+        db.close();
+        connection = null;
+      };
+      resolve(db);
     };
     request.onerror = () => {
       // A browser in private mode, or one where storage is switched off. The
@@ -174,17 +232,18 @@ function openDatabase(): Promise<IDBDatabase> {
 async function withStore<T>(
   mode: IDBTransactionMode,
   work: (store: IDBObjectStore) => IDBRequest<T>,
+  name: StoreName = STORE,
 ): Promise<T> {
   const db = await openDatabase();
 
   return new Promise<T>((resolve, reject) => {
     const transaction =
       mode === 'readwrite'
-        ? db.transaction(STORE, mode, { durability: 'strict' })
-        : db.transaction(STORE, mode);
+        ? db.transaction(name, mode, { durability: 'strict' })
+        : db.transaction(name, mode);
 
     let result: T;
-    const request = work(transaction.objectStore(STORE));
+    const request = work(transaction.objectStore(name));
 
     request.onsuccess = () => {
       result = request.result;
@@ -346,4 +405,171 @@ export async function assignCapture(id: string, ownerId: string): Promise<void> 
     tx.oncomplete = () => resolve();
     tx.onabort = () => reject(tx.error);
   });
+}
+
+/* ---------------------------------------------------- photo replacements */
+
+/**
+ * Puts an edited picture into the queue, in place of one already waiting for
+ * the same photo. It needs a known account: the key is the account and the
+ * photo, and the sync sends it as that account or not at all.
+ */
+export async function enqueuePhotoReplacement(
+  input: NewPhotoReplacement,
+): Promise<PhotoReplacement> {
+  const ownerId = captureOwner();
+  if (ownerId === null) throw new Error('no account to keep the photo for');
+
+  const now = nextCreatedAt();
+  const entry: PhotoReplacement = {
+    ownerId,
+    photoId: input.photoId,
+    productId: input.productId,
+    label: input.label,
+    blob: input.blob,
+    filename: input.filename,
+    revision: crypto.randomUUID(),
+    createdAt: now,
+    updatedAt: now,
+    state: 'pending',
+    mode: 'replace',
+    attempts: 0,
+    lastError: null,
+  };
+
+  void requestPersistentStorage();
+  await withStore('readwrite', (store) => store.put(entry), REPLACEMENTS);
+  return entry;
+}
+
+/** What waits for this account, oldest first. */
+export async function listPhotoReplacements(
+  ownerId: string | null = captureOwner(),
+): Promise<PhotoReplacement[]> {
+  if (ownerId === null) return [];
+  const all = await withStore<PhotoReplacement[]>(
+    'readonly',
+    (store) => store.getAll() as IDBRequest<PhotoReplacement[]>,
+    REPLACEMENTS,
+  );
+  return all
+    .filter((entry) => entry.ownerId === ownerId)
+    .sort((left, right) => left.createdAt - right.createdAt);
+}
+
+export async function getPhotoReplacement(
+  ownerId: string,
+  photoId: string,
+): Promise<PhotoReplacement | undefined> {
+  return withStore<PhotoReplacement | undefined>(
+    'readonly',
+    (store) => store.get([ownerId, photoId]) as IDBRequest<PhotoReplacement | undefined>,
+    REPLACEMENTS,
+  );
+}
+
+/** Writes an entry back, stamping the time it last changed. */
+export async function savePhotoReplacement(entry: PhotoReplacement): Promise<PhotoReplacement> {
+  const updated: PhotoReplacement = { ...entry, updatedAt: Date.now() };
+  await withStore('readwrite', (store) => store.put(updated), REPLACEMENTS);
+  return updated;
+}
+
+export async function removePhotoReplacement(ownerId: string, photoId: string): Promise<void> {
+  await withStore('readwrite', (store) => store.delete([ownerId, photoId]), REPLACEMENTS);
+}
+
+/**
+ * Apply a sync outcome only if this is still the edit which was sent.
+ *
+ * A user can save another edit while an earlier image is uploading. Unchecked
+ * delete/put calls would discard that newer work, or turn it into a conflict
+ * because the old request returned 404. Compare generations inside the same
+ * IndexedDB readwrite transaction so a second tab cannot race between the
+ * check and the write.
+ */
+async function changePhotoReplacementIfCurrent(
+  entry: PhotoReplacement,
+  change: (store: IDBObjectStore, current: PhotoReplacement) => void,
+): Promise<boolean> {
+  const db = await openDatabase();
+  return new Promise<boolean>((resolve, reject) => {
+    const transaction = db.transaction(REPLACEMENTS, 'readwrite', { durability: 'strict' });
+    const store = transaction.objectStore(REPLACEMENTS);
+    const request = store.get([entry.ownerId, entry.photoId]) as IDBRequest<
+      PhotoReplacement | undefined
+    >;
+    let matched = false;
+    request.onsuccess = () => {
+      const current = request.result;
+      if (current === undefined || current.revision !== entry.revision) return;
+      matched = true;
+      change(store, current);
+    };
+    transaction.oncomplete = () => resolve(matched);
+    transaction.onabort = () =>
+      reject(transaction.error ?? new Error('the photo replacement could not be changed'));
+  });
+}
+
+/** Do not erase a newer edit after an earlier upload finishes. */
+export function removePhotoReplacementIfCurrent(entry: PhotoReplacement): Promise<boolean> {
+  return changePhotoReplacementIfCurrent(entry, (store) => {
+    store.delete([entry.ownerId, entry.photoId]);
+  });
+}
+
+/**
+ * Settles the queue after a photo was replaced on the server, which gives it a
+ * new identifier.
+ *
+ * The edit that was sent leaves the queue. An edit saved while the request was
+ * on its way - a different revision, or any edit when none was sent from the
+ * queue - is newer work: it is moved to the new identifier, so it replaces the
+ * photo as it is now instead of finding the old identifier gone and ending up
+ * as a conflict, or as a duplicate photo. One transaction, like the checks
+ * above, so another tab cannot slip in between.
+ */
+export async function settlePhotoReplacement(
+  ownerId: string,
+  photoId: string,
+  sentRevision: string | undefined,
+  replacedBy: string,
+): Promise<'removed' | 'moved' | 'none'> {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(REPLACEMENTS, 'readwrite', { durability: 'strict' });
+    const store = transaction.objectStore(REPLACEMENTS);
+    const request = store.get([ownerId, photoId]) as IDBRequest<PhotoReplacement | undefined>;
+    let outcome: 'removed' | 'moved' | 'none' = 'none';
+    request.onsuccess = () => {
+      const current = request.result;
+      if (current === undefined) return;
+      store.delete([ownerId, photoId]);
+      if (sentRevision !== undefined && current.revision === sentRevision) {
+        outcome = 'removed';
+        return;
+      }
+      store.put({ ...current, photoId: replacedBy, updatedAt: Date.now() });
+      outcome = 'moved';
+    };
+    transaction.oncomplete = () => resolve(outcome);
+    transaction.onabort = () =>
+      reject(transaction.error ?? new Error('the photo replacement could not be changed'));
+  });
+}
+
+/** Do not change the status of a newer edit after an older request fails. */
+export function updatePhotoReplacementIfCurrent(
+  entry: PhotoReplacement,
+  changes: Partial<Pick<PhotoReplacement, 'state' | 'mode' | 'lastError' | 'attempts'>>,
+): Promise<boolean> {
+  return changePhotoReplacementIfCurrent(entry, (store, current) => {
+    store.put({ ...current, ...changes, updatedAt: Date.now() });
+  });
+}
+
+/** Only used by the tests, which want a store with nothing in it. */
+export async function clearPhotoReplacements(): Promise<void> {
+  await withStore('readwrite', (store) => store.clear(), REPLACEMENTS);
 }

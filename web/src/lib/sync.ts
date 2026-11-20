@@ -3,11 +3,16 @@ import { ApiError, api, isApiError } from '@/lib/api';
 import {
   listCaptures,
   getCapture,
+  listPhotoReplacements,
   removeCapture,
+  removePhotoReplacementIfCurrent,
   saveCapture,
+  settlePhotoReplacement,
+  updatePhotoReplacementIfCurrent,
   type Capture,
   type CaptureConflict,
   type CapturedProduct,
+  type PhotoReplacement,
 } from '@/lib/offlineQueue';
 
 /**
@@ -60,7 +65,7 @@ function messageOf(error: unknown): string {
 
 class IdentityChanged extends Error {}
 
-function requestOwner(capture: Capture): { expectedUserId: string } {
+function requestOwner(capture: { ownerId?: string | null }): { expectedUserId: string } {
   if (capture.ownerId == null || capture.ownerId !== captureOwner()) {
     throw new IdentityChanged('capture account changed');
   }
@@ -272,8 +277,10 @@ export function syncCaptures(): Promise<SyncResult> {
 
 async function runSync(owner: string): Promise<SyncResult> {
   let captures: Capture[];
+  let replacements: PhotoReplacement[];
   try {
     captures = await listCaptures(owner);
+    replacements = await listPhotoReplacements(owner);
   } catch {
     // No IndexedDB — a private window, or storage switched off. Nothing was
     // ever queued in that case either.
@@ -281,7 +288,17 @@ async function runSync(owner: string): Promise<SyncResult> {
   }
 
   const result: SyncResult = { ...EMPTY_RESULT };
+  if (!(await syncCaptureList(captures, owner, result))) return result;
+  await syncReplacementList(replacements, owner, result);
+  return result;
+}
 
+/** Works through the captures; false when the connection gave out on the way. */
+async function syncCaptureList(
+  captures: Capture[],
+  owner: string,
+  result: SyncResult,
+): Promise<boolean> {
   for (const capture of captures) {
     if (captureOwner() !== owner) break;
     if (capture.state !== 'pending') {
@@ -310,14 +327,104 @@ async function runSync(owner: string): Promise<SyncResult> {
         result.pending += 1;
         // The connection is gone; the rest of the queue would only produce the
         // same failure and burn attempts on it.
-        break;
+        return false;
       }
 
       result.failed += 1;
     }
   }
 
-  return result;
+  return captureOwner() === owner;
+}
+
+/* ------------------------------------------------- photo replacements */
+
+/**
+ * Sends one edited picture. Returns the state it ended in.
+ *
+ * A `404` is not a refusal but the conflict of this kind of entry: the photo
+ * was deleted, or replaced on another device - which gives it a new
+ * identifier - between the edit and now. The picture is still somebody's
+ * work, so it waits for a decision instead of failing; the decision `add`
+ * sends it as a photo of its own.
+ */
+async function syncReplacement(entry: PhotoReplacement): Promise<'synced' | 'conflict'> {
+  if (entry.mode === 'add') {
+    await api.photos.upload(entry.productId, entry.blob, {
+      filename: entry.filename,
+      ...requestOwner(entry),
+    });
+    await removePhotoReplacementIfCurrent(entry);
+    return 'synced';
+  }
+
+  let replaced: string;
+  try {
+    const { photo } = await api.photos.replace(
+      entry.photoId,
+      entry.blob,
+      entry.filename,
+      requestOwner(entry),
+    );
+    replaced = photo.id;
+  } catch (error) {
+    if (!isApiError(error) || error.status !== 404) throw error;
+    await updatePhotoReplacementIfCurrent(entry, { state: 'conflict', lastError: null });
+    return 'conflict';
+  }
+
+  // A newer edit of the same photo, saved while this one was uploading, now
+  // belongs to the photo under its new identifier.
+  await settlePhotoReplacement(entry.ownerId, entry.photoId, entry.revision, replaced);
+  return 'synced';
+}
+
+/** The same rules as for captures: transient failures wait, refusals stay visible. */
+async function syncReplacementList(
+  replacements: PhotoReplacement[],
+  owner: string,
+  result: SyncResult,
+): Promise<void> {
+  for (const entry of replacements) {
+    if (captureOwner() !== owner) break;
+    if (entry.state !== 'pending') {
+      if (entry.state === 'conflict') result.conflicts += 1;
+      else result.failed += 1;
+      continue;
+    }
+
+    try {
+      if ((await syncReplacement(entry)) === 'conflict') result.conflicts += 1;
+      else result.synced += 1;
+    } catch (error) {
+      const transient = isTransient(error);
+      await updatePhotoReplacementIfCurrent(entry, {
+        state: transient ? 'pending' : 'failed',
+        attempts: entry.attempts + 1,
+        lastError: messageOf(error),
+      });
+
+      if (transient) {
+        result.pending += 1;
+        break;
+      }
+      result.failed += 1;
+    }
+  }
+}
+
+/** Keeps the picture of a replacement whose photo is gone, as a photo of its own. */
+export async function addReplacementAsNewPhoto(entry: PhotoReplacement): Promise<void> {
+  await updatePhotoReplacementIfCurrent(entry, {
+    mode: 'add',
+    state: 'pending',
+    lastError: null,
+  });
+}
+
+/** Puts a refused replacement back in line. */
+export async function retryPhotoReplacement(entry: PhotoReplacement): Promise<void> {
+  await updatePhotoReplacementIfCurrent(entry, { state: 'pending', lastError: null });
 }
 
 /* --------------------------------------------------------- conflicts */

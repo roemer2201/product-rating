@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import type { Photo, User } from '@product-rating/shared';
+import { BlobImage } from '@/components/BlobImage';
 import { ErrorNotice } from '@/components/Feedback';
 import { OfflineCapture } from '@/components/OfflineCapture';
 import { PhotoEditButton } from '@/components/PhotoEditor';
@@ -14,7 +15,9 @@ import { api, errorMessage } from '@/lib/api';
 import {
   useDeletePhoto,
   useEnqueueCapture,
+  useEnqueuePhotoReplacement,
   useMovePhoto,
+  usePhotoReplacements,
   useReplacePhoto,
   useSetPrimaryPhoto,
   useUploadPhoto,
@@ -75,6 +78,13 @@ export function PhotoManager({ productId, ean, productName, photos, user }: Phot
   const setPrimary = useSetPrimaryPhoto();
   const move = useMovePhoto();
   const replace = useReplacePhoto();
+  const keepReplacement = useEnqueuePhotoReplacement();
+  /** Edits of these photos that wait in the offline queue, by photo. */
+  const queued = new Map(
+    (usePhotoReplacements().data ?? [])
+      .filter((entry) => entry.mode === 'replace' && entry.productId === productId)
+      .map((entry) => [entry.photoId, entry]),
+  );
   const capture = useEnqueueCapture();
 
   const pick = usePhotoPick({
@@ -143,96 +153,128 @@ export function PhotoManager({ productId, ean, productName, photos, user }: Phot
         <p className="section__intro">{strings.photo.empty}</p>
       ) : (
         <ul className="photo-grid">
-          {photos.map((photo, index) => (
-            <li className="photo-grid__item" key={photo.id}>
-              {/*
+          {photos.map((photo, index) => {
+            const waiting = queued.get(photo.id);
+            return (
+              <li className="photo-grid__item" key={photo.id}>
+                {/*
                 No `width`/`height` attributes: they are presentation hints that
                 set the CSS height, which would win over the square box below
                 and collapse the tile to the picture's own proportions. The box
                 is fixed in CSS, so there is nothing left for them to stabilise.
+
+                An edit waiting in the offline queue is what the tile shows,
+                with a badge saying it is not on the server yet.
               */}
-              <img
-                className="photo-grid__image"
-                src={api.photos.url(photo.id, 'thumb')}
-                alt={strings.photo.alt(index + 1)}
-                loading="lazy"
-              />
-
-              <div className="photo-grid__actions">
-                {mayChange(photo) && (
-                  <span className="photo-grid__order">
-                    <button
-                      type="button"
-                      className="button button--quiet"
-                      onClick={() =>
-                        move.mutate({ photoId: photo.id, productId, position: index - 1 })
-                      }
-                      disabled={index === 0 || move.isPending}
-                      aria-label={strings.photo.moveUpFor(index + 1)}
-                      title={strings.photo.moveUp}
-                    >
-                      <ArrowUpIcon className="button__icon" />
-                    </button>
-
-                    <button
-                      type="button"
-                      className="button button--quiet"
-                      onClick={() =>
-                        move.mutate({ photoId: photo.id, productId, position: index + 1 })
-                      }
-                      disabled={index === photos.length - 1 || move.isPending}
-                      aria-label={strings.photo.moveDownFor(index + 1)}
-                      title={strings.photo.moveDown}
-                    >
-                      <ArrowDownIcon className="button__icon" />
-                    </button>
-                  </span>
-                )}
-
-                {photo.isPrimary ? (
-                  <span className="badge badge--primary">
-                    <CheckIcon className="badge__icon" />
-                    {strings.photo.isPrimary}
-                  </span>
+                {waiting === undefined ? (
+                  <img
+                    className="photo-grid__image"
+                    src={api.photos.url(photo.id, 'thumb')}
+                    alt={strings.photo.alt(index + 1)}
+                    loading="lazy"
+                  />
                 ) : (
-                  mayChange(photo) && (
-                    <button
-                      type="button"
-                      className="button button--quiet"
-                      onClick={() => setPrimary.mutate({ photoId: photo.id, productId })}
-                      disabled={setPrimary.isPending}
-                    >
-                      {strings.photo.setPrimary}
-                    </button>
-                  )
-                )}
-
-                {mayChange(photo) && (
-                  <PhotoEditButton
-                    src={api.photos.url(photo.id)}
-                    filename="produktfoto.jpg"
-                    ariaLabel={strings.photo.editor.openFor(index + 1)}
-                    savedPhoto
-                    onSave={(file, filename) =>
-                      replace.mutateAsync({ photoId: photo.id, productId, file, filename })
-                    }
+                  <BlobImage
+                    className="photo-grid__image"
+                    blob={waiting.blob}
+                    alt={strings.photo.alt(index + 1)}
                   />
                 )}
 
-                {mayChange(photo) && (
-                  <button
-                    type="button"
-                    className="button button--quiet button--danger"
-                    onClick={() => remove.mutate({ photoId: photo.id, productId })}
-                    disabled={remove.isPending}
-                    aria-label={strings.photo.remove}
-                  >
-                    <TrashIcon className="button__icon" />
-                  </button>
+                {waiting !== undefined && (
+                  <span className="badge badge--open photo-grid__queued">
+                    {strings.photo.editor.queued}
+                  </span>
                 )}
-              </div>
-            </li>
-          ))}
+
+                <div className="photo-grid__actions">
+                  {mayChange(photo) && (
+                    <span className="photo-grid__order">
+                      <button
+                        type="button"
+                        className="button button--quiet"
+                        onClick={() =>
+                          move.mutate({ photoId: photo.id, productId, position: index - 1 })
+                        }
+                        disabled={index === 0 || move.isPending}
+                        aria-label={strings.photo.moveUpFor(index + 1)}
+                        title={strings.photo.moveUp}
+                      >
+                        <ArrowUpIcon className="button__icon" />
+                      </button>
+
+                      <button
+                        type="button"
+                        className="button button--quiet"
+                        onClick={() =>
+                          move.mutate({ photoId: photo.id, productId, position: index + 1 })
+                        }
+                        disabled={index === photos.length - 1 || move.isPending}
+                        aria-label={strings.photo.moveDownFor(index + 1)}
+                        title={strings.photo.moveDown}
+                      >
+                        <ArrowDownIcon className="button__icon" />
+                      </button>
+                    </span>
+                  )}
+
+                  {photo.isPrimary ? (
+                    <span className="badge badge--primary">
+                      <CheckIcon className="badge__icon" />
+                      {strings.photo.isPrimary}
+                    </span>
+                  ) : (
+                    mayChange(photo) && (
+                      <button
+                        type="button"
+                        className="button button--quiet"
+                        onClick={() => setPrimary.mutate({ photoId: photo.id, productId })}
+                        disabled={setPrimary.isPending}
+                      >
+                        {strings.photo.setPrimary}
+                      </button>
+                    )
+                  )}
+
+                  {mayChange(photo) && (
+                    <PhotoEditButton
+                      // A waiting edit is the starting point of the next one, so
+                      // two edits made offline add up instead of the second
+                      // starting over from the picture on the server.
+                      src={waiting?.blob ?? api.photos.url(photo.id)}
+                      filename="produktfoto.jpg"
+                      ariaLabel={strings.photo.editor.openFor(index + 1)}
+                      savedPhoto
+                      onSave={(file, filename) =>
+                        replace.mutateAsync({ photoId: photo.id, productId, file, filename })
+                      }
+                      onKeep={(blob, filename) =>
+                        keepReplacement.mutateAsync({
+                          photoId: photo.id,
+                          productId,
+                          label: productName,
+                          blob,
+                          filename,
+                        })
+                      }
+                    />
+                  )}
+
+                  {mayChange(photo) && (
+                    <button
+                      type="button"
+                      className="button button--quiet button--danger"
+                      onClick={() => remove.mutate({ photoId: photo.id, productId })}
+                      disabled={remove.isPending}
+                      aria-label={strings.photo.remove}
+                    >
+                      <TrashIcon className="button__icon" />
+                    </button>
+                  )}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
 

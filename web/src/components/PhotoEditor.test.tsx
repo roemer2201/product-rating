@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PhotoEditButton } from '@/components/PhotoEditor';
+import { ApiError } from '@/lib/api';
 import * as imageUtils from '@/lib/image';
 import * as photoEditor from '@/lib/photoEditor';
 import { strings } from '@/lib/strings';
-import { setOnline } from '@/testing/online';
 
 vi.mock('@/lib/image', async (importOriginal) => ({
   ...(await importOriginal<typeof imageUtils>()),
@@ -135,25 +135,84 @@ describe('PhotoEditButton', () => {
     expect(onSave).toHaveBeenCalled();
   });
 
-  it('holds back replacing a gallery photo while offline', async () => {
+  it('offers to keep the edited picture when the replacement found no connection', async () => {
     const user = userEvent.setup();
     mockBrowserImage();
     mockDialog();
-    const onSave = vi.fn();
-    render(<PhotoEditButton src="/media/1" filename="foto.jpg" onSave={onSave} savedPhoto />);
+    const edited = new Blob(['edited'], { type: 'image/jpeg' });
+    vi.mocked(imageUtils.canvasToBlob).mockResolvedValue(edited);
+    const onSave = vi.fn().mockRejectedValue(new ApiError({ status: 0, code: 'network_error' }));
+    const onKeep = vi.fn().mockResolvedValue(undefined);
+    render(
+      <PhotoEditButton
+        src="/media/1"
+        filename="foto.jpg"
+        onSave={onSave}
+        onKeep={onKeep}
+        savedPhoto
+      />,
+    );
 
     await user.click(screen.getByRole('button', { name: labels.open }));
     await screen.findByRole('img', { name: strings.photo.preview });
     await user.click(screen.getByRole('button', { name: labels.right }));
-    expect(screen.getByRole('button', { name: labels.replace })).toBeEnabled();
+    // Always tried first: whether the phone thinks it is online decides nothing.
+    await user.click(screen.getByRole('button', { name: labels.replace }));
+    expect(onSave).toHaveBeenCalledWith(edited, 'foto.jpg');
+    expect(onKeep).not.toHaveBeenCalled();
 
-    act(() => setOnline(false));
-    expect(screen.getByText(labels.offline)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: labels.replace })).toBeDisabled();
+    await user.click(await screen.findByRole('button', { name: strings.offlineCapture.keep }));
+    expect(onKeep).toHaveBeenCalledWith(edited, 'foto.jpg');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
 
-    act(() => setOnline(true));
-    expect(screen.queryByText(labels.offline)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: labels.replace })).toBeEnabled();
-    expect(onSave).not.toHaveBeenCalled();
+  it('offers no queue for a refusal, nor for a picture edited since the failure', async () => {
+    const user = userEvent.setup();
+    mockBrowserImage();
+    mockDialog();
+    vi.mocked(imageUtils.canvasToBlob).mockResolvedValue(new Blob(['edited']));
+    const onSave = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiError({ status: 403, code: 'forbidden' }))
+      .mockRejectedValueOnce(new ApiError({ status: 0, code: 'network_error' }));
+    render(
+      <PhotoEditButton
+        src="/media/1"
+        filename="foto.jpg"
+        onSave={onSave}
+        onKeep={vi.fn()}
+        savedPhoto
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: labels.open }));
+    await screen.findByRole('img', { name: strings.photo.preview });
+    await user.click(screen.getByRole('button', { name: labels.right }));
+    await user.click(screen.getByRole('button', { name: labels.replace }));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: strings.offlineCapture.keep })).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: labels.replace }));
+    await screen.findByRole('button', { name: strings.offlineCapture.keep });
+    // Another turn makes a different picture than the one that failed.
+    await user.click(screen.getByRole('button', { name: labels.right }));
+    expect(screen.queryByRole('button', { name: strings.offlineCapture.keep })).toBeNull();
+  });
+
+  it('starts from a picture kept on the device', async () => {
+    const user = userEvent.setup();
+    mockBrowserImage();
+    mockDialog();
+    const create = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:kept');
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const kept = new Blob(['kept'], { type: 'image/jpeg' });
+    render(<PhotoEditButton src={kept} filename="foto.jpg" onSave={vi.fn()} savedPhoto />);
+
+    await user.click(screen.getByRole('button', { name: labels.open }));
+    await screen.findByRole('img', { name: strings.photo.preview });
+    expect(create).toHaveBeenCalledWith(kept);
+
+    await user.click(screen.getByRole('button', { name: strings.common.cancel }));
+    expect(revoke).toHaveBeenCalledWith('blob:kept');
   });
 });
