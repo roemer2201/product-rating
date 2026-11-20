@@ -440,8 +440,13 @@ so freigegeben.
 - [x] Fotos in der Vorschau und in der Galerie zuschneiden, drehen und mit einem Portrait-Effekt bearbeiten
 - [ ] Fotoeditor auf einem echten iPhone prüfen: Ausschnitt aufziehen, Fokus antippen,
       Dialoghöhe mit `100dvh`, dazu alle drei Layouts in beiden Modi
-- [ ] Ersetzen eines Galeriefotos offline vormerken (Warteschlange wie bei der
-      Erfassung); bisher ist „Foto ersetzen“ ohne Verbindung gesperrt
+- [x] Ersetzen eines Galeriefotos offline vormerken (Warteschlange wie bei der
+      Erfassung, eigener Object Store `photoReplacements`)
+- [ ] Ein Galeriefoto, dessen Bild in voller Größe noch nicht geladen war, lässt
+      sich offline nicht im Editor öffnen; prüfen, ob die Detailansicht das
+      Vollbild vorab laden soll oder ob die Einschränkung genügt
+- [ ] Offline-Ersetzen auf einem echten iPhone prüfen: Vormerken nach
+      Verbindungsabbruch, Hinweis in der Galerie, Übertragung nach Neustart der App
 - [x] Entwurf einer Produkterfassung samt Foto beim Zurücknavigieren wiederherstellen
 - [x] Mehrere Fotos pro Produkt inklusive Sortierung
 - [x] Attribut „Sorte“ am Produkt (Name „5 Minuten Terrine“, Sorte „Spaghetti

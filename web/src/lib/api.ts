@@ -521,10 +521,12 @@ export const api = {
       );
     },
 
-    replace: (id: string, file: Blob, filename: string) => {
+    /** Swaps the picture of a photo; the answer carries its new identifier. */
+    replace: (id: string, file: Blob, filename: string, options: CaptureRequestOptions = {}) => {
       const form = new FormData();
       form.append(PHOTO_FIELD, file, filename);
       return request<{ photo: Photo }>(`/${path('photos', id, 'image')}`, {
+        ...options,
         method: 'PUT',
         body: form,
       });

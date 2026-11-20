@@ -1,9 +1,16 @@
 import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { CaptureQueue } from './CaptureQueue';
 import { confirmCaptureOwner } from '@/lib/captureIdentity';
-import { enqueueCapture, getCapture, saveCapture } from '@/lib/offlineQueue';
+import {
+  enqueueCapture,
+  enqueuePhotoReplacement,
+  getCapture,
+  listPhotoReplacements,
+  saveCapture,
+  savePhotoReplacement,
+} from '@/lib/offlineQueue';
 import { mockFetch, testUser } from '@/testing/fetchMock';
 import { renderWithProviders } from '@/testing/render';
 import { strings } from '@/lib/strings';
@@ -49,6 +56,75 @@ it('adopts a capture from before the queue knew accounts, after a live identity 
       expect(screen.queryByText(strings.offlineCapture.unassignedTitle)).not.toBeInTheDocument();
     });
     expect(await screen.findByText('Captured before the update')).toBeInTheDocument();
+  } finally {
+    view.unmount();
+  }
+});
+
+/**
+ * The in-memory IndexedDB hands a `Blob` back as a plain object, which the
+ * real `createObjectURL` refuses. A browser returns the `Blob` itself.
+ */
+function stubObjectUrls(): void {
+  vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:kept');
+  vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+it('lists an edited photo waiting offline and keeps it as a new photo after a conflict', async () => {
+  stubObjectUrls();
+  const entry = await enqueuePhotoReplacement({
+    photoId: 'photo-1',
+    productId: 'prod-1',
+    label: 'Apfelsaft',
+    blob: new Blob(['edited'], { type: 'image/jpeg' }),
+    filename: 'produktfoto.jpg',
+  });
+  await savePhotoReplacement({ ...entry, state: 'conflict' });
+
+  const view = renderWithProviders(<CaptureQueue />);
+  try {
+    expect(await screen.findByText('Apfelsaft')).toBeInTheDocument();
+    expect(screen.getByText(strings.offlineCapture.photoConflictTitle)).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(strings.offlineCapture.partPhotoReplace))).toBeVisible();
+    expect(screen.getByAltText(strings.offlineCapture.photoAlt('Apfelsaft'))).toBeInTheDocument();
+    expect(screen.queryByText(strings.offlineCapture.empty)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: strings.offlineCapture.addAsNew }));
+
+    await waitFor(async () => {
+      expect(await listPhotoReplacements()).toMatchObject([{ mode: 'add', state: 'pending' }]);
+    });
+    expect(await screen.findByText(new RegExp(strings.offlineCapture.partPhotoAdd))).toBeVisible();
+  } finally {
+    view.unmount();
+  }
+});
+
+it('discards an edited photo only on the second tap', async () => {
+  stubObjectUrls();
+  await enqueuePhotoReplacement({
+    photoId: 'photo-1',
+    productId: 'prod-1',
+    label: 'Apfelsaft',
+    blob: new Blob(['edited'], { type: 'image/jpeg' }),
+    filename: 'produktfoto.jpg',
+  });
+
+  const view = renderWithProviders(<CaptureQueue />);
+  try {
+    await screen.findByText('Apfelsaft');
+    await userEvent.click(screen.getByRole('button', { name: strings.offlineCapture.discard }));
+    expect(await listPhotoReplacements()).toHaveLength(1);
+
+    await userEvent.click(
+      screen.getByRole('button', { name: strings.offlineCapture.discardConfirm }),
+    );
+    expect(await screen.findByText(strings.offlineCapture.empty)).toBeInTheDocument();
+    expect(await listPhotoReplacements()).toEqual([]);
   } finally {
     view.unmount();
   }

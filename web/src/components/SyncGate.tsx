@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useCaptureOwner } from '@/lib/captureIdentity';
 import { Link } from 'react-router';
-import { useCaptures, useSyncCaptures } from '@/lib/queries';
+import { useCaptures, usePhotoReplacements, useSyncCaptures } from '@/lib/queries';
 import { useOnlineStatus } from '@/lib/online';
 import { strings } from '@/lib/strings';
 
@@ -23,9 +23,20 @@ export function SyncGate() {
   const online = useOnlineStatus();
   const owner = useCaptureOwner();
   const captures = useCaptures();
+  const replacements = usePhotoReplacements();
   const sync = useSyncCaptures();
 
-  const waiting = captures.data ?? [];
+  // Edited gallery photos wait in the same run as the captures and count as
+  // what they are to the person: something recorded offline.
+  const waiting = [
+    ...(captures.data ?? []).map(({ id, state }) => ({ id, state })),
+    // The time is part of the key: a newer edit of the same photo is new work
+    // and earns its own automatic attempt.
+    ...(replacements.data ?? []).map(({ photoId, createdAt, state }) => ({
+      id: `photo:${photoId}:${createdAt}`,
+      state,
+    })),
+  ];
   const pending = waiting.filter((capture) => capture.state === 'pending').length;
   const needsAttention = waiting.length - pending;
 

@@ -1,10 +1,16 @@
-import { act, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { SyncGate } from './SyncGate';
 import { renderWithProviders } from '@/testing/render';
-import { enqueueCapture, listCaptures } from '@/lib/offlineQueue';
+import {
+  enqueueCapture,
+  enqueuePhotoReplacement,
+  listCaptures,
+  listPhotoReplacements,
+} from '@/lib/offlineQueue';
 import { api, ApiError } from '@/lib/api';
-import { TEST_EAN } from '@/testing/fixtures';
+import { makePhoto, TEST_EAN } from '@/testing/fixtures';
+import { strings } from '@/lib/strings';
 
 it('does not immediately repeat transient failures without a new online event', async () => {
   await enqueueCapture({ ean: TEST_EAN, label: 'Waiting' });
@@ -37,5 +43,30 @@ it('does not immediately repeat transient failures without a new online event', 
   } finally {
     view.unmount();
     lookup.mockRestore();
+  }
+});
+
+it('counts an edited photo as waiting and sends it on its own', async () => {
+  const replace = vi.spyOn(api.photos, 'replace').mockResolvedValue({ photo: makePhoto() });
+  await enqueuePhotoReplacement({
+    photoId: 'photo-1',
+    productId: 'prod-1',
+    label: 'Apfelsaft',
+    blob: new Blob(['edited'], { type: 'image/jpeg' }),
+    filename: 'produktfoto.jpg',
+  });
+
+  const view = renderWithProviders(<SyncGate />);
+  try {
+    await waitFor(async () => {
+      expect(await listPhotoReplacements()).toEqual([]);
+    });
+    expect(replace).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(screen.queryByText(strings.offlineCapture.waiting(1))).not.toBeInTheDocument();
+    });
+  } finally {
+    view.unmount();
+    replace.mockRestore();
   }
 });

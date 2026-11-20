@@ -5,6 +5,38 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-11-20 – Bearbeitete Galeriefotos offline vormerken (0.15.0)
+
+- Anlass: offener Punkt aus dem Review des Fotoeditors. Ein Galeriefoto ließ
+  sich ohne Verbindung nicht ersetzen; „Foto ersetzen“ war offline gesperrt.
+- Scheitert das Ersetzen an der Verbindung, bietet der Editor „Offline
+  merken“ an. Das bearbeitete Bild wartet in der IndexedDB und geht im selben
+  Lauf wie die Erfassungen auf den Server, nach ihnen.
+- Die Galerie zeigt eine wartende Bearbeitung mit „Änderung vorgemerkt“, die
+  Liste in den Einstellungen mit Vorschaubild, Zustand und Entscheidungen.
+- Entscheidungen, mit dem Projektinhaber abgestimmt:
+  - **Angebot statt Automatik:** Gespeichert wird immer zuerst; erst ein
+    Netzwerkfehler führt zum Angebot, wie bei `OfflineCapture`. Die Sperre
+    über `navigator.onLine` aus 0.14.0 ist entfallen, sie widersprach der Regel
+    in `web/src/lib/online.ts`.
+  - **Rückfrage, wenn das Foto weg ist:** Ein `404` bei der Übertragung heißt,
+    dass das Foto gelöscht oder anderswo ersetzt wurde. Der Eintrag wird
+    `conflict` mit „Als neues Foto hinzufügen“ oder „Verwerfen“.
+  - **Aufbauend:** Je Konto und Foto wartet eine Bearbeitung; der Editor
+    beginnt beim vorgemerkten Bild, eine neue Bearbeitung ersetzt den Eintrag.
+    Ein Ersetzen, das doch durchgeht, verwirft ihn.
+- Weitere Entscheidungen:
+  - Eigener Object Store `photoReplacements` (Schlüssel: Konto und Foto-ID)
+    statt einer Erweiterung der Erfassung, deren Einheit die EAN ist. Die
+    Datenbank steigt dafür auf Version 2; das Upgrade legt nur den Store an.
+    Eine offene Verbindung schließt sich jetzt bei `versionchange`, damit ein
+    Update in einem anderen Tab nicht blockiert wird.
+  - Gesendet wird mit `x-capture-owner` wie bei den Erfassungen; ein
+    Kontowechsel hält den Lauf an.
+- Bekannte Grenze: Offline lässt sich nur ein Foto im Editor öffnen, dessen
+  Bild in voller Größe schon im Browser-Cache liegt (README 2.3). Steht als
+  Prüfpunkt in TODO.md.
+
 ## 2026-11-13 – Fotoeditor für Vorschau und Galerie (0.14.0)
 
 - Der Fotoeditor bietet einen frei wählbaren Ausschnitt, Drehungen um 90 Grad

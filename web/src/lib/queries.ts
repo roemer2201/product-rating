@@ -54,16 +54,23 @@ import {
 } from '@/lib/api';
 import {
   enqueueCapture,
+  enqueuePhotoReplacement,
   listCaptures,
+  listPhotoReplacements,
   assignCapture,
   removeCapture,
+  removePhotoReplacement,
   type Capture,
   type NewCapture,
+  type NewPhotoReplacement,
+  type PhotoReplacement,
 } from '@/lib/offlineQueue';
 import {
+  addReplacementAsNewPhoto,
   discardCapturedRating,
   keepCapturedRating,
   retryCapture,
+  retryPhotoReplacement,
   syncCaptures,
   type SyncResult,
 } from '@/lib/sync';
@@ -546,9 +553,16 @@ export function useReplacePhoto() {
   const client = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ photoId, file, filename }: ReplacePhotoVariables) =>
-      (await api.photos.replace(photoId, file, filename)).photo,
+    mutationFn: async ({ photoId, file, filename }: ReplacePhotoVariables) => {
+      const { photo } = await api.photos.replace(photoId, file, filename);
+      // A save that got through supersedes an edit of the same photo still
+      // waiting offline; sending that one later would undo this one.
+      const owner = captureOwner();
+      if (owner !== null) await removePhotoReplacement(owner, photoId).catch(() => undefined);
+      return photo;
+    },
     onSettled: (_photo, _error, { productId }) => {
+      void client.invalidateQueries({ queryKey: queryKeys.captures });
       void client.invalidateQueries({ queryKey: queryKeys.products.byId(productId) });
       void client.invalidateQueries({ queryKey: queryKeys.products.all });
       void client.invalidateQueries({ queryKey: queryKeys.ratings.all });
@@ -824,6 +838,57 @@ export function useAssignCapture(): UseMutationResult<void, Error, string> {
       if (owner === null || owner !== user.id || owner !== captureOwner())
         throw new Error('capture account changed');
       await assignCapture(id, owner);
+    },
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.captures });
+    },
+  });
+}
+
+/**
+ * Edited gallery photos waiting for a connection. Kept under the key of the
+ * captures, so everything that invalidates the queue refreshes these too.
+ */
+export function usePhotoReplacements(): UseQueryResult<PhotoReplacement[], Error> {
+  const owner = useCaptureOwner();
+  return useQuery({
+    queryKey: [...queryKeys.captures, 'photo-replacements', owner],
+    queryFn: () => listPhotoReplacements(owner),
+    staleTime: Number.POSITIVE_INFINITY,
+    retry: false,
+  });
+}
+
+/** Keeps an edited gallery photo for the next time there is a connection. */
+export function useEnqueuePhotoReplacement(): UseMutationResult<
+  PhotoReplacement,
+  Error,
+  NewPhotoReplacement
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: NewPhotoReplacement) => enqueuePhotoReplacement(input),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.captures });
+    },
+  });
+}
+
+/** How a waiting photo replacement is resolved. */
+export type ReplacementDecision = 'add' | 'retry' | 'discard';
+
+export function useResolvePhotoReplacement(): UseMutationResult<
+  void,
+  Error,
+  { entry: PhotoReplacement; decision: ReplacementDecision }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ entry, decision }) => {
+      if (entry.ownerId !== captureOwner()) throw new Error('capture account changed');
+      if (decision === 'add') return addReplacementAsNewPhoto(entry);
+      if (decision === 'retry') return retryPhotoReplacement(entry);
+      return removePhotoReplacement(entry.ownerId, entry.photoId);
     },
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: queryKeys.captures });

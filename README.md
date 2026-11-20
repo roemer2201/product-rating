@@ -267,9 +267,9 @@ Anteil der kürzeren Bildkante einstellen lässt; der Rand geht weich in den
 unscharfen Hintergrund über. Ohne Zeiger geht beides mit der Tastatur: Die
 Pfeiltasten verschieben Ausschnitt oder Fokus, mit Umschalt ändern sie die
 Größe des Ausschnitts. Der Browser verarbeitet das Bild lokal.
-Bei einem Galeriefoto ersetzt erst „Foto ersetzen“ das bisherige Bild. Das
-braucht eine Verbindung; offline bleibt die Schaltfläche gesperrt, eine
-Warteschlange für das Ersetzen gibt es nicht.
+Bei einem Galeriefoto ersetzt erst „Foto ersetzen“ das bisherige Bild.
+Erreicht das Speichern den Server nicht, bietet der Editor „Offline merken“
+an; das bearbeitete Bild wartet dann in der Warteschlange (Abschnitt 2.3).
 
 Dieselben zwei Schaltflächen stehen auf dem Formular für ein neues Produkt
 (`web/src/components/PhotoPicker.tsx` ist der gemeinsame Teil): Wer nach einem
@@ -378,6 +378,30 @@ dort ein Speichern an der fehlenden Verbindung, erklärt die Oberfläche das,
 statt „Offline merken“ anzubieten. Eine vom Gerät erzeugte Kennung als
 Zuordnung steht in [TODO.md](TODO.md) (M17).
 
+**Bearbeitete Galeriefotos** warten in derselben Datenbank, aber in einem
+eigenen Object Store (`photoReplacements`, ab Datenbankversion 2). Sie sind
+keine Erfassung: Wiedergefunden werden sie über das Foto, das sie ersetzen
+sollen, nicht über eine EAN – deshalb gehen sie auch bei Gerichten ohne
+Barcode. Je Konto und Foto wartet höchstens eine Bearbeitung; eine weitere
+ersetzt die wartende. Die Galerie zeigt das vorgemerkte Bild mit dem Hinweis
+„Änderung vorgemerkt“, und der Editor beginnt beim nächsten Mal dort statt beim
+Bild auf dem Server, sodass sich zwei Bearbeitungen ohne Verbindung addieren.
+Geht ein Speichern doch noch durch, verwirft es die wartende Bearbeitung.
+
+Übertragen werden sie im selben Lauf, nach den Erfassungen und nach denselben
+Regeln. Strittig ist hier ein anderer Fall: Das Foto gibt es bei der
+Übertragung nicht mehr (`404`), weil es gelöscht oder auf einem anderen Gerät
+ersetzt wurde – Ersetzen vergibt eine neue Foto-ID. Der Eintrag wechselt dann
+nach `conflict` und bietet „Als neues Foto hinzufügen“ oder „Verwerfen“ an.
+
+Offline öffnen lässt sich ein Galeriefoto im Editor nur, wenn das Bild in
+voller Größe schon im Browser-Cache liegt: beim Hauptfoto durch die große
+Ansicht oben auf der Produktseite, bei den übrigen erst nach einer früheren
+Bearbeitung – die Galerie selbst lädt nur Vorschaubilder, und der Service
+Worker cacht `/api/v1/…` bewusst nicht. Sonst meldet der Editor, dass sich das
+Bild nicht öffnen lässt. Der häufige Fall – die Verbindung reißt beim Speichern
+ab – ist davon nicht betroffen.
+
 **Haltbarkeit ist hier eine Zusage, kein Nebeneffekt.** Zwei Dinge, die man in
 IndexedDB leicht falsch macht und die auf dem iPhone sofort auffallen:
 
@@ -409,8 +433,9 @@ dieselbe tote Leitung laufen zu lassen.
 **In der Oberfläche** taucht das an drei Stellen auf: das Angebot „Offline
 merken“ direkt unter dem fehlgeschlagenen Speichern (nur bei einem Fehler, der
 das Gerät nie verlassen hat – eine abgelehnte Eingabe wird auch in einer Stunde
-abgelehnt), ein Streifen über der Navigation, solange etwas wartet, und die
-Liste in den Einstellungen mit Zustand, Inhalt und den nötigen Entscheidungen.
+abgelehnt) – im Fotoeditor ebenso –, ein Streifen über der Navigation, solange
+etwas wartet, und die Liste in den Einstellungen mit Zustand, Inhalt und den
+nötigen Entscheidungen; bearbeitete Fotos dort mit Vorschaubild.
 
 **Aktualisierung.** `registerType: 'prompt'`: eine neue Version übernimmt nicht
 von selbst, sondern wartet und meldet sich sichtbar („Neue Version verfügbar“,

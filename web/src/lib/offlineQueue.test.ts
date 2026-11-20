@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearCaptures, enqueueCapture, listCaptures } from '@/lib/offlineQueue';
+import { captureOwner } from '@/lib/captureIdentity';
 import { TEST_EAN } from '@/testing/fixtures';
 
 /**
@@ -95,5 +96,55 @@ describe('persistent storage', () => {
     await expect(
       queue.enqueueCapture({ ean: TEST_EAN, label: 'Apfelsaft' }),
     ).resolves.toBeDefined();
+  });
+});
+
+describe('upgrading the database', () => {
+  it('keeps what version 1 queued when it adds the store for photo replacements', async () => {
+    const name = 'product-rating-offline';
+    // The connection this module holds closes itself on the version change.
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.deleteDatabase(name);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open(name, 1);
+      request.onupgradeneeded = () => {
+        request.result.createObjectStore('captures', { keyPath: 'id' });
+      };
+      request.onsuccess = () => {
+        const db = request.result;
+        const transaction = db.transaction('captures', 'readwrite');
+        transaction.objectStore('captures').put({
+          id: 'from-version-1',
+          ownerId: captureOwner(),
+          ean: TEST_EAN,
+          label: 'vor dem Update',
+          createdAt: 1,
+          updatedAt: 1,
+          state: 'pending',
+          attempts: 0,
+          lastError: null,
+          product: null,
+          rating: null,
+          price: null,
+          photos: [],
+          progress: { productId: null, rating: false, price: false, photos: 0 },
+          conflict: null,
+        });
+        transaction.oncomplete = () => {
+          db.close();
+          resolve();
+        };
+      };
+      request.onerror = () => reject(request.error);
+    });
+
+    vi.resetModules();
+    const upgraded = await import('@/lib/offlineQueue');
+
+    expect((await upgraded.listCaptures()).map((entry) => entry.label)).toEqual(['vor dem Update']);
+    expect(await upgraded.listPhotoReplacements()).toEqual([]);
   });
 });

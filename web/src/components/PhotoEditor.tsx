@@ -2,8 +2,8 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEve
 import { createPortal } from 'react-dom';
 import { canvasToBlob, jpegName, UPLOAD_MAX_EDGE } from '@/lib/image';
 import { drawEditedPhoto, FULL_IMAGE, isFullImage, type PhotoEdits } from '@/lib/photoEditor';
+import { OfflineCapture } from '@/components/OfflineCapture';
 import { errorMessage } from '@/lib/api';
-import { useOnlineStatus } from '@/lib/online';
 import { strings } from '@/lib/strings';
 
 type SavePhoto = (file: Blob, filename: string) => void | Promise<unknown>;
@@ -36,9 +36,15 @@ function clamp(value: number, min = 0, max = 1): number {
 }
 
 interface PhotoEditButtonProps {
-  src: string;
+  /** The picture to start from: an address, or bytes kept on the device. */
+  src: string | Blob;
   filename: string;
   onSave: SavePhoto;
+  /**
+   * Keeps the edited picture for later when `onSave` did not reach the
+   * server. Offered only after such a failure, never instead of trying.
+   */
+  onKeep?: (file: Blob, filename: string) => Promise<unknown>;
   disabled?: boolean;
   savedPhoto?: boolean;
   ariaLabel?: string;
@@ -68,6 +74,7 @@ function PhotoEditor({
   src,
   filename,
   onSave,
+  onKeep,
   onClose,
   savedPhoto,
 }: Omit<PhotoEditButtonProps, 'disabled' | 'ariaLabel'> & { onClose: () => void }) {
@@ -82,10 +89,17 @@ function PhotoEditor({
   const [savePending, setSavePending] = useState(false);
   const [failed, setFailed] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  // Replacing a gallery photo is a request; there is no queue for it, so the
-  // button says so before it is pressed rather than failing afterwards.
-  const online = useOnlineStatus();
-  const offline = savedPhoto === true && !online;
+  /**
+   * The last save that failed, with the picture it tried to send and the
+   * edits it was made from: the offer to keep it is only true for those.
+   */
+  const [failure, setFailure] = useState<{
+    error: unknown;
+    file: Blob;
+    filename: string;
+    edits: PhotoEdits;
+  } | null>(null);
+  const [keeping, setKeeping] = useState(false);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -94,13 +108,17 @@ function PhotoEditor({
   }, []);
 
   useEffect(() => {
+    // A picture kept on the device gets an address of its own for as long as
+    // the editor is open; the decoded image outlives it.
+    const url = typeof src === 'string' ? src : URL.createObjectURL(src);
     const source = new Image();
     source.onload = () => setImage(source);
     source.onerror = () => setFailed(true);
-    source.src = src;
+    source.src = url;
     return () => {
       source.onload = null;
       source.onerror = null;
+      if (typeof src !== 'string') URL.revokeObjectURL(url);
     };
   }, [src]);
 
@@ -115,7 +133,7 @@ function PhotoEditor({
   }, [image, edits]);
 
   const changed = edits.turns !== 0 || edits.portrait || !isFullImage(edits.crop);
-  const ready = image !== null && !failed && !savePending;
+  const ready = image !== null && !failed && !savePending && !keeping;
 
   const rotate = (turns: number): void => {
     setEdits((old) => {
@@ -199,17 +217,20 @@ function PhotoEditor({
   };
 
   const save = async (): Promise<void> => {
-    if (image === null || !ready || !changed || offline) return;
+    if (image === null || !ready || !changed) return;
     setSavePending(true);
     setSaveError(null);
+    setFailure(null);
     try {
       const canvas = document.createElement('canvas');
       drawEditedPhoto(canvas, image, edits, UPLOAD_MAX_EDGE, false);
       const file = await canvasToBlob(canvas, 'image/jpeg', 0.9);
+      const name = jpegName(filename);
       try {
-        await onSave(file, jpegName(filename));
+        await onSave(file, name);
       } catch (error) {
         setSaveError(errorMessage(error));
+        setFailure({ error, file, filename: name, edits });
         return;
       }
       onClose();
@@ -220,6 +241,20 @@ function PhotoEditor({
     }
   };
 
+  /** Hands the picture that failed to go up to the queue, and is done. */
+  const keep = async (): Promise<void> => {
+    if (onKeep === undefined || failure === null) return;
+    setKeeping(true);
+    try {
+      await onKeep(failure.file, failure.filename);
+      onClose();
+    } catch (error) {
+      setSaveError(errorMessage(error));
+    } finally {
+      setKeeping(false);
+    }
+  };
+
   return (
     <dialog
       ref={dialogRef}
@@ -227,7 +262,7 @@ function PhotoEditor({
       aria-labelledby={titleId}
       onCancel={(event) => {
         event.preventDefault();
-        if (!savePending) onClose();
+        if (!savePending && !keeping) onClose();
       }}
     >
       <h2 id={titleId} className="section__title">
@@ -311,13 +346,20 @@ function PhotoEditor({
         </label>
       )}
       {savedPhoto && changed && <p className="field__hint">{label.replaceHint}</p>}
-      {offline && <p className="field__hint">{label.offline}</p>}
       {saveError !== null && <p role="alert">{saveError}</p>}
+      {onKeep !== undefined && failure !== null && failure.edits === edits && (
+        <OfflineCapture
+          error={failure.error}
+          onKeep={() => void keep()}
+          kept={false}
+          pending={keeping}
+        />
+      )}
       <div className="form__actions">
         <button
           type="button"
           className="button button--primary"
-          disabled={!ready || !changed || offline}
+          disabled={!ready || !changed}
           onClick={() => void save()}
         >
           {savePending ? label.saving : savedPhoto ? label.replace : label.apply}
@@ -334,7 +376,12 @@ function PhotoEditor({
         >
           {label.reset}
         </button>
-        <button type="button" className="button" disabled={savePending} onClick={onClose}>
+        <button
+          type="button"
+          className="button"
+          disabled={savePending || keeping}
+          onClick={onClose}
+        >
           {strings.common.cancel}
         </button>
       </div>

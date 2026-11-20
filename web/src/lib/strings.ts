@@ -245,6 +245,13 @@ export const strings = {
     retry: 'Erneut versuchen',
     discard: 'Verwerfen',
     discardConfirm: 'Wirklich verwerfen?',
+    partPhotoReplace: 'Bearbeitetes Foto, ersetzt das bisherige',
+    partPhotoAdd: 'Bearbeitetes Foto, kommt als neues Foto hinzu',
+    photoAlt: (label: string) => `Bearbeitetes Foto von ${label}`,
+    photoConflictTitle: 'Dieses Foto gibt es so nicht mehr',
+    photoConflictText:
+      'Es wurde inzwischen gelöscht oder auf einem anderen Gerät geändert. Das bearbeitete Bild kann als neues Foto zum Produkt hinzukommen.',
+    addAsNew: 'Als neues Foto hinzufügen',
   },
 
   update: {
@@ -413,8 +420,8 @@ export const strings = {
       apply: 'Übernehmen',
       replace: 'Foto ersetzen',
       replaceHint: 'Beim Speichern wird das bisherige Foto in der Galerie ersetzt.',
-      offline:
-        'Ohne Verbindung lässt sich das Foto nicht ersetzen. Sobald die Verbindung zurück ist, geht es weiter.',
+      /** On a gallery photo whose edited picture waits in the offline queue. */
+      queued: 'Änderung vorgemerkt',
       saving: 'Wird gespeichert …',
       reset: 'Zurücksetzen',
     },
