@@ -30,18 +30,28 @@ function context2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
   return context;
 }
 
-/** Downsampled blur with a smooth focus mask. Uses Canvas 2D on iOS as well. */
+/** Long edge of the full turned frame after shrinking it for the blur. */
+const BLUR_EDGE = 48;
+
+/**
+ * Downsampled blur with a smooth focus mask. Uses Canvas 2D on iOS as well.
+ *
+ * Centre and radius are in pixels of `canvas`. `grain` is the factor the
+ * canvas is shrunk by for the blur; the caller measures it against the full
+ * frame, so an exported crop is as soft as the preview of the whole picture
+ * showed it, instead of being blurred against its own, smaller edge.
+ */
 function softenBackground(
   canvas: HTMLCanvasElement,
   context: CanvasRenderingContext2D,
-  focus: PhotoEdits['focus'],
-  focusSize: number,
+  centre: { x: number; y: number },
+  radius: number,
+  grain: number,
 ): void {
   const { width, height } = canvas;
   const blur = document.createElement('canvas');
-  const scale = Math.min(1, 48 / Math.max(width, height));
-  blur.width = Math.max(1, Math.round(width * scale));
-  blur.height = Math.max(1, Math.round(height * scale));
+  blur.width = Math.max(1, Math.round(width * grain));
+  blur.height = Math.max(1, Math.round(height * grain));
   const small = context2d(blur);
   small.drawImage(canvas, 0, 0, blur.width, blur.height);
 
@@ -51,12 +61,14 @@ function softenBackground(
   const mask = context2d(layer);
   mask.drawImage(blur, 0, 0, width, height);
   mask.globalCompositeOperation = 'destination-in';
-  // Measured in pixels against the shorter edge, so the sharp area is a circle
-  // on a portrait or landscape picture alike instead of a stretched ellipse.
-  const centreX = focus.x * width;
-  const centreY = focus.y * height;
-  const radius = focusSize * Math.min(width, height);
-  const fade = mask.createRadialGradient(centreX, centreY, radius * 0.65, centreX, centreY, radius);
+  const fade = mask.createRadialGradient(
+    centre.x,
+    centre.y,
+    radius * 0.65,
+    centre.x,
+    centre.y,
+    radius,
+  );
   fade.addColorStop(0, 'transparent');
   fade.addColorStop(1, 'black');
   mask.fillStyle = fade;
@@ -114,16 +126,20 @@ export function drawEditedPhoto(
   context.restore();
 
   if (edits.portrait) {
-    // The user chose the focus on the full turned frame. Keep its actual
-    // position and radius when exporting only a portion of that frame.
-    const focus = {
-      x: (edits.focus.x - selection.x) / selection.width,
-      y: (edits.focus.y - selection.y) / selection.height,
-    };
-    const radius =
-      (edits.focusSize * Math.min(orientedWidth, orientedHeight)) /
-      Math.min(selectedWidth, selectedHeight);
-    softenBackground(canvas, context, focus, radius);
+    // Focus, radius and the grain of the blur all refer to the full turned
+    // frame the user saw, so exporting only a part of it changes none of them.
+    // The radius is measured against the shorter edge: a circle on portrait
+    // and landscape pictures alike, not an ellipse stretched with the frame.
+    softenBackground(
+      canvas,
+      context,
+      {
+        x: (edits.focus.x - selection.x) * fullWidth,
+        y: (edits.focus.y - selection.y) * fullHeight,
+      },
+      edits.focusSize * Math.min(fullWidth, fullHeight),
+      Math.min(1, BLUR_EDGE / Math.max(fullWidth, fullHeight)),
+    );
   }
 
   if (!showCrop || isFullImage(edits.crop)) return;

@@ -38,6 +38,12 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
     vor Safari 17.4 nichts erbt.
   - Ein bearbeitetes Bild gilt als verkleinert (`reduced`), weil es neu
     gezeichnet und kodiert ist.
+- Zweites Review (20.11.2026): Ein Ausschnitt wird beim Export direkt in der
+  verfügbaren Auflösung gezeichnet statt aus dem auf 2048 Pixel verkleinerten
+  Gesamtbild ausgeschnitten. Dabei richtete sich die Körnung der Unschärfe nach
+  dem Ausschnitt statt nach dem ganzen Bild; ein kleiner Ausschnitt war danach
+  deutlich schärfer als in der Vorschau. Fokus, Radius und Körnung beziehen
+  sich jetzt alle auf das ganze gedrehte Bild, ein Test hält das fest.
 
 ## 2026-11-13 – Entwurf beim Zurücknavigieren wiederherstellen (0.13.1)
 

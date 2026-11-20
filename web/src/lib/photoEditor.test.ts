@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { drawEditedPhoto, FULL_IMAGE, type PhotoEdits } from '@/lib/photoEditor';
 
 const DEFAULT_EDITS: PhotoEdits = {
@@ -36,7 +36,71 @@ function canvasWithContext() {
   return { canvas, context };
 }
 
+/**
+ * The portrait effect draws onto canvases of its own. jsdom has no 2D context,
+ * so every canvas created during the call gets a recording stand-in.
+ */
+function recordPortraitCanvases() {
+  const created: { canvas: HTMLCanvasElement; gradient: ReturnType<typeof vi.fn> }[] = [];
+  const original = document.createElement.bind(document);
+  vi.spyOn(document, 'createElement').mockImplementation(
+    (name: string, options?: ElementCreationOptions) => {
+      const element = original(name, options);
+      if (name === 'canvas') {
+        const gradient = vi.fn(() => ({ addColorStop: vi.fn() }));
+        vi.spyOn(element as HTMLCanvasElement, 'getContext').mockReturnValue({
+          drawImage: vi.fn(),
+          fillRect: vi.fn(),
+          createRadialGradient: gradient,
+        } as unknown as CanvasRenderingContext2D);
+        created.push({ canvas: element as HTMLCanvasElement, gradient });
+      }
+      return element;
+    },
+  );
+  return created;
+}
+
 describe('drawEditedPhoto', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('blurs an exported crop as coarsely as the preview of the whole frame', () => {
+    const edits: PhotoEdits = {
+      ...DEFAULT_EDITS,
+      crop: { x: 0.5, y: 0.5, width: 0.25, height: 0.25 },
+      portrait: true,
+      focus: { x: 0.6, y: 0.7 },
+      focusSize: 0.5,
+    };
+
+    const preview = canvasWithContext();
+    const previewLayers = recordPortraitCanvases();
+    drawEditedPhoto(preview.canvas, image(4000, 3000), edits, 640, true);
+    vi.restoreAllMocks();
+
+    const exported = canvasWithContext();
+    const exportLayers = recordPortraitCanvases();
+    drawEditedPhoto(exported.canvas, image(4000, 3000), edits, 2048, false);
+
+    // Preview: 640 x 480 shrunk to 48 x 36. Export: a quarter of a 4000 x 3000
+    // frame, 1000 x 750, shrunk by the same share of the full frame to 12 x 9.
+    expect([previewLayers[0]!.canvas.width, previewLayers[0]!.canvas.height]).toEqual([48, 36]);
+    expect([exportLayers[0]!.canvas.width, exportLayers[0]!.canvas.height]).toEqual([12, 9]);
+
+    // Same centre and radius in the picture: (0.6, 0.7) of the frame lies at
+    // (400, 600) of the crop, and half the shorter edge is 1500 pixels.
+    expect(previewLayers[1]!.gradient).toHaveBeenCalledWith(384, 336, 156, 384, 336, 240);
+    const near = (value: number) => expect.closeTo(value, 6);
+    expect(exportLayers[1]!.gradient).toHaveBeenCalledWith(
+      near(400),
+      near(600),
+      near(975),
+      near(400),
+      near(600),
+      near(1500),
+    );
+  });
+
   it('exports a small crop at its available source resolution', () => {
     const { canvas, context } = canvasWithContext();
     const original = image(4000, 3000);
