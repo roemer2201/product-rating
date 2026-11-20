@@ -2,13 +2,20 @@ import { useRef, useState } from 'react';
 import type { Photo, User } from '@product-rating/shared';
 import { ErrorNotice } from '@/components/Feedback';
 import { OfflineCapture } from '@/components/OfflineCapture';
-import { PhotoPreview, PhotoSources, usePhotoPick } from '@/components/PhotoPicker';
+import { PhotoEditButton } from '@/components/PhotoEditor';
+import {
+  EditPickedPhoto,
+  PhotoPreview,
+  PhotoSources,
+  usePhotoPick,
+} from '@/components/PhotoPicker';
 import { ArrowDownIcon, ArrowUpIcon, CheckIcon, TrashIcon } from '@/components/icons';
 import { api, errorMessage } from '@/lib/api';
 import {
   useDeletePhoto,
   useEnqueueCapture,
   useMovePhoto,
+  useReplacePhoto,
   useSetPrimaryPhoto,
   useUploadPhoto,
 } from '@/lib/queries';
@@ -67,6 +74,7 @@ export function PhotoManager({ productId, ean, productName, photos, user }: Phot
   const remove = useDeletePhoto();
   const setPrimary = useSetPrimaryPhoto();
   const move = useMovePhoto();
+  const replace = useReplacePhoto();
   const capture = useEnqueueCapture();
 
   const pick = usePhotoPick({
@@ -200,6 +208,18 @@ export function PhotoManager({ productId, ean, productName, photos, user }: Phot
                 )}
 
                 {mayChange(photo) && (
+                  <PhotoEditButton
+                    src={api.photos.url(photo.id)}
+                    filename="produktfoto.jpg"
+                    ariaLabel={strings.photo.editor.openFor(index + 1)}
+                    savedPhoto
+                    onSave={(file, filename) =>
+                      replace.mutateAsync({ photoId: photo.id, productId, file, filename })
+                    }
+                  />
+                )}
+
+                {mayChange(photo) && (
                   <button
                     type="button"
                     className="button button--quiet button--danger"
@@ -280,6 +300,8 @@ export function PhotoManager({ productId, ean, productName, photos, user }: Phot
                     ? strings.photo.upload
                     : strings.photo.retry}
               </button>
+
+              <EditPickedPhoto pick={pick} disabled={upload.isPending || capture.isPending} />
 
               <button
                 type="button"

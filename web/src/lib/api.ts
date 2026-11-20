@@ -521,6 +521,15 @@ export const api = {
       );
     },
 
+    replace: (id: string, file: Blob, filename: string) => {
+      const form = new FormData();
+      form.append(PHOTO_FIELD, file, filename);
+      return request<{ photo: Photo }>(`/${path('photos', id, 'image')}`, {
+        method: 'PUT',
+        body: form,
+      });
+    },
+
     remove: (id: string) => request<{ ok: true }>(`/${path('photos', id)}`, { method: 'DELETE' }),
 
     setPrimary: (id: string) =>

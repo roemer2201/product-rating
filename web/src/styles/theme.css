@@ -193,6 +193,16 @@
 /* --- Colours that follow from the ones above ------------------------------ */
 
 /*
+ * Behind a modal dialog; dark in both schemes, so the picture stands out.
+ * Set on `::backdrop` as well: before Safari 17.4 and Chrome 122 it inherits
+ * nothing, not even a custom property of the root.
+ */
+:root,
+::backdrop {
+  --color-scrim: rgb(0 0 0 / 65%);
+}
+
+/*
  * `--color-page` is what lies behind everything, `--color-field` what an input
  * is filled with, and `--color-chrome` the colour at the very top of the
  * screen - the one the status bar of the phone has to continue, which

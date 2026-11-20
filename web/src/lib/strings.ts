@@ -392,6 +392,32 @@ export const strings = {
     removed: 'Das Foto wurde gelöscht.',
     foreign: 'Fotos anderer Nutzer lassen sich nicht löschen.',
     alt: (index: number) => `Produktfoto ${index}`,
+    editor: {
+      open: 'Bearbeiten',
+      openFor: (index: number) => `Produktfoto ${index} bearbeiten`,
+      title: 'Foto bearbeiten',
+      loading: 'Bild wird geladen …',
+      cannotOpen: 'Dieses Bild lässt sich im Browser nicht bearbeiten.',
+      cannotSave: 'Das bearbeitete Bild konnte nicht erstellt werden.',
+      left: '90° links',
+      right: '90° rechts',
+      crop: 'Zuschneiden',
+      cropHint: 'Ziehe im Bild ein Rechteck um den gewünschten Ausschnitt.',
+      cropKeys:
+        'Mit der Tastatur verschieben die Pfeiltasten den Ausschnitt, mit gedrückter Umschalttaste ändern sie seine Größe.',
+      portrait: 'Portrait-Effekt',
+      focus: 'Fokus setzen',
+      focusHint: 'Tippe auf das Motiv, das scharf bleiben soll.',
+      focusKeys: 'Mit der Tastatur verschieben die Pfeiltasten den Fokus.',
+      focusSize: 'Größe des scharfen Bereichs',
+      apply: 'Übernehmen',
+      replace: 'Foto ersetzen',
+      replaceHint: 'Beim Speichern wird das bisherige Foto in der Galerie ersetzt.',
+      offline:
+        'Ohne Verbindung lässt sich das Foto nicht ersetzen. Sobald die Verbindung zurück ist, geht es weiter.',
+      saving: 'Wird gespeichert …',
+      reset: 'Zurücksetzen',
+    },
   },
 
   /* ---------------------------------------------------------------- prices */

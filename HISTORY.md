@@ -5,6 +5,46 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-11-13 – Fotoeditor für Vorschau und Galerie (0.14.0)
+
+- Der Fotoeditor bietet einen frei wählbaren Ausschnitt, Drehungen um 90 Grad
+  und einen Portrait-Effekt mit einstellbarem Schärfebereich. Die Berechnung
+  bleibt im Browser. In der Vorschau übernimmt die App das Ergebnis für den
+  späteren Upload, einschließlich der Offline-Erfassung.
+- In der Galerie dürfen Eigentümer und Administratoren ein Bild ersetzen.
+  Beide neuen Ableitungen werden vor dem Austausch geschrieben. Die Bild-ID
+  wechselt für die zwischengespeicherten URLs. Eigentümer, Erstellungszeitpunkt
+  und Galerieposition bleiben erhalten.
+- Entscheidungen, wie sie im Code stehen:
+  - Bearbeitet wird im Browser mit Canvas 2D. Der Server bekommt nur das
+    Ergebnis und kodiert es wie jeden Upload mit `sharp` neu; eine zweite
+    Bildverarbeitung auf dem Server gibt es nicht.
+  - Die Unschärfe entsteht durch Verkleinern und Wiederaufziehen des Bildes
+    (`softenBackground()` in `web/src/lib/photoEditor.ts`), ohne Canvas-Filter.
+  - Ein Galeriefoto wird ersetzt, nicht als zweites Foto angelegt. Mit der
+    neuen Foto-ID ändern sich URL und ETag, sodass kein Cache das alte Bild
+    liefert; kein anderer Datensatz verweist auf die ID.
+  - Ersetzen dürfen dieselben Konten wie Löschen: Eigentümer und Admins.
+- Review (20.11.2026), in diesem Pull Request umgesetzt:
+  - Der scharfe Bereich des Portrait-Effekts ist ein Kreis, gemessen an der
+    kürzeren Bildkante. Vorher wurde er mit dem Seitenverhältnis gestreckt.
+  - Ausschnitt und Fokus lassen sich mit den Pfeiltasten setzen, der
+    Ausschnitt mit Umschalt auch in der Größe ändern.
+  - Offline ist „Foto ersetzen“ gesperrt und erklärt, warum, statt erst beim
+    Speichern zu scheitern. Eine Warteschlange dafür steht als Backlog-Punkt
+    in TODO.md.
+  - Der Hintergrund hinter dem Dialog ist das Token `--color-scrim` in
+    `theme.css`, auch direkt an `::backdrop` gesetzt, weil das Pseudo-Element
+    vor Safari 17.4 nichts erbt.
+  - Ein bearbeitetes Bild gilt als verkleinert (`reduced`), weil es neu
+    gezeichnet und kodiert ist.
+- Zweites Review (20.11.2026): Ein Ausschnitt wird beim Export direkt in der
+  verfügbaren Auflösung gezeichnet statt aus dem auf 2048 Pixel verkleinerten
+  Gesamtbild ausgeschnitten. Dabei richtete sich die Körnung der Unschärfe nach
+  dem Ausschnitt statt nach dem ganzen Bild; ein kleiner Ausschnitt war danach
+  deutlich schärfer als in der Vorschau. Fokus, Radius und Körnung beziehen
+  sich jetzt alle auf das ganze gedrehte Bild, ein Test hält das fest.
+
 ## 2026-11-13 – Entwurf beim Zurücknavigieren wiederherstellen (0.13.1)
 
 - Beim Wechsel von der Produkterfassung in einen anderen Bereich der PWA

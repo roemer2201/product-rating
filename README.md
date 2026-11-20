@@ -259,6 +259,18 @@ Browser das Format nicht dekodieren (HEIC außerhalb von Safari), geht das
 Original hoch und `sharp` erledigt es. Der Fortschrittsbalken braucht
 `XMLHttpRequest`; `fetch` kann den Fortschritt eines Requestbodys nicht melden.
 
+„Bearbeiten“ öffnet in der Vorschau und bei eigenen Galeriefotos einen Editor.
+Der Ausschnitt lässt sich im Bild aufziehen, und jede Drehung erfolgt in
+90-Grad-Schritten. Für den Portrait-Effekt legt ein Tipp den Mittelpunkt des
+scharfen Bereichs fest. Der Bereich ist ein Kreis, dessen Radius sich als
+Anteil der kürzeren Bildkante einstellen lässt; der Rand geht weich in den
+unscharfen Hintergrund über. Ohne Zeiger geht beides mit der Tastatur: Die
+Pfeiltasten verschieben Ausschnitt oder Fokus, mit Umschalt ändern sie die
+Größe des Ausschnitts. Der Browser verarbeitet das Bild lokal.
+Bei einem Galeriefoto ersetzt erst „Foto ersetzen“ das bisherige Bild. Das
+braucht eine Verbindung; offline bleibt die Schaltfläche gesperrt, eine
+Warteschlange für das Ersetzen gibt es nicht.
+
 Dieselben zwei Schaltflächen stehen auf dem Formular für ein neues Produkt
 (`web/src/components/PhotoPicker.tsx` ist der gemeinsame Teil): Wer nach einem
 Scan ein unbekanntes Produkt anlegt, hat es gerade in der Hand, und ein Verweis
@@ -840,12 +852,13 @@ bleibt, den jemand eingetippt hat.
 ### 4.4 Routen zu Fotos
 
 Hochladen darf jedes angemeldete Konto – der Katalog ist gemeinsam. Ein Foto
-gehört aber dem Konto, das es aufgenommen hat: Löschen und Zum-Hauptbild-Machen
+gehört aber dem Konto, das es aufgenommen hat: Bearbeiten, Löschen und Zum-Hauptbild-Machen
 bleiben ihm und den Administratoren vorbehalten.
 
 | Route | Rolle | Zweck |
 |---|---|---|
 | `POST /api/v1/products/:id/photos` | angemeldet | Foto hochladen (`multipart/form-data`, Feld `photo`) |
+| `PUT /api/v1/photos/:id/image` | Eigentümer, admin | Bild ersetzen (`multipart/form-data`, Feld `photo`). Die neue Foto-ID aktualisiert den Browsercache. |
 | `DELETE /api/v1/photos/:id` | Eigentümer, admin | Foto samt Dateien entfernen |
 | `PUT /api/v1/photos/:id/primary` | Eigentümer, admin | Foto zum Hauptbild des Produkts machen (Kurzform für Position 0) |
 | `PUT /api/v1/photos/:id/position` | Eigentümer, admin | Foto in der Reihenfolge verschieben (`{ "position": 0…999 }`) |
