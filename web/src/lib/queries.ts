@@ -60,7 +60,6 @@ import {
   listPhotoReplacements,
   assignCapture,
   removeCapture,
-  removePhotoReplacement,
   removePhotoReplacementIfCurrent,
   type Capture,
   type NewCapture,
