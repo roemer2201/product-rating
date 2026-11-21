@@ -1,3 +1,4 @@
+import { repositorySourceUrl } from './web/src/lib/sourceUrl.ts';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath, URL } from 'node:url';
 import react from '@vitejs/plugin-react';
@@ -8,7 +9,7 @@ const webManifest = JSON.parse(
   readFileSync(fileURLToPath(new URL('./web/package.json', import.meta.url)), 'utf8'),
 ) as { version: string; repository: { url: string } };
 const webVersion = webManifest.version;
-const webSourceUrl = webManifest.repository.url.replace(/^git\+/u, '').replace(/\.git$/u, '');
+const webSourceUrl = repositorySourceUrl(webManifest.repository.url);
 
 /**
  * Two projects, because the two halves of the repository need different

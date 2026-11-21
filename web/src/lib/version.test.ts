@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { APP_VERSION, compareVersions } from '@/lib/version';
 import webPackage from '../../package.json';
 
+import { repositorySourceUrl } from './sourceUrl';
+
+it('links to the repository of a fork', () => {
+  expect(repositorySourceUrl('git+https://example.org/household/catalogue.git')).toBe(
+    'https://example.org/household/catalogue',
+  );
+});
+
 describe('version', () => {
   it('is the version of the web package', () => {
     expect(APP_VERSION).toBe(webPackage.version);

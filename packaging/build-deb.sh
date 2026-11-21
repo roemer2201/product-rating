@@ -32,7 +32,7 @@
 #                [--version VERSION] [-a|--arch ARCH] [--skip-build]
 #                [--skip-lintian]
 #
-# Version: 1.1.0  (2026-10-18)
+# Version: 1.1.1  (2026-11-21)
 
 # Robustness baseline: a package assembled from a half finished tree would
 # install and then fail at run time, which is the worst of both worlds.
@@ -455,21 +455,23 @@ prune_development_files() {
 
     log info "Removing test suites, documentation and CI metadata of the dependencies"
 
-    find "${modules_dir}" -type d \
-        \( -name test -o -name tests -o -name __tests__ \
-        -o -name benchmark -o -name benchmarks \
-        -o -name integration -o -name .github -o -name .husky \
-        -o -name doc -o -name docs \
-        -o -name scripts -o -name tools \) \
-        -prune -exec rm -rf {} +
+    # Work bottom-up so a notice inside an otherwise disposable directory
+    # keeps its original path. Match relative to the dependency tree only.
+    (
+        cd -- "${modules_dir}"
+        local legal='.*/([^/]*(licen[cs]e|notice|copyright)[^/]*|copying[^/]*)(/.*)?'
+        local development='.*/(tests?|__tests__|benchmarks?|integration|[.]github|[.]husky|docs?|scripts|tools)(/.*)?'
+        find . -regextype posix-extended -depth ! -iregex "${legal}" -regex "${development}" \
+            \( ! -type d -o -empty \) -delete
 
-    find "${modules_dir}" -type f \
+        find . -regextype posix-extended -type f ! -iregex "${legal}" \
         \( -name '*.md' -o -name '*.markdown' -o -name 'index.html' \
         -o -name '.gitattributes' -o -name '.gitignore' -o -name '.npmignore' \
         -o -name '.editorconfig' -o -name '.travis.yml' \
         -o -name '.eslintrc*' -o -name 'eslint.config.*' \
         -o -name '.prettierrc*' \) \
         -delete
+    )
 }
 
 # Makes the executable bit below node_modules agree with what the file is.

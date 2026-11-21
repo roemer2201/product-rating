@@ -73,7 +73,6 @@ describe('SettingsPage', () => {
     const source = screen.getByRole('link', { name: strings.settings.source });
     expect(source).toHaveAttribute('href', APP_SOURCE_URL);
     expect(source).toHaveAttribute('rel', 'noopener noreferrer');
-    expect(APP_SOURCE_URL).toBe('https://github.com/roemer2201/product-rating');
     await waitFor(() => {
       expect(screen.queryByText(/^Server /u)).not.toBeInTheDocument();
     });

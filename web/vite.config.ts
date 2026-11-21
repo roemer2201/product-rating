@@ -1,3 +1,4 @@
+import { repositorySourceUrl } from './src/lib/sourceUrl.ts';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vite';
@@ -41,7 +42,7 @@ const { version, repository } = JSON.parse(
  * (section 13) asks a modified version run as a service to offer. Taken from
  * the manifest, so a fork that changes `repository` there links to itself.
  */
-const sourceUrl = repository.url.replace(/^git\+/u, '').replace(/\.git$/u, '');
+const sourceUrl = repositorySourceUrl(repository.url);
 
 /** Escapes the path so it can stand at the front of a regular expression. */
 const baseAsPattern = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
