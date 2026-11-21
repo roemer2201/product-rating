@@ -492,6 +492,15 @@ so freigegeben.
       gesetzt, fragt die Seite erst `GET /products/by-ean/:ean` und führt zum
       Artikel, wenn ihn nur die Filter ausblenden (abgestimmt mit dem
       Projektinhaber am 02.11.2026)
+- [x] Anlegeformular: ersten Preis gleich mit erfassen, zugeklappt hinter
+      „Preis erfassen“ über dem Foto (bei Gerichten „Kosten erfassen“);
+      „Preisbeobachtung“ steht dort als letzte Option. Zuklappen versteckt nur,
+      die zugeklappte Schaltfläche fasst den Inhalt zusammen. Produkt und Preis
+      in einer Transaktion (`price` in `POST /api/v1/products`), offline in
+      derselben Erfassung (abgestimmt mit dem Projektinhaber am 21.11.2026)
+- [ ] Anlegeformular: Meldet das Anlegen `409`, weil jemand anders die EAN
+      inzwischen erfasst hat, geht ein eingegebener Preis mit den übrigen
+      Feldern verloren; anbieten, ihn beim vorhandenen Produkt zu erfassen
 - [ ] Aktionspreis-Markierung an vorhandenen Preiseinträgen nachträglich
       setzen oder entfernen – bisher gibt es kein Bearbeiten eines Preises,
       nur Erfassen und Löschen (vom Projektinhaber am 30.10.2026 vorerst

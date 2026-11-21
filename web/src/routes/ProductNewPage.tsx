@@ -9,10 +9,12 @@ import {
   PhotoSources,
   usePhotoPick,
 } from '@/components/PhotoPicker';
+import { isPriceStarted, priceRequest } from '@/components/PriceFields';
 import { useProductDraft } from '@/components/ProductDrafts';
 import { ProductForm, type ProductFormValues } from '@/components/ProductForm';
 import { errorMessage, isApiError } from '@/lib/api';
-import { emptyToNull, fieldErrors, type FieldErrors } from '@/lib/forms';
+import { emptyToNull, errorField, fieldErrors, type FieldErrors } from '@/lib/forms';
+import { todayAsInputValue } from '@/lib/money';
 import { useCreateProduct, useEnqueueCapture, useUploadPhoto } from '@/lib/queries';
 import { scrollToBottomEdge } from '@/lib/scroll';
 import { strings } from '@/lib/strings';
@@ -56,6 +58,11 @@ import { strings } from '@/lib/strings';
  * Without an EAN the database cannot refuse a duplicate either. The form shows
  * entries with a similar name instead, so the second "Gulasch" is a decision
  * and not an accident.
+ *
+ * The first price can come along, folded away below the fields (`PriceEntry`):
+ * standing at the shelf is also when the price tag is in view. It travels in
+ * the same request as the product, so it adds no step that could fail on its
+ * own, and offline it goes into the capture with everything else.
  */
 export function ProductNewPage() {
   const [params] = useSearchParams();
@@ -101,6 +108,7 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
     uploadError = null,
     pending = false,
     destination,
+    priceOpen = false,
   } = draft ?? {};
   if (destination !== undefined) return <Navigate to={destination} replace />;
 
@@ -160,6 +168,22 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
 
   const onSubmit = (values: ProductFormValues): void => {
     if (pending || pick.preparing) return;
+    // A price begun has to be a price; a shop without an amount would
+    // otherwise be dropped without a word.
+    const price = isPriceStarted(values.price) ? priceRequest(values.price, kind) : undefined;
+    if (price === null) {
+      setErrors({ price: strings.price.amountInvalid });
+      update({ priceOpen: true });
+      return;
+    }
+    const today = todayAsInputValue();
+    const purchasedAt = price?.purchasedAt ?? today;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(purchasedAt) || purchasedAt > today) {
+      setErrors({ purchasedAt: strings.price.dateInvalid });
+      update({ priceOpen: true });
+      return;
+    }
+
     const parsed = createProductSchema.safeParse({
       kind,
       ean,
@@ -169,15 +193,34 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
       categoryIds: values.categoryIds,
       notes: emptyToNull(values.notes),
       priceWatch: values.priceWatch,
+      ...(price === undefined ? {} : { price: { ...price, purchasedAt } }),
     });
 
     if (!parsed.success) {
-      setErrors(fieldErrors(parsed.error.issues));
+      const found = fieldErrors(parsed.error.issues);
+      setErrors(found);
+      // The panel may be folded; a message inside it would go unseen.
+      if (found.price !== undefined) update({ priceOpen: true });
       return;
     }
 
+    // The online attempt and its offline retry describe the same purchase.
+    // Only the queue needs the identifier, and it only takes entries with an
+    // EAN. Without one, a resubmission after a lost answer would run into the
+    // taken price with a `409` the screen has no way out of, where it used to
+    // add the entry once more like any other.
+    if (parsed.data.price !== undefined && ean !== null) {
+      const { id: previousId, ...previousPrice } = draft?.submitted?.price ?? {};
+      const id =
+        previousId !== undefined &&
+        JSON.stringify(previousPrice) === JSON.stringify(parsed.data.price)
+          ? previousId
+          : crypto.randomUUID?.();
+      if (id !== undefined) parsed.data.price.id = id;
+    }
+
     setErrors({});
-    update({ submitted: values, pending: true, createError: null });
+    update({ submitted: parsed.data, pending: true, createError: null });
     // Not `mutate` with callbacks: those are dropped once the screen is left,
     // and the save has to go on and leave its outcome in the draft.
     void create.mutateAsync(parsed.data).then(
@@ -186,7 +229,15 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
         revealPhoto.current = true;
         uploadPhoto(product.id);
       },
-      (error: Error) => update({ pending: false, createError: error }),
+      (error: Error) => {
+        update({
+          pending: false,
+          createError: error,
+          ...(isApiError(error) && errorField(error.details) === 'purchasedAt'
+            ? { priceOpen: true }
+            : {}),
+        });
+      },
     );
   };
 
@@ -207,6 +258,7 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
         ? createError.details.productId
         : null
       : null;
+  const rejectedDate = isApiError(createError) && errorField(createError.details) === 'purchasedAt';
 
   return (
     <section>
@@ -236,21 +288,19 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
               ean === null
                 ? null
                 : () => {
-                    const values = draft?.submitted;
-                    if (values === undefined || pick.preparing) return;
+                    const submitted = draft?.submitted;
+                    if (submitted === undefined || pick.preparing) return;
+                    const { kind: _kind, ean: _ean, price, priceWatch, ...product } = submitted;
                     update({ pending: true });
                     void capture
                       .mutateAsync({
                         ean,
-                        label: values.name,
-                        product: {
-                          name: values.name,
-                          variant: emptyToNull(values.variant),
-                          brand: emptyToNull(values.brand),
-                          categoryIds: values.categoryIds,
-                          notes: emptyToNull(values.notes),
-                          priceWatch: values.priceWatch,
-                        },
+                        label: product.name,
+                        product: { ...product, priceWatch: priceWatch ?? false },
+                        price:
+                          price === undefined
+                            ? null
+                            : { ...price, purchasedAt: price.purchasedAt ?? todayAsInputValue() },
                         photos: capturedPhotos,
                       })
                       .then(
@@ -274,8 +324,12 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
             submitLabel={dish ? strings.product.createDish : strings.product.create}
             pendingLabel={strings.product.creating}
             pending={pending || pick.preparing}
-            errors={errors}
-            error={createError === null || conflictId !== null ? null : errorMessage(createError)}
+            errors={rejectedDate ? { ...errors, purchasedAt: strings.price.dateInvalid } : errors}
+            error={
+              createError === null || conflictId !== null || rejectedDate
+                ? null
+                : errorMessage(createError)
+            }
             secondaryAction={
               !pending && (
                 <Link className="button" to="/scan" onClick={() => update(null)}>
@@ -284,6 +338,7 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
               )
             }
             actionsRef={actionsRef}
+            priceEntry={{ open: priceOpen, onToggle: (open) => update({ priceOpen: open }) }}
           >
             <div className="photo-upload">
               <h2 className="section__title">{strings.photo.newTitle}</h2>

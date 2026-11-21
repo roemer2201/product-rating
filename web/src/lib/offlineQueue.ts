@@ -66,6 +66,8 @@ export interface CapturedRating {
 }
 
 export interface CapturedPrice {
+  /** The price may already have arrived in a request whose response was lost. */
+  id?: string | undefined;
   cents: number;
   shop: string | null;
   note: string | null;

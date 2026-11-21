@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ProductListPage, ProductWithRatings } from '@product-rating/shared';
 import { seedDatabase } from '../db/testing.js';
@@ -164,6 +165,190 @@ describe('creating products', () => {
       payload: { name: 'Butter', priceWatch: 'ja' },
     });
     expect(invalid.statusCode).toBe(400);
+  });
+
+  it('stores the first price in the same request', async () => {
+    const response = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: writeHeaders(annaCookie),
+      payload: {
+        ean: SHORT_EAN,
+        name: 'Gouda in Scheiben',
+        priceWatch: true,
+        price: {
+          cents: 249,
+          shop: ' Wochenmarkt ',
+          note: '',
+          special: true,
+          purchasedAt: '2020-05-01',
+        },
+      },
+    });
+    expect(response.statusCode).toBe(201);
+    const { product, price } = response.json();
+    expect(price).toMatchObject({
+      productId: product.id,
+      userId: annaId,
+      cents: 249,
+      shop: 'Wochenmarkt',
+      note: null,
+      special: true,
+    });
+    expect(price.purchasedAt.slice(0, 10)).toBe('2020-05-01');
+
+    const detail = await harness.app.inject({
+      method: 'GET',
+      url: `/api/v1/products/${product.id as string}`,
+      headers: { cookie: annaCookie },
+    });
+    expect(detail.json().product.prices).toEqual([price]);
+
+    const shops = await harness.app.inject({
+      method: 'GET',
+      url: '/api/v1/prices/shops',
+      headers: { cookie: annaCookie },
+    });
+    expect(shops.json().shops).toContain('Wochenmarkt');
+
+    // Without one the answer says so rather than leaving the field out.
+    const plain = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: writeHeaders(annaCookie),
+      payload: { name: 'Butter' },
+    });
+    expect(plain.statusCode).toBe(201);
+    expect(plain.json().price).toBeNull();
+  });
+
+  it('leaves no product behind when its price is refused', async () => {
+    const future = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: writeHeaders(annaCookie),
+      payload: {
+        ean: EAN.fresh,
+        name: 'Apfelsaft',
+        price: { cents: 199, purchasedAt: '2999-01-01' },
+      },
+    });
+    expect(future.statusCode).toBe(400);
+    expect(future.json().error.details.field).toBe('purchasedAt');
+
+    const lookup = await harness.app.inject({
+      method: 'GET',
+      url: `/api/v1/products/by-ean/${EAN.fresh}`,
+      headers: { cookie: annaCookie },
+    });
+    expect(lookup.statusCode).toBe(404);
+
+    // Refused by the schema already: an offer on a dish, a negative amount.
+    for (const payload of [
+      { kind: 'dish', name: 'Gulasch', price: { cents: 350, special: true } },
+      { name: 'Brot', price: { cents: -1 } },
+    ]) {
+      const refused = await harness.app.inject({
+        method: 'POST',
+        url: '/api/v1/products',
+        headers: writeHeaders(annaCookie),
+        payload,
+      });
+      expect(refused.statusCode).toBe(400);
+    }
+    expect((await listProducts('')).products).toEqual([]);
+  });
+
+  it('recognises the first price when it is resubmitted by the offline queue', async () => {
+    const price = { id: randomUUID(), cents: 249, purchasedAt: '2020-05-01' };
+    const created = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: writeHeaders(annaCookie),
+      payload: { ean: SHORT_EAN, name: 'Gouda', price },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().price.id).toBe(price.id);
+
+    const productUrl = `/api/v1/products/${created.json().product.id as string}`;
+    const retry = await harness.app.inject({
+      method: 'POST',
+      url: `${productUrl}/prices`,
+      headers: writeHeaders(annaCookie),
+      payload: price,
+    });
+    expect(retry.statusCode).toBe(201);
+    expect(retry.json().price).toEqual(created.json().price);
+
+    const otherUser = await harness.app.inject({
+      method: 'POST',
+      url: `${productUrl}/prices`,
+      headers: writeHeaders(adminCookie),
+      payload: price,
+    });
+    expect(otherUser.statusCode).toBe(409);
+
+    const changedPrice = await harness.app.inject({
+      method: 'POST',
+      url: `${productUrl}/prices`,
+      headers: writeHeaders(annaCookie),
+      payload: { ...price, cents: 299 },
+    });
+    expect(changedPrice.statusCode).toBe(409);
+
+    const detail = await harness.app.inject({
+      method: 'GET',
+      url: productUrl,
+      headers: { cookie: annaCookie },
+    });
+    expect(detail.json().product.prices).toEqual([created.json().price]);
+  });
+
+  it('records the price of a dish and of an entry coming back from the trash', async () => {
+    const dish = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: writeHeaders(annaCookie),
+      payload: { kind: 'dish', name: 'Gulasch', price: { cents: 350, special: false } },
+    });
+    expect(dish.statusCode).toBe(201);
+    expect(dish.json().price).toMatchObject({ cents: 350, shop: null, special: false });
+
+    const created = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: writeHeaders(annaCookie),
+      payload: { ean: SHORT_EAN, name: 'Gouda', price: { cents: 199 } },
+    });
+    const id = created.json().product.id as string;
+    const trashed = await harness.app.inject({
+      method: 'DELETE',
+      url: `/api/v1/products/${id}`,
+      headers: writeHeaders(adminCookie),
+    });
+    expect(trashed.statusCode).toBe(200);
+
+    const restored = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: writeHeaders(annaCookie),
+      payload: { ean: SHORT_EAN, name: 'Gouda', price: { cents: 229 } },
+    });
+    expect(restored.statusCode).toBe(201);
+    expect(restored.json()).toMatchObject({
+      restored: true,
+      product: { id },
+      price: { cents: 229 },
+    });
+
+    const detail = await harness.app.inject({
+      method: 'GET',
+      url: `/api/v1/products/${id}`,
+      headers: { cookie: annaCookie },
+    });
+    expect(
+      (detail.json().product.prices as { cents: number }[]).map((entry) => entry.cents).sort(),
+    ).toEqual([199, 229]);
   });
 
   it('preserves a trashed price-watch mark for legacy creation requests', async () => {

@@ -447,6 +447,7 @@ export const strings = {
     lowestSpecial: 'Günstigster Aktionspreis',
     date: 'Einkaufsdatum',
     dateHint: 'Standard ist heute; ein Kassenbon von letzter Woche darf zurückdatiert werden.',
+    dateInvalid: 'Bitte ein gültiges Datum bis einschließlich heute eingeben.',
     lowest: 'Günstigster erfasster Preis',
     latest: 'Zuletzt bezahlt',
     remove: 'Preis löschen',
@@ -454,6 +455,8 @@ export const strings = {
     recordedBy: (username: string) => `erfasst von ${username}`,
     unknownUser: 'Gelöschtes Konto',
     capped: 'Es werden die 50 jüngsten Einträge gezeigt.',
+    /* Beim Anlegen: das aufklappbare Feld für den ersten Preis. */
+    entryHint: 'Wird zusammen mit dem Produkt gespeichert.',
 
     /* Bei einem Gericht steht hier, was eine Portion kostet. */
     dishTitle: 'Kosten pro Portion',
@@ -465,6 +468,7 @@ export const strings = {
     dishNoteHint: 'Zum Beispiel „für vier Portionen gerechnet“.',
     dishLowest: 'Günstigste Berechnung',
     dishLatest: 'Zuletzt berechnet',
+    dishEntryHint: 'Wird zusammen mit dem Gericht gespeichert.',
   },
 
   /* --------------------------------------------------------------- ratings */
@@ -766,6 +770,7 @@ export function apiErrorText(
     if (field === 'token') return strings.errors.resetLinkInvalid;
     if (field === 'ean') return strings.validation.ean;
     if (field === 'categoryIds') return strings.errors.categoryUnknown;
+    if (field === 'purchasedAt') return strings.price.dateInvalid;
     if (field === 'photo') {
       // Three ways an upload is refused, and each one has a different remedy:
       // take a smaller picture, use another format, or pick a file that really

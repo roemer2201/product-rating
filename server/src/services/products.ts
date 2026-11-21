@@ -255,7 +255,7 @@ export interface CreatedProduct {
  * price watch mark may be left out by callers inside the server that only ever
  * create ordinary scanned products.
  */
-export type NewProductInput = Omit<CreateProductInput, 'kind' | 'priceWatch'> & {
+export type NewProductInput = Omit<CreateProductInput, 'kind' | 'priceWatch' | 'price'> & {
   kind?: ProductKind;
   // Zod may expose an omitted optional field as explicitly undefined.
   priceWatch?: boolean | undefined;

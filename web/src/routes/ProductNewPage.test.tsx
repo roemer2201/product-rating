@@ -6,6 +6,8 @@ import { AppLayout } from '@/components/AppLayout';
 import { ProductDrafts } from '@/components/ProductDrafts';
 import { ProductNewPage } from '@/routes/ProductNewPage';
 import { listCaptures } from '@/lib/offlineQueue';
+import { formatDate } from '@/lib/format';
+import { formatPlainAmount, todayAsInputValue } from '@/lib/money';
 import { strings } from '@/lib/strings';
 import { mockFetch, testUser } from '@/testing/fetchMock';
 import { CATEGORY_LIST, TEST_EAN, makeProduct } from '@/testing/fixtures';
@@ -63,6 +65,17 @@ function HistoryBack({ label }: { label: string }) {
 /** The name is the only field the save insists on. */
 async function fillName(user: ReturnType<typeof userEvent.setup>): Promise<void> {
   await user.type(screen.getByLabelText(strings.fields.name), 'Apfelsaft');
+}
+
+/** The toggle of the price panel; its name grows a summary while it is closed. */
+function priceToggle(label: string = strings.price.add): HTMLElement {
+  return screen.getByRole('button', { name: new RegExp(`^${label}`) });
+}
+
+/** The body of the one POST the screen sent. */
+function postedBody(fetchMock: ReturnType<typeof mockFetch>): Record<string, unknown> {
+  const post = fetchMock.mock.calls.find(([, init]) => (init as RequestInit)?.method === 'POST');
+  return JSON.parse(String((post?.[1] as RequestInit).body)) as Record<string, unknown>;
 }
 
 function pickedFile(): File {
@@ -150,17 +163,26 @@ describe('ProductNewPage', () => {
 
     await user.type(screen.getByLabelText(new RegExp(strings.fields.variant)), 'Bolognese');
     await user.type(screen.getByLabelText(new RegExp(strings.fields.source)), 'Thermomix');
+    // What a portion costs: no shop and no offer mark for a dish.
+    await user.click(priceToggle(strings.price.dishAdd));
+    expect(
+      screen.queryByRole('combobox', { name: new RegExp(`^${strings.price.shop}`) }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: strings.price.special })).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText(strings.price.dishAmount), '3,50');
     await user.click(screen.getByRole('button', { name: strings.product.createDish }));
 
     expect(await screen.findByText('Produktseite')).toBeInTheDocument();
-    const post = fetchMock.mock.calls.find(([, init]) => (init as RequestInit)?.method === 'POST');
-    expect(JSON.parse(String((post?.[1] as RequestInit).body))).toMatchObject({
+    expect(postedBody(fetchMock)).toMatchObject({
       kind: 'dish',
       ean: null,
       name: 'Spaghetti',
       variant: 'Bolognese',
       brand: 'Thermomix',
+      price: { cents: 350, shop: null, special: false },
     });
+    // No EAN, no offline queue: the price goes without an identifier.
+    expect(postedBody(fetchMock).price).not.toHaveProperty('id');
   });
 
   it('explains instead of queueing an entry without an EAN', async () => {
@@ -221,6 +243,8 @@ describe('ProductNewPage', () => {
     await fillName(user);
     await user.type(screen.getByLabelText(new RegExp(strings.fields.notes)), 'Ohne Zucker');
     await user.click(await screen.findByRole('checkbox', { name: 'Getränke' }));
+    await user.click(priceToggle());
+    await user.type(screen.getByLabelText(strings.price.amount), '2,49');
     await user.click(screen.getByRole('checkbox', { name: strings.product.priceWatch }));
     await user.upload(screen.getByLabelText(strings.photo.choose), pickedFile());
     await screen.findByAltText(strings.photo.previewAlt);
@@ -232,6 +256,9 @@ describe('ProductNewPage', () => {
     expect(screen.getByLabelText(strings.fields.name)).toHaveValue('Apfelsaft');
     expect(screen.getByLabelText(new RegExp(strings.fields.notes))).toHaveValue('Ohne Zucker');
     expect(screen.getByRole('checkbox', { name: 'Getränke' })).toBeChecked();
+    // The panel is open again, with what was typed into it.
+    expect(priceToggle()).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByLabelText(strings.price.amount)).toHaveValue('2,49');
     expect(screen.getByRole('checkbox', { name: strings.product.priceWatch })).toBeChecked();
     expect(await screen.findByAltText(strings.photo.previewAlt)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: strings.product.create }));
@@ -296,7 +323,7 @@ describe('ProductNewPage', () => {
     });
   });
 
-  it('creates an entry marked as price watch from the ordinary form', async () => {
+  it('records the first price and the price watch mark from the folded panel', async () => {
     const user = userEvent.setup();
     const fetchMock = mockFetch([
       CATEGORIES,
@@ -306,16 +333,141 @@ describe('ProductNewPage', () => {
     renderNew();
     await fillName(user);
 
+    // Folded at first: neither the price nor the mark is on the form.
+    const toggle = priceToggle();
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByLabelText(strings.price.amount)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('checkbox', { name: strings.product.priceWatch }),
+    ).not.toBeInTheDocument();
+
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await user.type(screen.getByLabelText(strings.price.amount), '2,49');
+    await user.click(screen.getByRole('checkbox', { name: strings.price.special }));
+    await user.type(
+      screen.getByRole('combobox', { name: new RegExp(`^${strings.price.shop}`) }),
+      'Wochenmarkt',
+    );
     const checkbox = screen.getByRole('checkbox', { name: strings.product.priceWatch });
     expect(checkbox).not.toBeChecked();
     await user.click(checkbox);
+
+    // Folding only hides; the toggle says what the panel holds.
+    await user.click(toggle);
+    expect(screen.queryByLabelText(strings.price.amount)).not.toBeInTheDocument();
+    expect(toggle).toHaveAccessibleName(
+      `${strings.price.add} ${formatPlainAmount(249)} · Wochenmarkt · ${strings.price.special} · ${strings.product.priceWatch}`,
+    );
+
     await user.click(screen.getByRole('button', { name: strings.product.create }));
 
     expect(await screen.findByText('Produktseite')).toBeInTheDocument();
-    const post = fetchMock.mock.calls.find(([, init]) => (init as RequestInit)?.method === 'POST');
-    expect(JSON.parse(String((post?.[1] as RequestInit).body))).toMatchObject({
+    expect(postedBody(fetchMock)).toMatchObject({
       priceWatch: true,
+      price: {
+        cents: 249,
+        shop: 'Wochenmarkt',
+        note: null,
+        special: true,
+        purchasedAt: todayAsInputValue(),
+      },
     });
+    expect((postedBody(fetchMock).price as { id?: unknown }).id).toEqual(expect.any(String));
+  });
+
+  it('sends no price while none was begun', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([
+      CATEGORIES,
+      { path: '/products', method: 'POST', status: 201, body: { product: makeProduct() } },
+    ]);
+
+    renderNew();
+    await fillName(user);
+    // Opened and left as it was: the preset date alone is no price.
+    await user.click(priceToggle());
+    expect(screen.getByLabelText(strings.price.amount)).not.toBeRequired();
+    await user.click(screen.getByRole('button', { name: strings.product.create }));
+
+    expect(await screen.findByText('Produktseite')).toBeInTheDocument();
+    const body = postedBody(fetchMock);
+    expect(body).not.toHaveProperty('price');
+    expect(body.priceWatch).toBe(false);
+  });
+
+  it('does not discard a changed purchase date entered on its own', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([CATEGORIES]);
+
+    renderNew();
+    await fillName(user);
+    await user.click(priceToggle());
+    fireEvent.change(screen.getByLabelText(strings.price.date), {
+      target: { value: '2020-05-01' },
+    });
+    await user.click(priceToggle());
+    // Folded, the toggle names the date like everything else in the panel.
+    expect(priceToggle()).toHaveAccessibleName(
+      `${strings.price.add} ${formatDate('2020-05-01T12:00:00')}`,
+    );
+    await user.click(screen.getByRole('button', { name: strings.product.create }));
+
+    expect(priceToggle()).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByLabelText(strings.price.date)).toHaveValue('2020-05-01');
+    expect(screen.getByLabelText(strings.price.amount)).toBeRequired();
+    expect(screen.getByText(strings.price.amountInvalid)).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit)?.method === 'POST')).toBe(
+      false,
+    );
+  });
+
+  it('opens the panel and rejects a future purchase date before sending the form', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([CATEGORIES]);
+
+    renderNew();
+    await fillName(user);
+    await user.click(priceToggle());
+    await user.type(screen.getByLabelText(strings.price.amount), '2,49');
+    fireEvent.change(screen.getByLabelText(strings.price.date), {
+      target: { value: '2999-01-01' },
+    });
+    await user.click(priceToggle());
+    await user.click(screen.getByRole('button', { name: strings.product.create }));
+
+    expect(priceToggle()).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByLabelText(strings.price.date)).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByText(strings.price.dateInvalid)).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit)?.method === 'POST')).toBe(
+      false,
+    );
+  });
+
+  it('opens the panel to refuse a price begun without a valid amount', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([CATEGORIES]);
+
+    renderNew();
+    await fillName(user);
+    await user.click(priceToggle());
+    await user.type(
+      screen.getByRole('combobox', { name: new RegExp(`^${strings.price.shop}`) }),
+      'Bioladen',
+    );
+    await user.click(priceToggle());
+    await user.click(screen.getByRole('button', { name: strings.product.create }));
+
+    expect(priceToggle()).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByLabelText(strings.price.amount)).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByText(strings.price.amountInvalid)).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(strings.price.amount), '1,2,3');
+    await user.click(screen.getByRole('button', { name: strings.product.create }));
+    expect(screen.getByText(strings.price.amountInvalid)).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit)?.method === 'POST')).toBe(
+      false,
+    );
   });
 
   it('says where categories come from while there are none', async () => {
@@ -436,10 +588,19 @@ describe('ProductNewPage', () => {
 
   it('puts the picture into the queue together with a product that could not be saved', async () => {
     const user = userEvent.setup();
-    mockFetch([CATEGORIES, { path: '/products', method: 'POST', networkError: true }]);
+    const fetchMock = mockFetch([
+      CATEGORIES,
+      { path: '/products', method: 'POST', networkError: true },
+    ]);
 
     renderNew();
     await fillName(user);
+    await user.click(priceToggle());
+    await user.type(screen.getByLabelText(strings.price.amount), '0,99');
+    await user.type(
+      screen.getByRole('textbox', { name: new RegExp(`^${strings.price.note}\\b`) }),
+      'Kundenkarte',
+    );
     await user.upload(screen.getByLabelText(strings.photo.take), pickedFile());
     await screen.findByAltText(strings.photo.previewAlt);
     await user.click(screen.getByRole('button', { name: strings.product.create }));
@@ -451,6 +612,15 @@ describe('ProductNewPage', () => {
     expect(captures).toHaveLength(1);
     expect(captures[0]?.product?.name).toBe('Apfelsaft');
     expect(captures[0]?.product?.categoryIds).toEqual([]);
+    expect(captures[0]?.price).toEqual({
+      id: expect.any(String),
+      cents: 99,
+      shop: null,
+      note: 'Kundenkarte',
+      special: false,
+      purchasedAt: todayAsInputValue(),
+    });
+    expect(postedBody(fetchMock).price).toEqual(captures[0]?.price);
     expect(captures[0]?.photos).toHaveLength(1);
   });
 });
