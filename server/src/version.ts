@@ -9,21 +9,25 @@ import { readFileSync } from 'node:fs';
  * to the `package.json` it was built from. A missing or unreadable manifest is
  * not worth aborting a start-up for, so it degrades to `0.0.0`.
  */
-function readVersion(): string {
-  try {
-    const manifest = JSON.parse(
-      readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
-    ) as { version?: unknown };
+interface PackageIdentity {
+  version?: string;
+  productRatingChannel?: string;
+}
 
-    return typeof manifest.version === 'string' && manifest.version.length > 0
-      ? manifest.version
-      : '0.0.0';
+function readManifest(): PackageIdentity {
+  try {
+    return JSON.parse(
+      readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+    ) as PackageIdentity;
   } catch {
-    return '0.0.0';
+    return {};
   }
 }
 
-export const APP_VERSION = readVersion();
-
-/** Name the CLI and the syslog tag use. */
-export const APP_NAME = 'product-rating';
+const manifest = readManifest();
+export const APP_VERSION =
+  typeof manifest?.version === 'string' && manifest.version ? manifest.version : '0.0.0';
+/** Only the staged manifest in a development Debian package carries the marker. */
+export const DEV_INSTANCE = manifest?.productRatingChannel === 'dev';
+export const APP_NAME = DEV_INSTANCE ? 'product-rating-dev' : 'product-rating';
+export const DEFAULT_PORT = DEV_INSTANCE ? 8081 : 8080;

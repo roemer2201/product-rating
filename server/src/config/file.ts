@@ -1,3 +1,4 @@
+import { APP_NAME, DEV_INSTANCE } from '../version.js';
 import { readFileSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { parse as parseToml, TomlError } from 'smol-toml';
@@ -7,7 +8,7 @@ import type { RawConfig } from './values.js';
 /** Environment variable pointing at a configuration file. */
 export const CONFIG_PATH_ENV_VAR = 'PRODUCT_RATING_CONFIG';
 /** Location used by the Debian package and the container image. */
-export const SYSTEM_CONFIG_PATH = '/etc/product-rating/config.toml';
+export const SYSTEM_CONFIG_PATH = `/etc/${APP_NAME}/config.toml`;
 /** Location used during development, relative to the working directory. */
 export const LOCAL_CONFIG_PATH = 'config/config.toml';
 /** How many directory levels above the working directory are searched. */
@@ -19,7 +20,7 @@ export type ConfigFileSource = 'cli' | 'env' | 'system' | 'local';
 export interface ConfigFileCandidate {
   path: string;
   source: ConfigFileSource;
-  /** A path named explicitly must exist; the fixed locations are optional. */
+  /** An explicit path and the installed dev configuration must exist. */
   required: boolean;
 }
 
@@ -45,7 +46,7 @@ export function configFileCandidates(options: ConfigFileLookupOptions = {}): Con
     candidates.push({ path: absolute(fromEnv), source: 'env', required: true });
   }
 
-  candidates.push({ path: SYSTEM_CONFIG_PATH, source: 'system', required: false });
+  candidates.push({ path: SYSTEM_CONFIG_PATH, source: 'system', required: DEV_INSTANCE });
 
   // `config/config.toml` is looked for in the working directory and above it.
   // npm runs a workspace script with the workspace as working directory, so
@@ -74,14 +75,17 @@ function isReadableFile(path: string): boolean {
 /**
  * Returns the first existing configuration file. A path given per `--config`
  * or `$PRODUCT_RATING_CONFIG` that does not exist is an error; the fixed
- * locations are simply skipped, so the application also starts on defaults and
- * environment variables alone.
+ * locations are normally optional. The dev package requires its own file
+ * before starting so a missing installation cannot pick up a local config.
  */
 export function findConfigFile(options: ConfigFileLookupOptions = {}): ConfigFileCandidate | null {
   for (const candidate of configFileCandidates(options)) {
     if (isReadableFile(candidate.path)) return candidate;
 
     if (candidate.required) {
+      if (candidate.source === 'system') {
+        throw new ConfigError(`Installed development configuration not found: ${candidate.path}`);
+      }
       const origin = candidate.source === 'cli' ? '--config' : `$${CONFIG_PATH_ENV_VAR}`;
       throw new ConfigError(`Configuration file from ${origin} not found: ${candidate.path}`);
     }

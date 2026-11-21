@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router';
 import { AppearanceSync } from '@/components/AppearanceSync';
+import { CatalogueVisits } from '@/components/CatalogueVisits';
 import { BottomNav } from '@/components/BottomNav';
 import { OfflineBanner } from '@/components/OfflineNotice';
 import { ProductDrafts } from '@/components/ProductDrafts';
@@ -48,7 +49,9 @@ export function AppLayout() {
 
       <main className="app-main">
         <ProductDrafts key={session.data?.id}>
-          <Outlet />
+          <CatalogueVisits>
+            <Outlet />
+          </CatalogueVisits>
         </ProductDrafts>
       </main>
 

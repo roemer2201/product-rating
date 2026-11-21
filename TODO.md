@@ -165,7 +165,7 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
       muss `overscroll-behavior-y: contain` das eingebaute Neuladen
       unterdrücken, in der Web-App vom Home-Bildschirm darf das Gummiband der
       Seite nicht stören (mit dem Gerätetest in M9)
-- [ ] **[S]** Suchbegriff und Filter des Katalogs beim Zurücknavigieren erhalten – aktuell sind sie Zustand der Ansicht und gehen beim Wechsel auf ein Produkt verloren
+- [x] **[S]** Suchbegriff, Filter und Sortierung des Katalogs beim Zurücknavigieren erhalten. Eingeklappte Filter lassen sich einzeln entfernen.
 - [ ] **[S]** Ton und Vibration beim Treffer abschaltbar machen, sobald es eine Stelle für persönliche Einstellungen gibt
 
 ## M9 – PWA und iOS

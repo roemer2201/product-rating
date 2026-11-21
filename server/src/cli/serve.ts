@@ -1,3 +1,4 @@
+import { APP_NAME } from '../version.js';
 import { buildApp } from '../app.js';
 import { readSessionSecret } from '../config/index.js';
 import { openDatabase, runMigrations } from '../db/index.js';
@@ -8,7 +9,7 @@ import { EXIT_OK, type CliCommand } from './command.js';
 import { parseArguments } from './options.js';
 import { loadRuntimeConfig } from './runtime.js';
 
-const USAGE = `Usage: product-rating serve [OPTIONS]
+const USAGE = `Usage: ${APP_NAME} serve [OPTIONS]
 
 Runs the API server, applies pending migrations beforehand and serves the web
 client when server.static_dir points at a build. Runs in the foreground and
@@ -18,11 +19,11 @@ stop" send.
 Options:
       --help          Show this help and exit.
 
-Configuration options are accepted as well; "product-rating help" lists them.
+Configuration options are accepted as well; "${APP_NAME} help" lists them.
 
 Examples:
-  product-rating serve
-  product-rating serve --log-level debug --port 9090`;
+  ${APP_NAME} serve
+  ${APP_NAME} serve --log-level debug --port 9090`;
 
 export const serveCommand: CliCommand = {
   name: 'serve',

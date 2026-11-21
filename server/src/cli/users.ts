@@ -1,3 +1,4 @@
+import { APP_NAME } from '../version.js';
 import { displayNameSchema, type UserRole } from '@product-rating/shared';
 import type { AppConfig } from '../config/index.js';
 import type { DbHandle } from '../db/index.js';
@@ -16,7 +17,7 @@ import { readStdinLine, type CliIo } from './io.js';
 import { numberOption, parseArguments, stringOption, UsageError } from './options.js';
 import { loadRuntimeConfig, withDatabase } from './runtime.js';
 
-const USAGE = `Usage: product-rating user <subcommand> [OPTIONS]
+const USAGE = `Usage: ${APP_NAME} user <subcommand> [OPTIONS]
 
 Account management from the command line - the way in when nobody can log in
 any more, and the way to script the first accounts of a new installation.
@@ -55,15 +56,15 @@ Options:
                       history and out of the process list.
       --help          Show this help and exit.
 
-Configuration options are accepted as well; "product-rating help" lists them.
+Configuration options are accepted as well; "${APP_NAME} help" lists them.
 
 Examples:
-  product-rating user add anna --role admin --display-name "Anna"
-  product-rating user display-name anna "Anna aus dem Bad"
-  echo "correct horse battery staple" | product-rating user add tom --password-stdin
-  product-rating user passwd anna
-  product-rating user reset-link anna
-  product-rating user disable tom`;
+  ${APP_NAME} user add anna --role admin --display-name "Anna"
+  ${APP_NAME} user display-name anna "Anna aus dem Bad"
+  echo "correct horse battery staple" | ${APP_NAME} user add tom --password-stdin
+  ${APP_NAME} user passwd anna
+  ${APP_NAME} user reset-link anna
+  ${APP_NAME} user disable tom`;
 
 /**
  * Checks a display name against the same rule the API applies.
@@ -276,7 +277,7 @@ export const userCommand: CliCommand = {
 
           io.out(
             `password of ${target.username} removed, ${String(revoked)} session(s) ended; ` +
-              `issue a link with "product-rating user reset-link ${target.username}"`,
+              `issue a link with "${APP_NAME} user reset-link ${target.username}"`,
           );
           return EXIT_OK;
         }

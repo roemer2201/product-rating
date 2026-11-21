@@ -1,9 +1,10 @@
+import { APP_NAME } from '../version.js';
 import { runMigrations } from '../db/index.js';
 import { EXIT_OK, type CliCommand } from './command.js';
 import { parseArguments } from './options.js';
 import { loadRuntimeConfig, withDatabase } from './runtime.js';
 
-const USAGE = `Usage: product-rating migrate [OPTIONS]
+const USAGE = `Usage: ${APP_NAME} migrate [OPTIONS]
 
 Applies every migration the database is missing and exits. Running it against
 an up-to-date database does nothing, so it is safe to call on every start-up -
@@ -15,7 +16,7 @@ database file, so an interrupted upgrade has a way back.
 Options:
       --help          Show this help and exit.
 
-Configuration options are accepted as well; "product-rating help" lists them.`;
+Configuration options are accepted as well; "${APP_NAME} help" lists them.`;
 
 export const migrateCommand: CliCommand = {
   name: 'migrate',

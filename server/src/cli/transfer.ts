@@ -1,3 +1,4 @@
+import { APP_NAME } from '../version.js';
 import {
   exportCatalogue,
   importCatalogue,
@@ -18,11 +19,11 @@ import { loadRuntimeConfig, withDatabase } from './runtime.js';
  * installation, another host, or a spreadsheet.
  */
 
-const EXPORT_USAGE = `Usage: product-rating export --to DIR [OPTIONS]
+const EXPORT_USAGE = `Usage: ${APP_NAME} export --to DIR [OPTIONS]
 
 Writes the catalogue into a directory:
 
-  DIR/${EXPORT_JSON_FILE}     everything, in the form "product-rating import" reads
+  DIR/${EXPORT_JSON_FILE}     everything, in the form "${APP_NAME} import" reads
   DIR/users.csv       one row per account, without anything secret (--no-users
                       leaves this out)
   DIR/products.csv    one row per product, with rating count and average
@@ -33,7 +34,7 @@ Writes the catalogue into a directory:
 Accounts travel as names, roles and e-mail addresses - never as password
 hashes, which would turn the file into a set of credentials. The import creates
 the accounts it does not find, without a password; each of them then needs a
-link from an administrator ("product-rating user reset-link NAME").
+link from an administrator ("${APP_NAME} user reset-link NAME").
 
 --no-users leaves the accounts out. A move wants them, a spreadsheet does not:
 without them the other side has nobody to attribute a rating to, and the import
@@ -50,19 +51,19 @@ Options:
       --include-trash Take products in the trash along; left out by default.
       --help          Show this help and exit.
 
-Configuration options are accepted as well; "product-rating help" lists them.
+Configuration options are accepted as well; "${APP_NAME} help" lists them.
 
 CSV is written as RFC 4180 with a byte order mark, so a spreadsheet reads the
 umlauts correctly. It is an export format only - "import" reads the JSON file.
 
 Examples:
-  product-rating export --to /tmp/catalogue
-  product-rating export --to /srv/move --format both --with-photos
-  product-rating export --to /tmp/tabelle --format csv --no-users`;
+  ${APP_NAME} export --to /tmp/catalogue
+  ${APP_NAME} export --to /srv/move --format both --with-photos
+  ${APP_NAME} export --to /tmp/tabelle --format csv --no-users`;
 
-const IMPORT_USAGE = `Usage: product-rating import --from DIR [OPTIONS]
+const IMPORT_USAGE = `Usage: ${APP_NAME} import --from DIR [OPTIONS]
 
-Reads an export written by "product-rating export" into this instance. DIR is
+Reads an export written by "${APP_NAME} export" into this instance. DIR is
 the directory holding ${EXPORT_JSON_FILE}, or the file itself.
 
 Merging, not replacing: a product that already exists here keeps its data
@@ -72,7 +73,7 @@ without doubling anything.
 
 Accounts the file carries are created first, without a password: an export has
 no hashes to restore. Each new account is marked as needing one and is reached
-with "product-rating user reset-link NAME". A name that is neither here nor in
+with "${APP_NAME} user reset-link NAME". A name that is neither here nor in
 the file stops the import before anything is written, unless --owner names the
 account that takes those entries over.
 
@@ -88,13 +89,13 @@ Options:
       --dry-run       Read and check everything, change nothing.
       --help          Show this help and exit.
 
-Configuration options are accepted as well; "product-rating help" lists them.
+Configuration options are accepted as well; "${APP_NAME} help" lists them.
 
 Exit codes: 0 the import went through, 1 it failed or had to skip entries.
 
 Examples:
-  product-rating import --from /srv/move --dry-run
-  product-rating import --from /srv/move --owner anna`;
+  ${APP_NAME} import --from /srv/move --dry-run
+  ${APP_NAME} import --from /srv/move --owner anna`;
 
 function exportFormat(value: string | boolean | undefined): ExportFormat {
   if (value === undefined) return 'json';
@@ -152,7 +153,7 @@ export const exportCommand: CliCommand = {
       if (result.missingPhotoFiles > 0) {
         io.err(
           `${String(result.missingPhotoFiles)} image file(s) are missing on disk; ` +
-            'run "product-rating fsck --uploads"',
+            `run "${APP_NAME} fsck --uploads"`,
         );
         return EXIT_FAILURE;
       }
@@ -228,7 +229,7 @@ export const importCommand: CliCommand = {
             'password. Hand each of them a link:',
         );
         for (const name of result.usersNeedingPassword) {
-          io.err(`  product-rating user reset-link ${name}`);
+          io.err(`  ${APP_NAME} user reset-link ${name}`);
         }
       }
       if (result.unknownUsers.length > 0) {

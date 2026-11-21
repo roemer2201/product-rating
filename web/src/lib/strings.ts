@@ -525,6 +525,11 @@ export const strings = {
     priceWatchInclude: 'immer anzeigen',
     priceWatchOnly: 'nur diese',
     moreFilters: 'Zusätzliche Filter',
+    activeFilters: 'Aktive Filter',
+    removeFilter: (label: string) => `Filter „${label}“ entfernen`,
+    atLeastStars: (stars: string) => `Ab ${stars} ${stars === '1' ? 'Stern' : 'Sternen'}`,
+    onlyPriceWatch: 'Nur Preisbeobachtungen',
+    includePriceWatch: 'Mit Preisbeobachtungen',
     // The count keeps a folded panel from hiding that the list is filtered.
     moreFiltersActive: (count: number) => `Zusätzliche Filter (${count})`,
     sort: 'Sortierung',

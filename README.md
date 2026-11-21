@@ -118,6 +118,12 @@ mindestens 44 Pixel hoch, Ränder über `env(safe-area-inset-*)`.
 | `/admin/trash` | Papierkorb: zurückholen oder endgültig entfernen |
 | `/login`, `/register` | Anmeldung und Registrierung mit Einladungscode |
 
+Wer aus einem Produkt zum Katalog zurückwischt, erhält Suchtext, Filter und
+Sortierung dieses Besuchs zurück. Bei eingeklappten Filtern lässt sich jede
+aktive Auswahl direkt über der Trefferliste einzeln entfernen. Über „Katalog“
+in der Navigation beginnt eine neue Suche. Abmelden oder Neuladen verwirft
+die gemerkten Ansichten.
+
 Die Adressen sind wie der übrige Code englisch; deutsch ist ausschließlich, was
 auf dem Bildschirm steht. Sämtliche Oberflächentexte liegen in
 `web/src/lib/strings.ts`, damit eine spätere Übersetzung eine Datei betrifft und
@@ -1344,6 +1350,97 @@ und `arm64`.
 Abhängigkeiten des Pakets: `nodejs (>= 22)`, `adduser`, `init-system-helpers`,
 `debconf` sowie die C-Bibliotheken, die `dpkg-shlibdeps` beim Bau aus den
 nativen Modulen ermittelt (`libc6`, `libgcc-s1`, `libstdc++6`).
+
+#### Entwicklungsbranch parallel installieren
+
+Ein Checkout eines Branches mit diesem Paketbau liefert mit `--dev` ein eigenes
+Paket. Auf einem Host gibt es einen Dev-Platz. Ein weiterer Entwicklungsstand
+aktualisiert diesen Platz. Die beiden Instanzen haben folgende Standardwerte.
+
+| | Produktiv | Entwicklung |
+|---|---|---|
+| Paket, CLI und Dienstkonto | `product-rating` | `product-rating-dev` |
+| systemd-Dienst | `product-rating.service` | `product-rating-dev.service` |
+| Backend | `127.0.0.1:8080` | `127.0.0.1:8081` |
+| Programm und Web-App | `/opt/product-rating/` | `/opt/product-rating-dev/` |
+| Konfiguration und Session-Secret | `/etc/product-rating/` | `/etc/product-rating-dev/` |
+| Datenbank, Fotos und temporäre Dateien | `/var/lib/product-rating/` | `/var/lib/product-rating-dev/` |
+| Dateilogs und Logrotate-Regel | `/var/log/product-rating/`, `/etc/logrotate.d/product-rating` | `/var/log/product-rating-dev/`, `/etc/logrotate.d/product-rating-dev` |
+
+**Bauen.** Im gewünschten Branch auf einer zum Ziel passenden Distribution
+und Architektur mit den Voraussetzungen aus Abschnitt 7.2:
+
+```bash
+git switch mein-dev-branch
+npm ci
+npm run package:deb -- --dev
+```
+
+Im Verzeichnis `packaging/build/` liegt danach
+`product-rating-dev_<Version>~dev.<Commitzeit>.g<Kennung>_<Architektur>.deb`.
+Ein veränderter Arbeitsbaum bekommt zusätzlich `.dirty`. Für eine bewusst
+vorgegebene Debian-Versionsnummer dient `--version`. Wer den GitHub-Workflow
+**CI** auf dem gewünschten Branch ausführt, kann das fertige amd64-Paket
+aus dem Artefakt **debian-dev-package-amd64** herunterladen.
+
+**Installieren.** Das gewünschte Paket auf den Zielhost übertragen oder das
+CI-Artefakt dort entpacken. Im folgenden Beispiel liegt genau ein Dev-Paket im
+aktuellen Verzeichnis. Die Erstinstallation legt eine eigene leere Datenbank an.
+
+```bash
+sudo apt install ./product-rating-dev_*.deb
+sudoedit /etc/product-rating-dev/config.toml
+```
+
+Für den Zugriff vom Telefon einen eigenen DNS-Namen und ein dazu passendes
+TLS-Zertifikat verwenden. Unter `[server]` beispielsweise
+`base_url = "https://produkte-dev.example.org"` und hinter dem lokalen
+Reverse Proxy `trust_proxy = true` setzen. Die eigene Herkunft trennt auch
+den Service Worker, die lokalen Entwürfe und die Offline-Warteschlange im Browser.
+
+```bash
+sudo -u product-rating-dev product-rating-dev user add devadmin --role admin
+sudo systemctl enable --now product-rating-dev
+curl --fail http://127.0.0.1:8081/healthz
+```
+
+**Webserver einrichten.** Der Dev-Befehl liest die Einstellungen der
+Dev-Instanz. Er erzeugt eine eigene Site mit eigenen Logdateinamen, bei nginx
+zusätzlich einen eigenen Upstream und bei Traefik eigene Router, Dienste und
+Middlewares. Beispiel für nginx bei bereits vorhandenem Zertifikat:
+
+```bash
+sudo product-rating-dev proxy-config --server nginx --out /etc/nginx/sites-available/product-rating-dev.conf
+sudo ln -s ../sites-available/product-rating-dev.conf /etc/nginx/sites-enabled/product-rating-dev.conf
+sudo nginx -t && sudo systemctl reload nginx
+curl --fail https://produkte-dev.example.org/healthz
+```
+
+Andere Zertifikatspfade lassen sich mit `--cert` und `--key` übergeben.
+Für Apache, Caddy und Traefik denselben Befehl mit `--server apache`,
+`caddy` oder `traefik` aufrufen. Mit `--out VERZEICHNIS/` heißt die Datei
+`product-rating-dev.conf`, `product-rating-dev.caddy` oder
+`product-rating-dev.yml`. Die vereinbarte Konfiguration aktiviert der
+Betreiber im jeweiligen Webserver (Abschnitt 7.3). Vier fertige Beispiele
+liegen in `/usr/share/doc/product-rating-dev/examples/`.
+
+**Aktualisieren und zurücknehmen.** Vor einem Branchwechsel mit
+Schemaänderungen die Entwicklungsdaten sichern:
+
+```bash
+sudo install -d -o product-rating-dev -g product-rating-dev -m 0750 /var/backups/product-rating-dev
+sudo -u product-rating-dev product-rating-dev backup --to /var/backups/product-rating-dev
+```
+
+Das nächste Dev-Paket wieder mit `sudo apt install ./<Paketdatei>.deb`
+installieren. Die Paketkonfiguration migriert die Dev-Datenbank und startet
+einen laufenden Dev-Dienst neu. `product-rating-dev version` nennt die
+Paketversion samt Build-Kennung, `journalctl -u product-rating-dev` zeigt
+das Dienstprotokoll. Für einen Rücksprung über eine Migration hinweg den
+passenden Sicherungsstand einplanen (Wiederherstellung in Abschnitt 8.1).
+Zum Abbauen zuerst die Dev-Site deaktivieren und den Proxy neu laden, dann
+`sudo apt remove product-rating-dev` ausführen. Beim Purge betrifft die
+debconf-Frage `product-rating-dev/purge-data` ausschließlich die Dev-Daten.
 
 ### 7.3 Mitgelieferte Konfigurationen für Fremdkomponenten
 

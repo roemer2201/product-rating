@@ -120,8 +120,10 @@ jobs:
       - name: Install lintian
         run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes lintian
 
-      - name: Build the package
-        run: npm run package:deb
+      - name: Build the stable and development packages
+        run: |
+          npm run package:deb
+          npm run package:deb -- --dev --skip-build
 
       # The package wants nodejs (>= 22), which neither Ubuntu 24.04 nor Debian
       # 13 have in their own archive - the installation instructions say the
@@ -135,8 +137,7 @@ jobs:
       - name: Check that it installs, starts and answers
         run: |
           set -euo pipefail
-          package="$(find packaging/build -maxdepth 1 -name '*.deb' -print -quit)"
-          sudo apt-get install --yes "${PWD}/${package}"
+          sudo apt-get install --yes ./packaging/build/product-rating_*.deb
 
           # postinst creates the user, the directories and the secret and
           # applies the migrations, but deliberately does not start a fresh
@@ -145,6 +146,35 @@ jobs:
           sudo systemctl start product-rating
           curl --fail --silent --show-error --retry 10 --retry-delay 2 \
             --retry-all-errors http://127.0.0.1:8080/healthz
+
+          stable_pid="$(systemctl show -p MainPID --value product-rating)"
+          sudo apt-get install --yes ./packaging/build/product-rating-dev_*.deb
+          sudo systemctl start product-rating-dev
+          curl --fail --silent --show-error --retry 10 --retry-delay 1 \
+            --retry-all-errors http://127.0.0.1:8081/healthz
+          sudo test -s /var/lib/product-rating-dev/db/app.db
+          test "$(sudo stat -c %U /var/lib/product-rating-dev/db/app.db)" = product-rating-dev
+          if sudo cmp -s /etc/product-rating/secret.env /etc/product-rating-dev/secret.env; then
+            echo 'The instances share a session secret' >&2
+            exit 1
+          fi
+
+          # Exercise the upgrade path, including preservation of local settings
+          # and the conditional restart of a running development service.
+          sudo sh -c 'echo "# local setting" >> /etc/product-rating-dev/config.toml'
+          sudo dpkg -i ./packaging/build/product-rating-dev_*.deb
+          sudo grep -Fx '# local setting' /etc/product-rating-dev/config.toml
+          curl --fail --silent --show-error --retry 10 --retry-delay 1 \
+            --retry-all-errors http://127.0.0.1:8081/healthz
+
+          # Purge dev including its data; stable must keep serving throughout.
+          echo 'product-rating-dev product-rating-dev/purge-data boolean true' | sudo debconf-set-selections
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get purge --yes product-rating-dev
+          test ! -e /etc/product-rating-dev
+          test ! -e /var/lib/product-rating-dev
+          sudo test -s /var/lib/product-rating/db/app.db
+          test "$(systemctl show -p MainPID --value product-rating)" = "${stable_pid}"
+          curl --fail --silent --show-error http://127.0.0.1:8080/healthz
 
           # Removing has to leave the data behind, purging has to take the
           # configuration with it; both are maintainer script paths that only
@@ -158,7 +188,14 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: debian-package
-          path: packaging/build/*.deb
+          path: packaging/build/product-rating_*.deb
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debian-dev-package-amd64
+          path: packaging/build/product-rating-dev_*.deb
+          if-no-files-found: error
           retention-days: 7
 
   image:

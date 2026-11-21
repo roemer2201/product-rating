@@ -1,3 +1,4 @@
+import { APP_NAME } from '../version.js';
 import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { loadConfig } from '../config/index.js';
@@ -13,7 +14,7 @@ import { EXIT_OK, type CliCommand } from './command.js';
 import { numberOption, parseArguments, stringOption, UsageError } from './options.js';
 import type { CliIo } from './io.js';
 
-const USAGE = `Usage: product-rating proxy-config --server NAME [OPTIONS]
+const USAGE = `Usage: ${APP_NAME} proxy-config --server NAME [OPTIONS]
 
 Writes the configuration of the web server in front of this instance, filled
 in with what this installation is actually configured with: the host name and
@@ -51,7 +52,7 @@ Options:
                       touched.
       --help          Show this help and exit.
 
-Configuration options are accepted as well; "product-rating help" lists them,
+Configuration options are accepted as well; "${APP_NAME} help" lists them,
 and they are the way to generate for a second instance (--config FILE).
 
 nginx and Apache cannot obtain a certificate themselves, so without --cert the
@@ -62,15 +63,15 @@ are told to use the given files instead.
 
 The documented templates behind this - the same configurations with every
 setting explained - are in packaging/examples/, after an installation under
-/usr/share/doc/product-rating/examples/.
+/usr/share/doc/${APP_NAME}/examples/.
 
 Examples:
-  product-rating proxy-config --server nginx
-  product-rating proxy-config --server apache --domain produkte.example.org \\
+  ${APP_NAME} proxy-config --server nginx
+  ${APP_NAME} proxy-config --server apache --domain produkte.example.org \\
     --cert /etc/ssl/certs/produkte.pem --key /etc/ssl/private/produkte.key \\
-    --out /etc/apache2/sites-available/product-rating.conf
-  product-rating proxy-config --server caddy --base-path /produkte
-  product-rating proxy-config --server traefik --out /etc/traefik/dynamic/`;
+    --out /etc/apache2/sites-available/${APP_NAME}.conf
+  ${APP_NAME} proxy-config --server caddy --base-path /produkte
+  ${APP_NAME} proxy-config --server traefik --out /etc/traefik/dynamic/`;
 
 /** Reads `--server`, with the aliases and a message that lists the names. */
 function readTarget(options: Record<string, string | boolean>): ProxyTarget {
@@ -112,7 +113,7 @@ function remarks(resolved: ResolvedProxyConfig, configuredBaseUrl: string, trust
     notes.push(
       `warning: server.base_url is ${configuredBaseUrl}, this configuration serves ` +
         `${resolved.baseUrl} - every writing request is checked against base_url, so set ` +
-        `it: product-rating ... --set server.base_url=${resolved.baseUrl}`,
+        `it: ${APP_NAME} ... --set server.base_url=${resolved.baseUrl}`,
     );
   }
 
