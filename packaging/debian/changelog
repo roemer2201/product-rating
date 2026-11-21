@@ -1,3 +1,10 @@
+product-rating (0.15.1) unstable; urgency=medium
+
+  * License the program under the GNU AGPL 3.0 or later; the settings
+    screen links to the source code.
+
+ -- roemer2201 <roemer2201@users.noreply.github.com>  Sat, 21 Nov 2026 00:00:00 +0000
+
 product-rating (0.15.0) unstable; urgency=medium
 
   * Keep edited gallery photos in the offline queue when the replacement

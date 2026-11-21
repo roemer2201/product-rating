@@ -1,6 +1,6 @@
 {
   "name": "@product-rating/web",
-  "version": "0.15.0",
+  "version": "0.15.1",
   "private": true,
   "description": "React PWA client for product-rating",
   "license": "AGPL-3.0-or-later",
