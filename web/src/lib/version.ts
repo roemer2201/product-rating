@@ -9,6 +9,13 @@
  */
 export const APP_VERSION: string = __APP_VERSION__;
 
+/**
+ * Where the source code of this bundle is published. The program is under the
+ * GNU AGPL, whose section 13 asks a modified version offered over a network to
+ * point its users to the source; the settings screen links here.
+ */
+export const APP_SOURCE_URL: string = __APP_SOURCE_URL__;
+
 /** The numeric `major.minor.patch` of a version; a pre-release suffix is ignored. */
 function parts(version: string): number[] {
   const core = version.split(/[-+]/u)[0] ?? '';

@@ -32,9 +32,16 @@ const base = basePath();
  * package manifest of this workspace, which carries the one version of the
  * repository (`server/src/version.test.ts` holds all manifests to it).
  */
-const { version } = JSON.parse(
+const { version, repository } = JSON.parse(
   readFileSync(fileURLToPath(new URL('./package.json', import.meta.url)), 'utf8'),
-) as { version: string };
+) as { version: string; repository: { url: string } };
+
+/**
+ * Where the source code is, for the link on the settings screen that the AGPL
+ * (section 13) asks a modified version run as a service to offer. Taken from
+ * the manifest, so a fork that changes `repository` there links to itself.
+ */
+const sourceUrl = repository.url.replace(/^git\+/u, '').replace(/\.git$/u, '');
 
 /** Escapes the path so it can stand at the front of a regular expression. */
 const baseAsPattern = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -43,6 +50,7 @@ export default defineConfig({
   base,
   define: {
     __APP_VERSION__: JSON.stringify(version),
+    __APP_SOURCE_URL__: JSON.stringify(sourceUrl),
   },
   plugins: [
     react(),

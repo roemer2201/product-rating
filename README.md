@@ -1898,6 +1898,31 @@ Zwei Workflows unter `.github/workflows/`:
 Beide Workflows brauchen keine eingerichteten Secrets: `GITHUB_TOKEN` reicht
 für Release und Registry.
 
+## 10. Lizenz
+
+Copyright 2026 roemer2201. product-rating steht unter der **GNU Affero General
+Public License, Version 3 oder (nach Wahl) jeder späteren Version**
+(SPDX: `AGPL-3.0-or-later`); der vollständige Text liegt in [LICENSE](LICENSE).
+
+Die AGPL ist eine Copyleft-Lizenz mit einer Klausel für Netzwerkdienste
+(Abschnitt 13): Wer eine **veränderte** Fassung so betreibt, dass andere über
+ein Netzwerk mit ihr arbeiten, muss diesen Nutzern den Quellcode der
+veränderten Fassung anbieten. Dafür steht in den Einstellungen neben der
+Version der Link „Quellcode (AGPL-3.0)“. Sein Ziel kommt beim Bau aus
+`repository` in `web/package.json` (`__APP_SOURCE_URL__`, wie die Version); ein
+Fork trägt dort seine eigene Adresse ein und veröffentlicht seinen Code dort.
+
+Dieselbe Angabe steht im Debian-Paket (`/usr/share/doc/product-rating/copyright`,
+mit dem vollen Text, weil Debian die AGPL nicht unter
+`/usr/share/common-licenses` mitliefert), im Label
+`org.opencontainers.image.licenses` des Container-Images und als `LICENSE` im
+Image unter `/app`. `server/src/license.test.ts` hält alle diese Stellen
+beieinander.
+
+Die mitgelieferten Abhängigkeiten behalten ihre eigenen Lizenzen; ihre Texte
+liegen jeweils in `node_modules`. Fast alle sind freizügig (MIT, ISC, BSD,
+Apache-2.0); `sharp` bringt `libvips` unter LGPL-3.0-or-later mit.
+
 Weitere Dokumente: [CLAUDE.md](CLAUDE.md) (Arbeitsanweisungen und
 Projektkonventionen), [TODO.md](TODO.md) (Umsetzungsschritte),
 [HISTORY.md](HISTORY.md) (abgeschlossene Arbeiten).

@@ -4,11 +4,11 @@ import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
 /** Written into the web bundle by `web/vite.config.ts`; the tests need it too. */
-const webVersion = (
-  JSON.parse(
-    readFileSync(fileURLToPath(new URL('./web/package.json', import.meta.url)), 'utf8'),
-  ) as { version: string }
-).version;
+const webManifest = JSON.parse(
+  readFileSync(fileURLToPath(new URL('./web/package.json', import.meta.url)), 'utf8'),
+) as { version: string; repository: { url: string } };
+const webVersion = webManifest.version;
+const webSourceUrl = webManifest.repository.url.replace(/^git\+/u, '').replace(/\.git$/u, '');
 
 /**
  * Two projects, because the two halves of the repository need different
@@ -30,6 +30,7 @@ export default defineConfig({
         plugins: [react()],
         define: {
           __APP_VERSION__: JSON.stringify(webVersion),
+          __APP_SOURCE_URL__: JSON.stringify(webSourceUrl),
         },
         resolve: {
           alias: {
