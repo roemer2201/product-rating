@@ -3,7 +3,7 @@
 # build-deb.sh
 #
 # Description:
-#   Builds the Debian package of product-rating. Compiles both workspaces,
+#   Builds the stable or parallel-installable dev package of product-rating. Compiles both workspaces,
 #   assembles a runtime-only dependency tree, lays out the installation tree
 #   under packaging/build/ and turns it into a .deb with dpkg-deb. If lintian
 #   is installed, the result is checked with it.
@@ -20,7 +20,7 @@
 #   3. Build the server bundle and the web client (unless --skip-build).
 #   4. Install the runtime dependencies of the server into a staging directory,
 #      then drop the binaries of every foreign platform from it.
-#   5. Lay out the installation tree: /opt, /etc, /usr/bin, the systemd unit,
+#   5. Lay out the selected instance and its proxy examples: /opt, /etc, /usr/bin, the systemd unit,
 #      the logrotate rule, the bash completion and the documentation.
 #   6. Fill in DEBIAN/: control with its substitutions, conffiles, templates,
 #      the maintainer scripts and md5sums.
@@ -30,9 +30,9 @@
 # Usage:
 #   build-deb.sh [-v|--verbose] [-s|--silent] [-o|--output DIR]
 #                [--version VERSION] [-a|--arch ARCH] [--skip-build]
-#                [--skip-lintian]
+#                [--dev] [--skip-lintian]
 #
-# Version: 1.1.0  (2026-10-18)
+# Version: 1.2.0  (2026-11-21)
 
 # Robustness baseline: a package assembled from a half finished tree would
 # install and then fail at run time, which is the worst of both worlds.
@@ -48,7 +48,8 @@ REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 # Name of the package and of the directories it owns. In one place because the
 # layout appears in a dozen paths below.
 PACKAGE_NAME="product-rating"
-INSTALL_PREFIX="/opt/${PACKAGE_NAME}"
+PROFILE="${BUILD_DEB_PROFILE:-stable}"
+INSTALL_PREFIX=""
 
 # --- Defaults seeded from environment variables ---------------------------
 # Precedence: command-line argument > environment variable > built-in default.
@@ -71,9 +72,13 @@ Builds the Debian package of product-rating for the architecture of the build
 host and writes it to the output directory.
 
 Options:
+      --dev           Build product-rating-dev from this checkout. Uses port
+                      8081 and a separate service, account and storage.
+                      Env: BUILD_DEB_PROFILE=stable|dev   Default: stable
   -o, --output DIR    Directory for the build tree and the finished .deb.
                       Env: BUILD_DEB_OUTPUT       Default: packaging/build
-      --version VER   Version of the package.
+      --version VER   Exact Debian version. The dev default adds the commit
+                      timestamp and short Git SHA to the application version.
                       Env: BUILD_DEB_VERSION      Default: version in package.json
   -a, --arch ARCH     Debian architecture to label the package with. Has to be
                       the architecture of the build host: the native modules
@@ -190,6 +195,10 @@ while [ "$#" -gt 0 ]; do
             ARCH="${1#*=}"
             shift
             ;;
+        --dev)
+            PROFILE="dev"
+            shift
+            ;;
         --skip-build)
             SKIP_BUILD=1
             shift
@@ -286,8 +295,24 @@ check_prerequisites() {
         die "node ${host_major} is too old: package.json asks for node ${required_major} or newer"
     fi
 
+    case "${PROFILE}" in
+        stable) ;;
+        dev) PACKAGE_NAME="product-rating-dev" ;;
+        *) printf '%s: invalid profile: %s (use stable or dev)\n' "${SCRIPT_NAME}" "${PROFILE}" >&2; exit 2 ;;
+    esac
+    INSTALL_PREFIX="/opt/${PACKAGE_NAME}"
+
     if [ -z "${VERSION}" ]; then
         VERSION="$(node -p "require('${REPO_ROOT}/package.json').version")"
+        if [ "${PROFILE}" = "dev" ]; then
+            # Numeric commit time makes successive builds on a branch sortable.
+            local revision dirty=""
+            revision="$(git -C "${REPO_ROOT}" show -s --format=%ct.g%h --abbrev=12 HEAD)"
+            if [ -n "$(git -C "${REPO_ROOT}" status --porcelain)" ]; then
+                dirty=".dirty"
+            fi
+            VERSION="${VERSION}~dev.${revision}${dirty}"
+        fi
     fi
     # dpkg is stricter about versions than this check, but catching the obvious
     # case here gives a message that names the option instead of a dpkg error.
@@ -524,6 +549,27 @@ strip_binaries() {
         -exec strip --strip-unneeded {} +
 }
 
+# Render only our package integration files, never upstream code, user values
+# or the application bundles. The stable input doubles as a usable example.
+# A project's homepage and systemd Documentation URL refer to the source repo.
+render_instance_file() {
+    local source="${1}"
+    if [ "${PROFILE}" = "stable" ]; then
+        cat -- "${source}"
+    else
+        sed -e '/^Homepage: /b' -e '/^Documentation=/b' \
+            -e 's/product-rating/product-rating-dev/g' \
+            -e 's/_product_rating/_product_rating_dev/g' \
+            -e 's/8080/8081/g' "${source}"
+    fi
+}
+
+# Install the rendered text with the permissions the package records.
+install_instance_file() {
+    render_instance_file "${2}" > "${3}"
+    chmod "${1}" "${3}"
+}
+
 # Lays out everything that will be installed, under the paths it will have on
 # the target system.
 assemble_tree() {
@@ -543,18 +589,30 @@ assemble_tree() {
     install -m 0644 "${REPO_ROOT}/server/package.json" "${tree}${INSTALL_PREFIX}/server/package.json"
     cp -a "${REPO_ROOT}/web/dist" "${tree}${INSTALL_PREFIX}/web"
 
+    if [ "${PROFILE}" = "dev" ]; then
+        # Read by the installed CLI and service, even when launched directly
+        # from dist. Never change the workspace manifest or the stable build.
+        node --input-type=commonjs -e '
+            const fs = require("node:fs");
+            const file = process.argv[1];
+            const manifest = JSON.parse(fs.readFileSync(file, "utf8"));
+            manifest.productRatingChannel = "dev";
+            fs.writeFileSync(file, JSON.stringify(manifest, null, 2) + "\n");
+        ' "${tree}${INSTALL_PREFIX}/server/package.json"
+    fi
+
     # Configuration. Registered as a conffile, so an edit survives an upgrade.
     install -d -m 0755 "${tree}/etc/${PACKAGE_NAME}"
-    install -m 0644 "${debian_dir}/config.package.toml" \
+    install_instance_file 0644 "${debian_dir}/config.package.toml" \
         "${tree}/etc/${PACKAGE_NAME}/config.toml"
 
     install -d -m 0755 "${tree}/etc/logrotate.d"
-    install -m 0644 "${debian_dir}/${PACKAGE_NAME}.logrotate" \
+    install_instance_file 0644 "${debian_dir}/product-rating.logrotate" \
         "${tree}/etc/logrotate.d/${PACKAGE_NAME}"
 
     # The command line front end, with the package version filled in.
     install -d -m 0755 "${tree}/usr/bin"
-    sed "s|@VERSION@|${VERSION}|g" "${debian_dir}/${PACKAGE_NAME}.wrapper" \
+    render_instance_file "${debian_dir}/product-rating.wrapper" | sed "s|@VERSION@|${VERSION}|g" \
         > "${tree}/usr/bin/${PACKAGE_NAME}"
     chmod 0755 "${tree}/usr/bin/${PACKAGE_NAME}"
 
@@ -562,20 +620,20 @@ assemble_tree() {
     # the name bash-completion looks for on the first TAB, in every version
     # Debian and Ubuntu ship. Without bash-completion installed it is inert.
     install -d -m 0755 "${tree}/usr/share/bash-completion/completions"
-    install -m 0644 "${REPO_ROOT}/packaging/completion/${PACKAGE_NAME}.bash" \
+    install_instance_file 0644 "${REPO_ROOT}/packaging/completion/product-rating.bash" \
         "${tree}/usr/share/bash-completion/completions/${PACKAGE_NAME}"
 
     # The unit goes to /usr/lib, not to /lib: on a merged-usr system the latter
     # is a symlink, and a package must not install through one.
     install -d -m 0755 "${tree}/usr/lib/systemd/system"
-    install -m 0644 "${debian_dir}/${PACKAGE_NAME}.service" \
+    install_instance_file 0644 "${debian_dir}/product-rating.service" \
         "${tree}/usr/lib/systemd/system/${PACKAGE_NAME}.service"
 
     # The findings that were looked at and deliberately left as they are. They
     # travel with the package, so a later lintian run on the installed system
     # reaches the same conclusion without anyone having to remember why.
     install -d -m 0755 "${tree}/usr/share/lintian/overrides"
-    install -m 0644 "${debian_dir}/lintian-overrides" \
+    install_instance_file 0644 "${debian_dir}/lintian-overrides" \
         "${tree}/usr/share/lintian/overrides/${PACKAGE_NAME}"
 
     assemble_documentation "${tree}"
@@ -604,13 +662,23 @@ assemble_documentation() {
     gzip -9nc "${REPO_ROOT}/README.md" > "${doc_dir}/README.md.gz"
     chmod 0644 "${doc_dir}/README.md.gz"
 
-    install -m 0644 "${REPO_ROOT}/config/config.example.toml" \
+    install_instance_file 0644 "${REPO_ROOT}/config/config.example.toml" \
         "${doc_dir}/config.example.toml"
 
     # The configurations for nginx, Apache, Caddy and friends arrive with M12.
     # Packaged as soon as they exist, so this build does not have to change
     # again for them.
-    if [ -d "${REPO_ROOT}/packaging/examples" ]; then
+    if [ "${PROFILE}" = "dev" ]; then
+        # Separate vhost files and proxy identifiers can coexist with stable.
+        # Generate with the shipped CLI so the examples follow its behaviour.
+        local proxy
+        for proxy in nginx apache caddy traefik; do
+            node "${tree}${INSTALL_PREFIX}/server/dist/index.js" proxy-config \
+                --config "${tree}/etc/${PACKAGE_NAME}/config.toml" \
+                --base-url https://produkte-dev.example.org --set server.trust_proxy=true \
+                --server "${proxy}" --out "${doc_dir}/examples/${proxy}/"
+        done
+    elif [ -d "${REPO_ROOT}/packaging/examples" ]; then
         cp -a "${REPO_ROOT}/packaging/examples" "${doc_dir}/examples"
         log debug "Packaged the example configurations"
     else
@@ -705,19 +773,18 @@ assemble_control() {
         shlibs_field=", ${SHLIBS_DEPENDS}"
     fi
 
-    sed -e "s|@VERSION@|${VERSION}|g" \
+    render_instance_file "${debian_dir}/control" | sed -e "s|@VERSION@|${VERSION}|g" \
         -e "s|@ARCH@|${ARCH}|g" \
         -e "s|@INSTALLED_SIZE@|${installed_size}|g" \
-        -e "s|@SHLIBS_DEPENDS@|${shlibs_field}|g" \
-        "${debian_dir}/control" > "${control_dir}/control"
+        -e "s|@SHLIBS_DEPENDS@|${shlibs_field}|g" > "${control_dir}/control"
     chmod 0644 "${control_dir}/control"
 
-    install -m 0644 "${debian_dir}/conffiles" "${control_dir}/conffiles"
-    install -m 0644 "${debian_dir}/templates" "${control_dir}/templates"
+    install_instance_file 0644 "${debian_dir}/conffiles" "${control_dir}/conffiles"
+    install_instance_file 0644 "${debian_dir}/templates" "${control_dir}/templates"
 
     local script
     for script in config postinst prerm postrm; do
-        install -m 0755 "${debian_dir}/${script}" "${control_dir}/${script}"
+        install_instance_file 0755 "${debian_dir}/${script}" "${control_dir}/${script}"
     done
 
     write_md5sums "${tree}"
@@ -735,7 +802,7 @@ write_md5sums() {
         # dpkg expects.
         find . -type f ! -path './DEBIAN/*' -printf '%P\n' \
             | LC_ALL=C sort \
-            | grep -v -x -F -f <(sed 's|^/||' "${REPO_ROOT}/packaging/debian/conffiles") \
+            | grep -v -x -F -f <(sed 's|^/||' DEBIAN/conffiles) \
             | xargs -r -d '\n' md5sum -- \
             > DEBIAN/md5sums
     )
@@ -801,9 +868,11 @@ check_package() {
 main() {
     check_prerequisites
 
+    mkdir -p -- "${OUTPUT_DIR}"
+    OUTPUT_DIR="$(cd -- "${OUTPUT_DIR}" && pwd)"
     local build_root="${OUTPUT_DIR}"
     local tree="${build_root}/${PACKAGE_NAME}_${VERSION}_${ARCH}"
-    local deps_dir="${build_root}/deps"
+    local deps_dir="${build_root}/deps-${PACKAGE_NAME}"
 
     # A build starts from an empty tree: a file left over from an earlier run
     # would end up in the package without anything pointing at it.

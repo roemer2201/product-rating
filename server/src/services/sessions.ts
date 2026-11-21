@@ -1,3 +1,4 @@
+import { DEV_INSTANCE } from '../version.js';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { and, eq, lt } from 'drizzle-orm';
 import type { SessionInfo } from '@product-rating/shared';
@@ -18,7 +19,7 @@ import type { AppConfig } from '../config/index.js';
 export const SESSION_TOKEN_BYTES = 32;
 
 /** Name of the session cookie. */
-export const SESSION_COOKIE = 'pr_session';
+export const SESSION_COOKIE = DEV_INSTANCE ? 'pr_dev_session' : 'pr_session';
 
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 

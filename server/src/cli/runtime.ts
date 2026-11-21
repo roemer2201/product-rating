@@ -1,3 +1,4 @@
+import { APP_NAME } from '../version.js';
 import {
   ConfigError,
   ensureRuntimeDirectories,
@@ -51,7 +52,7 @@ export async function withDatabase<T>(
       if (pending > 0) {
         throw new ConfigError(
           `the database schema is ${String(pending)} migration(s) behind this version`,
-          ['bring it up to date first: product-rating migrate'],
+          [`bring it up to date first: ${APP_NAME} migrate`],
         );
       }
     }

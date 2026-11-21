@@ -1,9 +1,10 @@
+import { APP_NAME } from '../version.js';
 import { checkUploads } from '../services/photos.js';
 import { EXIT_FAILURE, EXIT_OK, type CliCommand } from './command.js';
 import { parseArguments, UsageError } from './options.js';
 import { loadRuntimeConfig, withDatabase } from './runtime.js';
 
-const USAGE = `Usage: product-rating fsck --uploads [--repair]
+const USAGE = `Usage: ${APP_NAME} fsck --uploads [--repair]
 
 Compares the upload directory with the photo table in both directions: files
 that no row claims any more, and rows whose file is missing. Reporting is
