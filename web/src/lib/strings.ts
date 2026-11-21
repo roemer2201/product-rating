@@ -447,6 +447,7 @@ export const strings = {
     lowestSpecial: 'Günstigster Aktionspreis',
     date: 'Einkaufsdatum',
     dateHint: 'Standard ist heute; ein Kassenbon von letzter Woche darf zurückdatiert werden.',
+    dateInvalid: 'Bitte ein gültiges Datum bis einschließlich heute eingeben.',
     lowest: 'Günstigster erfasster Preis',
     latest: 'Zuletzt bezahlt',
     remove: 'Preis löschen',
@@ -769,6 +770,7 @@ export function apiErrorText(
     if (field === 'token') return strings.errors.resetLinkInvalid;
     if (field === 'ean') return strings.validation.ean;
     if (field === 'categoryIds') return strings.errors.categoryUnknown;
+    if (field === 'purchasedAt') return strings.price.dateInvalid;
     if (field === 'photo') {
       // Three ways an upload is refused, and each one has a different remedy:
       // take a smaller picture, use another format, or pick a file that really

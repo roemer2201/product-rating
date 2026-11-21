@@ -33,6 +33,10 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
   klappt der Bereich auf und meldet den Fehler. Der Entwurf behält die
   Eingaben und den Klappzustand, wenn man die Seite kurz verlässt. „Offline
   merken“ nimmt den Preis in die Erfassung mit.
+- Review von PR #61: Ein geändertes Datum zählt zur Preiseingabe. Fehler am
+  Datum öffnen den Bereich und erscheinen direkt am Feld. Dieselbe Preis-ID
+  verbindet den ersten Speicherversuch mit dem Offline-Abgleich, damit eine
+  verlorene Antwort keinen zweiten Preiseintrag erzeugt.
 - Offen geblieben und als Punkt in TODO.md: Meldet das Anlegen `409`, geht der
   eingegebene Preis wie die übrigen Felder verloren.
 - Geprüft mit neuen Tests für Schema, Route (Preis, Ablehnung ohne Produkt,

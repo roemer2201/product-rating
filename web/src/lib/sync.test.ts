@@ -262,10 +262,11 @@ describe('syncing a capture', () => {
   });
 
   it('keeps the offer mark of a price written down offline', async () => {
+    const id = '20c428ac-9bb3-49af-97b3-007c862cc1a0';
     await enqueueCapture({
       ean: TEST_EAN,
       label: 'Apfelsaft',
-      price: { cents: 99, shop: null, note: null, special: true, purchasedAt: '2026-08-20' },
+      price: { id, cents: 99, shop: null, note: null, special: true, purchasedAt: '2026-08-20' },
     });
 
     const fetchMock = mockFetch([
@@ -278,7 +279,7 @@ describe('syncing a capture', () => {
       String(url).includes('/products/prod-1/prices'),
     );
     const body = JSON.parse(String((post?.[1] as RequestInit).body)) as Record<string, unknown>;
-    expect(body).toMatchObject({ cents: 99, special: true });
+    expect(body).toMatchObject({ id, cents: 99, special: true });
   });
 
   it('asks instead of overwriting a verdict that changed in the meantime', async () => {

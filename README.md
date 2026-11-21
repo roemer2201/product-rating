@@ -294,8 +294,8 @@ Folge eines Preises Sinn ergibt; beim Bearbeiten steht sie weiter direkt im
 Formular. **Zuklappen versteckt nur:** Was eingetragen ist, wird mit dem
 Produkt gespeichert, und die zugeklappte Schaltfläche nennt es in einer zweiten
 Zeile („2,49 · Wochenmarkt · Preisbeobachtung“). Ist ein Preis begonnen – ein
-Einkaufsort, eine Notiz, ein Haken bei „Aktionspreis“ –, aber kein gültiger
-Betrag eingetragen, klappt der Bereich auf und sagt es, statt die Angaben
+Einkaufsort, eine Notiz, ein Aktionspreis oder ein abweichendes Datum –, aber kein
+gültiger Betrag eingetragen, klappt der Bereich auf und sagt es, statt die Angaben
 stillschweigend zu verwerfen. Bei einem Gericht heißt der Bereich „Kosten
 erfassen“, wie auf der Gerichtsseite ohne Einkaufsort und Aktionspreis.
 Gespeichert wird in **einer** Anfrage (`price` in `POST /api/v1/products`,
@@ -879,6 +879,13 @@ Lehnt der Server den Preis ab (Datum in der Zukunft, Aktionspreis bei einem
 Gericht), entsteht auch kein Produkt. Die Antwort trägt den Eintrag unter
 `price`, ohne Preis `null`. Holt die Anfrage ein Produkt aus dem Papierkorb
 zurück, kommt der Preis zu dessen Verlauf hinzu.
+
+Beide Routen akzeptieren optional eine vom Client erzeugte UUIDv4 unter
+`id` im Preiskörper. Die Offline-Warteschlange übernimmt die ID aus dem
+ersten Speicherversuch. Schickt sie den Preis an
+`POST /api/v1/products/:id/prices`, liefert der Server bei derselben ID,
+denselben Preisangaben, demselben Produkt und demselben Konto den
+gespeicherten Eintrag. Bei abweichenden Angaben antwortet er mit `409`.
 
 **Aktionspreise** (Angebot, Aktion, reduziert) sind am Eintrag markiert, im
 Formular über die Checkbox „Aktionspreis“ rechts neben dem Betrag. Der

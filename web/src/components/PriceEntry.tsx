@@ -1,7 +1,7 @@
 import { useId } from 'react';
 import type { ProductKind } from '@product-rating/shared';
 import { ChevronDownIcon } from '@/components/icons';
-import { PriceFields, type PriceFieldValues } from '@/components/PriceFields';
+import { isPriceStarted, PriceFields, type PriceFieldValues } from '@/components/PriceFields';
 import { formatPlainAmount, parseAmount } from '@/lib/money';
 import { strings } from '@/lib/strings';
 
@@ -29,6 +29,7 @@ interface PriceEntryProps {
   open: boolean;
   onToggle: (open: boolean) => void;
   amountError?: string | undefined;
+  dateError?: string | undefined;
 }
 
 export function PriceEntry({
@@ -40,6 +41,7 @@ export function PriceEntry({
   open,
   onToggle,
   amountError,
+  dateError,
 }: PriceEntryProps) {
   const panelId = useId();
   const dish = kind === 'dish';
@@ -88,7 +90,14 @@ export function PriceEntry({
             {dish ? strings.price.dishEntryHint : strings.price.entryHint}
           </p>
 
-          <PriceFields kind={kind} values={values} onChange={onChange} amountError={amountError} />
+          <PriceFields
+            kind={kind}
+            values={values}
+            onChange={onChange}
+            amountRequired={isPriceStarted(values)}
+            amountError={amountError}
+            dateError={dateError}
+          />
 
           <PriceWatchField checked={priceWatch} onChange={onPriceWatchChange} />
         </div>

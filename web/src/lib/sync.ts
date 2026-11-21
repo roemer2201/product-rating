@@ -197,6 +197,7 @@ async function syncCapture(capture: Capture): Promise<Capture['state']> {
     await api.prices.add(
       productId,
       {
+        ...(current.price.id === undefined ? {} : { id: current.price.id }),
         cents: current.price.cents,
         shop: current.price.shop,
         note: current.price.note,

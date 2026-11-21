@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router';
+import type { CreateProductInput } from '@product-rating/shared';
 import type { ProductFormValues } from '@/components/ProductForm';
 import type { PreparedPhoto } from '@/lib/image';
 
@@ -11,7 +12,7 @@ interface ProductDraft {
   /** The form as it stands. */
   values?: ProductFormValues;
   /** The form as it was sent, for the offer to keep it offline. */
-  submitted?: ProductFormValues;
+  submitted?: CreateProductInput;
   photo?: PreparedPhoto | null;
   /** Whether the panel for the first price is open. */
   priceOpen?: boolean;

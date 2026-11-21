@@ -9,11 +9,12 @@ import {
   PhotoSources,
   usePhotoPick,
 } from '@/components/PhotoPicker';
-import { capturedPrice, isPriceStarted, priceRequest } from '@/components/PriceFields';
+import { isPriceStarted, priceRequest } from '@/components/PriceFields';
 import { useProductDraft } from '@/components/ProductDrafts';
 import { ProductForm, type ProductFormValues } from '@/components/ProductForm';
 import { errorMessage, isApiError } from '@/lib/api';
-import { emptyToNull, fieldErrors, type FieldErrors } from '@/lib/forms';
+import { emptyToNull, errorField, fieldErrors, type FieldErrors } from '@/lib/forms';
+import { todayAsInputValue } from '@/lib/money';
 import { useCreateProduct, useEnqueueCapture, useUploadPhoto } from '@/lib/queries';
 import { scrollToBottomEdge } from '@/lib/scroll';
 import { strings } from '@/lib/strings';
@@ -175,6 +176,13 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
       update({ priceOpen: true });
       return;
     }
+    const today = todayAsInputValue();
+    const purchasedAt = price?.purchasedAt ?? today;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(purchasedAt) || purchasedAt > today) {
+      setErrors({ purchasedAt: strings.price.dateInvalid });
+      update({ priceOpen: true });
+      return;
+    }
 
     const parsed = createProductSchema.safeParse({
       kind,
@@ -185,7 +193,7 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
       categoryIds: values.categoryIds,
       notes: emptyToNull(values.notes),
       priceWatch: values.priceWatch,
-      ...(price === undefined ? {} : { price }),
+      ...(price === undefined ? {} : { price: { ...price, purchasedAt } }),
     });
 
     if (!parsed.success) {
@@ -196,8 +204,19 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
       return;
     }
 
+    if (parsed.data.price !== undefined) {
+      // The online attempt and its offline retry describe the same purchase.
+      const { id: previousId, ...previousPrice } = draft?.submitted?.price ?? {};
+      const id =
+        previousId !== undefined &&
+        JSON.stringify(previousPrice) === JSON.stringify(parsed.data.price)
+          ? previousId
+          : crypto.randomUUID?.();
+      if (id !== undefined) parsed.data.price.id = id;
+    }
+
     setErrors({});
-    update({ submitted: values, pending: true, createError: null });
+    update({ submitted: parsed.data, pending: true, createError: null });
     // Not `mutate` with callbacks: those are dropped once the screen is left,
     // and the save has to go on and leave its outcome in the draft.
     void create.mutateAsync(parsed.data).then(
@@ -206,7 +225,15 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
         revealPhoto.current = true;
         uploadPhoto(product.id);
       },
-      (error: Error) => update({ pending: false, createError: error }),
+      (error: Error) => {
+        update({
+          pending: false,
+          createError: error,
+          ...(isApiError(error) && errorField(error.details) === 'purchasedAt'
+            ? { priceOpen: true }
+            : {}),
+        });
+      },
     );
   };
 
@@ -227,6 +254,7 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
         ? createError.details.productId
         : null
       : null;
+  const rejectedDate = isApiError(createError) && errorField(createError.details) === 'purchasedAt';
 
   return (
     <section>
@@ -256,24 +284,19 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
               ean === null
                 ? null
                 : () => {
-                    const values = draft?.submitted;
-                    if (values === undefined || pick.preparing) return;
+                    const submitted = draft?.submitted;
+                    if (submitted === undefined || pick.preparing) return;
+                    const { kind: _kind, ean: _ean, price, priceWatch, ...product } = submitted;
                     update({ pending: true });
                     void capture
                       .mutateAsync({
                         ean,
-                        label: values.name,
-                        product: {
-                          name: values.name,
-                          variant: emptyToNull(values.variant),
-                          brand: emptyToNull(values.brand),
-                          categoryIds: values.categoryIds,
-                          notes: emptyToNull(values.notes),
-                          priceWatch: values.priceWatch,
-                        },
-                        price: isPriceStarted(values.price)
-                          ? capturedPrice(values.price, kind)
-                          : null,
+                        label: product.name,
+                        product: { ...product, priceWatch: priceWatch ?? false },
+                        price:
+                          price === undefined
+                            ? null
+                            : { ...price, purchasedAt: price.purchasedAt ?? todayAsInputValue() },
                         photos: capturedPhotos,
                       })
                       .then(
@@ -297,8 +320,12 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
             submitLabel={dish ? strings.product.createDish : strings.product.create}
             pendingLabel={strings.product.creating}
             pending={pending || pick.preparing}
-            errors={errors}
-            error={createError === null || conflictId !== null ? null : errorMessage(createError)}
+            errors={rejectedDate ? { ...errors, purchasedAt: strings.price.dateInvalid } : errors}
+            error={
+              createError === null || conflictId !== null || rejectedDate
+                ? null
+                : errorMessage(createError)
+            }
             secondaryAction={
               !pending && (
                 <Link className="button" to="/scan" onClick={() => update(null)}>

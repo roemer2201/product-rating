@@ -30,24 +30,22 @@ export interface PriceFieldValues {
   note: string;
   /** An offer rather than the usual price; never set for a dish. */
   special: boolean;
-  /** `YYYY-MM-DD`; empty means today, as it does for the server. */
-  date: string;
+  /** Untouched shows today's default; an empty field lets the server choose today. */
+  date: string | undefined;
 }
 
 export function emptyPriceFields(): PriceFieldValues {
-  return { amount: '', shop: '', note: '', special: false, date: todayAsInputValue() };
+  return { amount: '', shop: '', note: '', special: false, date: undefined };
 }
 
-/**
- * Whether anything beyond the preset date was entered. A shop typed without
- * an amount is a price begun, not one to drop without a word.
- */
+/** Whether the user entered any price details, including a different date. */
 export function isPriceStarted(values: PriceFieldValues): boolean {
   return (
     values.amount.trim() !== '' ||
     values.shop.trim() !== '' ||
     values.note.trim() !== '' ||
-    values.special
+    values.special ||
+    (values.date !== undefined && values.date !== '' && values.date !== todayAsInputValue())
   );
 }
 
@@ -58,6 +56,7 @@ export function priceRequest(
 ): { cents: number; shop: string; note: string; special: boolean; purchasedAt?: string } | null {
   const cents = parseAmount(values.amount);
   if (cents === null) return null;
+  const date = values.date ?? todayAsInputValue();
   return {
     cents,
     shop: kind === 'dish' ? '' : values.shop,
@@ -65,7 +64,7 @@ export function priceRequest(
     special: kind !== 'dish' && values.special,
     // An empty date field means "today", which is what the server assumes
     // when the field is missing.
-    ...(values.date === '' ? {} : { purchasedAt: values.date }),
+    ...(date === '' ? {} : { purchasedAt: date }),
   };
 }
 
@@ -86,13 +85,23 @@ interface PriceFieldsProps {
   kind: ProductKind;
   values: PriceFieldValues;
   onChange: (patch: Partial<PriceFieldValues>) => void;
+  amountRequired?: boolean;
   amountError?: string | undefined;
+  dateError?: string | undefined;
 }
 
-export function PriceFields({ kind, values, onChange, amountError }: PriceFieldsProps) {
+export function PriceFields({
+  kind,
+  values,
+  onChange,
+  amountRequired = true,
+  amountError,
+  dateError,
+}: PriceFieldsProps) {
   const shopListId = useId();
   const shops = useShops();
   const dish = kind === 'dish';
+  const today = todayAsInputValue();
 
   return (
     <>
@@ -110,7 +119,7 @@ export function PriceFields({ kind, values, onChange, amountError }: PriceFields
             onChange({ amount: event.target.value });
           }}
           error={amountError}
-          required
+          required={amountRequired}
         />
 
         {!dish && (
@@ -155,12 +164,13 @@ export function PriceFields({ kind, values, onChange, amountError }: PriceFields
         label={dish ? strings.price.dishDate : strings.price.date}
         name="purchasedAt"
         type="date"
-        value={values.date}
+        value={values.date ?? today}
         onChange={(event) => {
           onChange({ date: event.target.value });
         }}
         hint={dish ? strings.price.dishDateHint : strings.price.dateHint}
-        max={todayAsInputValue()}
+        max={today}
+        error={dateError}
       />
 
       <Field

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ProductListPage, ProductWithRatings } from '@product-rating/shared';
 import { seedDatabase } from '../db/testing.js';
@@ -256,6 +257,51 @@ describe('creating products', () => {
       expect(refused.statusCode).toBe(400);
     }
     expect((await listProducts('')).products).toEqual([]);
+  });
+
+  it('recognises the first price when it is resubmitted by the offline queue', async () => {
+    const price = { id: randomUUID(), cents: 249, purchasedAt: '2020-05-01' };
+    const created = await harness.app.inject({
+      method: 'POST',
+      url: '/api/v1/products',
+      headers: writeHeaders(annaCookie),
+      payload: { ean: SHORT_EAN, name: 'Gouda', price },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().price.id).toBe(price.id);
+
+    const productUrl = `/api/v1/products/${created.json().product.id as string}`;
+    const retry = await harness.app.inject({
+      method: 'POST',
+      url: `${productUrl}/prices`,
+      headers: writeHeaders(annaCookie),
+      payload: price,
+    });
+    expect(retry.statusCode).toBe(201);
+    expect(retry.json().price).toEqual(created.json().price);
+
+    const otherUser = await harness.app.inject({
+      method: 'POST',
+      url: `${productUrl}/prices`,
+      headers: writeHeaders(adminCookie),
+      payload: price,
+    });
+    expect(otherUser.statusCode).toBe(409);
+
+    const changedPrice = await harness.app.inject({
+      method: 'POST',
+      url: `${productUrl}/prices`,
+      headers: writeHeaders(annaCookie),
+      payload: { ...price, cents: 299 },
+    });
+    expect(changedPrice.statusCode).toBe(409);
+
+    const detail = await harness.app.inject({
+      method: 'GET',
+      url: productUrl,
+      headers: { cookie: annaCookie },
+    });
+    expect(detail.json().product.prices).toEqual([created.json().price]);
   });
 
   it('records the price of a dish and of an entry coming back from the trash', async () => {

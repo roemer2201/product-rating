@@ -45,6 +45,8 @@ const optionalText = <T extends z.ZodType<string, string>>(schema: T) =>
  * in a pocket is exactly the case this is for — but not in the future.
  */
 export const createPriceSchema = z.object({
+  /** A client may reuse the same ID when retrying a price with an uncertain outcome. */
+  id: z.uuidv4().optional(),
   cents: z.int().min(0).max(PRICE_MAX_CENTS),
   shop: optionalText(shopSchema),
   note: optionalText(noteSchema),

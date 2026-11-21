@@ -254,6 +254,7 @@ export function ProductForm({
           open={priceEntry.open}
           onToggle={priceEntry.onToggle}
           amountError={errors.price}
+          dateError={errors.purchasedAt}
         />
       )}
 

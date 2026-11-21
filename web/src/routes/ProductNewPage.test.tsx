@@ -383,12 +383,57 @@ describe('ProductNewPage', () => {
     await fillName(user);
     // Opened and left as it was: the preset date alone is no price.
     await user.click(priceToggle());
+    expect(screen.getByLabelText(strings.price.amount)).not.toBeRequired();
     await user.click(screen.getByRole('button', { name: strings.product.create }));
 
     expect(await screen.findByText('Produktseite')).toBeInTheDocument();
     const body = postedBody(fetchMock);
     expect(body).not.toHaveProperty('price');
     expect(body.priceWatch).toBe(false);
+  });
+
+  it('does not discard a changed purchase date entered on its own', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([CATEGORIES]);
+
+    renderNew();
+    await fillName(user);
+    await user.click(priceToggle());
+    fireEvent.change(screen.getByLabelText(strings.price.date), {
+      target: { value: '2020-05-01' },
+    });
+    await user.click(priceToggle());
+    await user.click(screen.getByRole('button', { name: strings.product.create }));
+
+    expect(priceToggle()).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByLabelText(strings.price.date)).toHaveValue('2020-05-01');
+    expect(screen.getByLabelText(strings.price.amount)).toBeRequired();
+    expect(screen.getByText(strings.price.amountInvalid)).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit)?.method === 'POST')).toBe(
+      false,
+    );
+  });
+
+  it('opens the panel and rejects a future purchase date before sending the form', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([CATEGORIES]);
+
+    renderNew();
+    await fillName(user);
+    await user.click(priceToggle());
+    await user.type(screen.getByLabelText(strings.price.amount), '2,49');
+    fireEvent.change(screen.getByLabelText(strings.price.date), {
+      target: { value: '2999-01-01' },
+    });
+    await user.click(priceToggle());
+    await user.click(screen.getByRole('button', { name: strings.product.create }));
+
+    expect(priceToggle()).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByLabelText(strings.price.date)).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByText(strings.price.dateInvalid)).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit)?.method === 'POST')).toBe(
+      false,
+    );
   });
 
   it('opens the panel to refuse a price begun without a valid amount', async () => {
@@ -535,7 +580,10 @@ describe('ProductNewPage', () => {
 
   it('puts the picture into the queue together with a product that could not be saved', async () => {
     const user = userEvent.setup();
-    mockFetch([CATEGORIES, { path: '/products', method: 'POST', networkError: true }]);
+    const fetchMock = mockFetch([
+      CATEGORIES,
+      { path: '/products', method: 'POST', networkError: true },
+    ]);
 
     renderNew();
     await fillName(user);
@@ -557,12 +605,14 @@ describe('ProductNewPage', () => {
     expect(captures[0]?.product?.name).toBe('Apfelsaft');
     expect(captures[0]?.product?.categoryIds).toEqual([]);
     expect(captures[0]?.price).toEqual({
+      id: expect.any(String),
       cents: 99,
       shop: null,
       note: 'Kundenkarte',
       special: false,
       purchasedAt: todayAsInputValue(),
     });
+    expect(postedBody(fetchMock).price).toEqual(captures[0]?.price);
     expect(captures[0]?.photos).toHaveLength(1);
   });
 });
