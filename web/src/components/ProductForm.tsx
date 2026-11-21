@@ -10,6 +10,8 @@ import {
 import { CategoryPicker } from '@/components/CategoryPicker';
 import { Field, TextAreaField } from '@/components/Field';
 import { ErrorNotice } from '@/components/Feedback';
+import { PriceEntry, PriceWatchField } from '@/components/PriceEntry';
+import { emptyPriceFields, type PriceFieldValues } from '@/components/PriceFields';
 import { SimilarEntries } from '@/components/SimilarEntries';
 import type { FieldErrors } from '@/lib/forms';
 import { useCategories } from '@/lib/queries';
@@ -42,6 +44,10 @@ import { strings } from '@/lib/strings';
  *
  * The price watch mark is one more field like the others: it only keeps the
  * entry out of the catalogue's default view, nothing on the product changes.
+ * A new entry may bring its first price along (`priceEntry`); the mark then
+ * moves into that folded panel as its last option, since it follows from
+ * recording a price. Correcting a product leaves prices to the list on its
+ * page and keeps the mark on its own.
  */
 
 export interface ProductFormValues {
@@ -55,6 +61,8 @@ export interface ProductFormValues {
   notes: string;
   /** Recorded for its prices; the catalogue leaves it out by default. */
   priceWatch: boolean;
+  /** The first price, as typed; only read where the form offers it (`priceEntry`). */
+  price: PriceFieldValues;
 }
 
 interface ProductFormProps {
@@ -89,6 +97,11 @@ interface ProductFormProps {
    * scroll it into view once the picture has a height.
    */
   actionsRef?: RefObject<HTMLDivElement | null>;
+  /**
+   * Offers the first price in a folded panel, for a new entry. Whether it is
+   * open belongs to the screen, which opens it to show a refused amount.
+   */
+  priceEntry?: { open: boolean; onToggle: (open: boolean) => void };
 }
 
 export function ProductForm({
@@ -107,6 +120,7 @@ export function ProductForm({
   secondaryAction,
   children,
   actionsRef,
+  priceEntry,
 }: ProductFormProps) {
   const [values, setValues] = useState<ProductFormValues>({
     ean: '',
@@ -116,9 +130,10 @@ export function ProductForm({
     categoryIds: [],
     notes: '',
     priceWatch: false,
+    price: emptyPriceFields(),
     ...initial,
   });
-  const { ean, name, variant, brand, categoryIds, notes, priceWatch } = values;
+  const { ean, name, variant, brand, categoryIds, notes, priceWatch, price } = values;
 
   const change = (patch: Partial<ProductFormValues>): void => {
     const next = { ...values, ...patch };
@@ -224,23 +239,23 @@ export function ProductForm({
         optional
       />
 
-      <div className="field">
-        <label className="checkbox">
-          <input
-            type="checkbox"
-            name="priceWatch"
-            checked={priceWatch}
-            aria-describedby="product-price-watch-hint"
-            onChange={(event) => {
-              change({ priceWatch: event.target.checked });
-            }}
-          />
-          {strings.product.priceWatch}
-        </label>
-        <p className="field__hint" id="product-price-watch-hint">
-          {strings.product.priceWatchHint}
-        </p>
-      </div>
+      {priceEntry === undefined ? (
+        <PriceWatchField
+          checked={priceWatch}
+          onChange={(checked) => change({ priceWatch: checked })}
+        />
+      ) : (
+        <PriceEntry
+          kind={kind}
+          values={price}
+          onChange={(patch) => change({ price: { ...price, ...patch } })}
+          priceWatch={priceWatch}
+          onPriceWatchChange={(checked) => change({ priceWatch: checked })}
+          open={priceEntry.open}
+          onToggle={priceEntry.onToggle}
+          amountError={errors.price}
+        />
+      )}
 
       {children}
 

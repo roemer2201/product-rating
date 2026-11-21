@@ -4,13 +4,14 @@ import {
   PRICE_LIST_LIMIT,
   PRICE_SHOP_SUGGESTION_LIMIT,
   type CreatePriceInput,
+  type CreateProductInput,
   type Price,
 } from '@product-rating/shared';
 import type { AppConfig } from '../config/index.js';
 import type { DbHandle } from '../db/index.js';
 import { prices, users, type PriceRow } from '../db/index.js';
 import { ForbiddenError, NotFoundError, ValidationError } from './errors.js';
-import { findProductById } from './products.js';
+import { createProduct, findProductById, type CreatedProduct } from './products.js';
 
 /**
  * What a product cost, where it was bought and when.
@@ -162,6 +163,34 @@ export function createPrice(
     .get();
 
   return toPublicPrice(row, account?.username ?? null, account?.displayName ?? null);
+}
+
+/**
+ * Adds a product together with the first price entered on the same screen.
+ *
+ * One transaction for both: a price the server refuses - a purchase dated
+ * in the future, an offer on a dish - leaves no product behind, so the screen
+ * has a single outcome to report instead of a product that is there with its
+ * price missing. Without a price this is `createProduct()` and nothing else;
+ * an EAN coming back from the trash takes the price along like a correction.
+ */
+export function createProductWithPrice(
+  db: DbHandle,
+  config: AppConfig,
+  userId: string,
+  input: CreateProductInput,
+  now: Date = new Date(),
+): CreatedProduct & { price: Price | null } {
+  const { price, ...product } = input;
+  if (price === undefined) return { ...createProduct(db, userId, product, now), price: null };
+
+  return db.transaction((tx) => {
+    const created = createProduct(tx, userId, product, now);
+    return {
+      ...created,
+      price: createPrice(tx, config, userId, created.product.id, price, now),
+    };
+  });
 }
 
 export function findPriceById(db: DbHandle, id: string): PriceRow | undefined {

@@ -374,8 +374,10 @@ export function useCreateProduct(): UseMutationResult<Product, Error, CreateProd
 
   return useMutation({
     mutationFn: async (input: CreateProductInput) => (await api.products.create(input)).product,
-    onSuccess: () => {
+    onSuccess: (_product, input) => {
       void client.invalidateQueries({ queryKey: queryKeys.products.all });
+      // A first price may bring a shop the suggestions do not know yet.
+      if (input.price !== undefined) void client.invalidateQueries({ queryKey: queryKeys.shops });
     },
   });
 }

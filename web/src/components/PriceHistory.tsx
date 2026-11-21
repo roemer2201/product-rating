@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import {
   accountName,
   createPriceSchema,
@@ -9,12 +9,18 @@ import {
 } from '@product-rating/shared';
 import { ErrorNotice } from '@/components/Feedback';
 import { OfflineCapture } from '@/components/OfflineCapture';
-import { Field } from '@/components/Field';
+import {
+  capturedPrice,
+  emptyPriceFields,
+  PriceFields,
+  priceRequest,
+  type PriceFieldValues,
+} from '@/components/PriceFields';
 import { TrashIcon } from '@/components/icons';
 import { errorMessage } from '@/lib/api';
 import { formatDate } from '@/lib/format';
-import { formatAmount, parseAmount, todayAsInputValue } from '@/lib/money';
-import { useAddPrice, useDeletePrice, useEnqueueCapture, useShops } from '@/lib/queries';
+import { formatAmount } from '@/lib/money';
+import { useAddPrice, useDeletePrice, useEnqueueCapture } from '@/lib/queries';
 import { strings } from '@/lib/strings';
 
 /**
@@ -60,19 +66,16 @@ export function PriceHistory({
   prices,
   user,
 }: PriceHistoryProps) {
-  const shopListId = useId();
   const dish = kind === 'dish';
   /** What a row says after the amount: the shop, or nothing for a dish. */
   const whereOf = (price: Price): string[] => (dish ? [] : [price.shop ?? strings.price.noShop]);
 
-  const [amount, setAmount] = useState('');
-  const [shop, setShop] = useState('');
-  const [note, setNote] = useState('');
-  const [special, setSpecial] = useState(false);
-  const [date, setDate] = useState(todayAsInputValue());
+  const [entry, setEntry] = useState<PriceFieldValues>(emptyPriceFields);
   const [amountError, setAmountError] = useState<string | undefined>(undefined);
+  const change = (patch: Partial<PriceFieldValues>): void => {
+    setEntry((current) => ({ ...current, ...patch }));
+  };
 
-  const shops = useShops();
   const add = useAddPrice();
   const remove = useDeletePrice();
   const capture = useEnqueueCapture();
@@ -101,21 +104,13 @@ export function PriceHistory({
   const mayRemove = (price: Price): boolean => price.userId === user.id || user.role === 'admin';
 
   const onSubmit = (): void => {
-    const cents = parseAmount(amount);
-    if (cents === null) {
+    const request = priceRequest(entry, kind);
+    if (request === null) {
       setAmountError(strings.price.amountInvalid);
       return;
     }
 
-    const parsed = createPriceSchema.safeParse({
-      cents,
-      shop,
-      note,
-      special: !dish && special,
-      // An empty date field means "today", which is what the server assumes
-      // when the field is missing.
-      ...(date === '' ? {} : { purchasedAt: date }),
-    });
+    const parsed = createPriceSchema.safeParse(request);
     if (!parsed.success) {
       setAmountError(strings.price.amountInvalid);
       return;
@@ -126,11 +121,8 @@ export function PriceHistory({
       { productId, input: parsed.data },
       {
         onSuccess: () => {
-          setAmount('');
-          setNote('');
-          setSpecial(false);
-          setDate(todayAsInputValue());
           // The shop stays: the next entry is usually from the same one.
+          setEntry((current) => ({ ...emptyPriceFields(), shop: current.shop }));
         },
       },
     );
@@ -218,19 +210,9 @@ export function PriceHistory({
           ean === null
             ? null
             : () => {
-                const cents = parseAmount(amount);
-                if (cents === null) return;
-                capture.mutate({
-                  ean,
-                  label: productName,
-                  price: {
-                    cents,
-                    shop: shop.trim() === '' ? null : shop.trim(),
-                    note: note.trim() === '' ? null : note.trim(),
-                    special: !dish && special,
-                    purchasedAt: date === '' ? todayAsInputValue() : date,
-                  },
-                });
+                const price = capturedPrice(entry, kind);
+                if (price === null) return;
+                capture.mutate({ ean, label: productName, price });
               }
         }
         kept={capture.isSuccess}
@@ -238,90 +220,13 @@ export function PriceHistory({
       />
 
       <div className="form">
-        {/* The offer mark sits next to the amount it belongs to; half the width
-            is plenty for a price. A dish has no mark, so its field stays whole. */}
-        <div className={dish ? undefined : 'price-entry'}>
-          <Field
-            label={dish ? strings.price.dishAmount : strings.price.amount}
-            name="amount"
-            // `decimal` rather than `numeric`: it is the keyboard with the comma
-            // on it, which is the character a German price is typed with.
-            inputMode="decimal"
-            value={amount}
-            onChange={(event) => {
-              setAmount(event.target.value);
-            }}
-            error={amountError}
-            required
-          />
-
-          {!dish && (
-            <label className="checkbox price-entry__special">
-              <input
-                type="checkbox"
-                name="special"
-                checked={special}
-                onChange={(event) => {
-                  setSpecial(event.target.checked);
-                }}
-              />
-              {strings.price.special}
-            </label>
-          )}
-        </div>
-
-        {!dish && (
-          <>
-            <Field
-              label={strings.price.shop}
-              name="shop"
-              value={shop}
-              onChange={(event) => {
-                setShop(event.target.value);
-              }}
-              hint={strings.price.shopHint}
-              list={shopListId}
-              maxLength={120}
-              optional
-            />
-
-            <datalist id={shopListId} aria-label={strings.price.shopList}>
-              {(shops.data ?? []).map((entry) => (
-                <option value={entry} key={entry} />
-              ))}
-            </datalist>
-          </>
-        )}
-
-        <Field
-          label={dish ? strings.price.dishDate : strings.price.date}
-          name="purchasedAt"
-          type="date"
-          value={date}
-          onChange={(event) => {
-            setDate(event.target.value);
-          }}
-          hint={dish ? strings.price.dishDateHint : strings.price.dateHint}
-          max={todayAsInputValue()}
-        />
-
-        <Field
-          label={strings.price.note}
-          name="note"
-          value={note}
-          onChange={(event) => {
-            setNote(event.target.value);
-          }}
-          hint={dish ? strings.price.dishNoteHint : strings.price.noteHint}
-          maxLength={200}
-          optional
-        />
+        <PriceFields kind={kind} values={entry} onChange={change} amountError={amountError} />
 
         <button
           type="button"
           className="button button--primary"
           onClick={onSubmit}
-          disabled={add.isPending || amount.trim() === ''}
+          disabled={add.isPending || entry.amount.trim() === ''}
         >
           {add.isPending ? strings.price.adding : dish ? strings.price.dishAdd : strings.price.add}
         </button>

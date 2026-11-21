@@ -5,6 +5,41 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-11-21 – Erster Preis beim Anlegen (0.16.0)
+
+- Anlass: Auf dem Formular nach dem Scan stand die Checkbox
+  „Preisbeobachtung“, einen Preis eintragen ließ sich dort aber nicht. Dafür
+  musste man nach dem Anlegen noch einmal auf die Produktseite.
+- Entscheidungen des Projektinhabers: Die Preisfelder liegen in einem
+  aufklappbaren Bereich, damit die Seite nicht unnötig lang wird.
+  „Preisbeobachtung“ wandert ans Ende dieses Bereichs, weil die Markierung
+  beim Anlegen nur als Folge eines Preises Sinn ergibt. Zuklappen versteckt nur
+  und verwirft nichts; die zugeklappte Schaltfläche nennt deshalb, was darin
+  steht. Gerichte bekommen den Bereich als „Kosten erfassen“.
+- Die Schaltfläche steht über dem Foto: Das Foto soll direkt über „Produkt
+  anlegen“ bleiben, weil die Seite nach dem Aufnehmen dorthin scrollt. Das
+  Muster (Schaltfläche mit Pfeil, `aria-expanded`) ist das der zusätzlichen
+  Filter im Katalog.
+- Server: `POST /api/v1/products` nimmt optional `price` mit dem Körper von
+  `POST /api/v1/products/:id/prices` an, `createProductWithPrice()` legt beides
+  in einer Transaktion an. So gibt es keinen Zwischenstand „Produkt da, Preis
+  fehlt“, den die Seite wie beim Foto eigens hätte behandeln müssen. Ein
+  abgelehnter Preis (Datum in der Zukunft, Aktionspreis bei einem Gericht)
+  verhindert auch das Produkt. Die Änderung ist additiv; ältere Clients und die
+  Offline-Warteschlange, die den Preis weiter getrennt schickt, merken nichts.
+- Oberfläche: Die Preisfelder sind aus `PriceHistory` in `PriceFields`
+  herausgezogen, damit Produktseite und Anlegeformular gleich bleiben. Ist ein
+  Preis begonnen (Ort, Notiz oder Aktionspreis), aber kein gültiger Betrag da,
+  klappt der Bereich auf und meldet den Fehler. Der Entwurf behält die
+  Eingaben und den Klappzustand, wenn man die Seite kurz verlässt. „Offline
+  merken“ nimmt den Preis in die Erfassung mit.
+- Offen geblieben und als Punkt in TODO.md: Meldet das Anlegen `409`, geht der
+  eingegebene Preis wie die übrigen Felder verloren.
+- Geprüft mit neuen Tests für Schema, Route (Preis, Ablehnung ohne Produkt,
+  Gericht, Rückkehr aus dem Papierkorb) und Formular (Zusammenfassung,
+  Fehlermeldung, Gericht, Entwurf, Warteschlange), dazu im gebauten Stand im
+  Browser in allen drei Layouts, hell und dunkel.
+
 ## 2026-11-21 – Lizenz: GNU AGPL 3.0 oder später (0.15.1)
 
 - Anlass: offener Punkt aus M0. Bis hierher stand das Projekt ohne Lizenz da

@@ -4,6 +4,7 @@ import {
   eanSchema,
   productListQuerySchema,
   updateProductSchema,
+  type Price,
   type Product,
   type ProductDetail,
   type ProductListPage,
@@ -12,10 +13,9 @@ import {
 } from '@product-rating/shared';
 import { currentUser } from '../plugins/auth.js';
 import { productPhotos, removePhotoFiles } from '../services/photos.js';
-import { listProductPrices } from '../services/prices.js';
+import { createProductWithPrice, listProductPrices } from '../services/prices.js';
 import { listProductRatings } from '../services/ratings.js';
 import {
-  createProduct,
   getProduct,
   getProductByEan,
   listProducts,
@@ -61,13 +61,22 @@ export function registerProductRoutes(app: FastifyInstance): void {
     const input = createProductSchema.parse(request.body);
     const user = currentUser(request);
 
-    const { product, restored } = createProduct(app.db, user.id, input);
+    const { product, restored, price } = createProductWithPrice(app.db, app.config, user.id, input);
 
     request.log.info(
-      { productId: product.id, kind: product.kind, ean: product.ean, by: user.id, restored },
+      {
+        productId: product.id,
+        kind: product.kind,
+        ean: product.ean,
+        by: user.id,
+        restored,
+        priceId: price?.id ?? null,
+      },
       restored ? 'product restored from the trash' : 'product created',
     );
-    return reply.code(201).send({ product: product satisfies Product, restored });
+    return reply
+      .code(201)
+      .send({ product: product satisfies Product, restored, price: price satisfies Price | null });
   });
 
   app.get('/api/v1/products', { preHandler: app.requireUser }, async (request) => {

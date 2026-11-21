@@ -57,3 +57,15 @@ export function todayAsInputValue(now: Date = new Date()): string {
   const pad = (part: number): string => String(part).padStart(2, '0');
   return `${String(now.getFullYear())}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
+
+/**
+ * The amount without a currency sign, in the device's way of writing numbers.
+ * For where an amount has to be shown before the server has said which
+ * currency it is counted in, such as a price still being entered.
+ */
+export function formatPlainAmount(cents: number): string {
+  return new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(cents / SUBUNITS);
+}

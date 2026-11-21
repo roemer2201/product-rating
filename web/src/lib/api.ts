@@ -431,8 +431,13 @@ export const api = {
     byEan: (ean: string, options: CaptureRequestOptions = {}) =>
       request<{ product: ProductDetail }>(`/${path('products', 'by-ean', ean)}`, options),
 
+    /** With `price`, the first entry of the price history is stored in the same request. */
     create: (input: CreateProductInput, options: CaptureRequestOptions = {}) =>
-      request<{ product: Product }>('/products', { method: 'POST', json: input, ...options }),
+      request<{ product: Product; restored: boolean; price: Price | null }>('/products', {
+        method: 'POST',
+        json: input,
+        ...options,
+      }),
 
     update: (id: string, input: UpdateProductInput) =>
       request<{ product: Product }>(`/${path('products', id)}`, { method: 'PATCH', json: input }),

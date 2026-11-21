@@ -13,6 +13,8 @@ interface ProductDraft {
   /** The form as it was sent, for the offer to keep it offline. */
   submitted?: ProductFormValues;
   photo?: PreparedPhoto | null;
+  /** Whether the panel for the first price is open. */
+  priceOpen?: boolean;
   /** Set once the product exists; from then on only the photo is left. */
   created?: string;
   /** Where the entry is done and hands over; replaces everything else. */

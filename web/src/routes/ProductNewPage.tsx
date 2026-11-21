@@ -9,6 +9,7 @@ import {
   PhotoSources,
   usePhotoPick,
 } from '@/components/PhotoPicker';
+import { capturedPrice, isPriceStarted, priceRequest } from '@/components/PriceFields';
 import { useProductDraft } from '@/components/ProductDrafts';
 import { ProductForm, type ProductFormValues } from '@/components/ProductForm';
 import { errorMessage, isApiError } from '@/lib/api';
@@ -56,6 +57,11 @@ import { strings } from '@/lib/strings';
  * Without an EAN the database cannot refuse a duplicate either. The form shows
  * entries with a similar name instead, so the second "Gulasch" is a decision
  * and not an accident.
+ *
+ * The first price can come along, folded away below the fields (`PriceEntry`):
+ * standing at the shelf is also when the price tag is in view. It travels in
+ * the same request as the product, so it adds no step that could fail on its
+ * own, and offline it goes into the capture with everything else.
  */
 export function ProductNewPage() {
   const [params] = useSearchParams();
@@ -101,6 +107,7 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
     uploadError = null,
     pending = false,
     destination,
+    priceOpen = false,
   } = draft ?? {};
   if (destination !== undefined) return <Navigate to={destination} replace />;
 
@@ -160,6 +167,15 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
 
   const onSubmit = (values: ProductFormValues): void => {
     if (pending || pick.preparing) return;
+    // A price begun has to be a price; a shop without an amount would
+    // otherwise be dropped without a word.
+    const price = isPriceStarted(values.price) ? priceRequest(values.price, kind) : undefined;
+    if (price === null) {
+      setErrors({ price: strings.price.amountInvalid });
+      update({ priceOpen: true });
+      return;
+    }
+
     const parsed = createProductSchema.safeParse({
       kind,
       ean,
@@ -169,10 +185,14 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
       categoryIds: values.categoryIds,
       notes: emptyToNull(values.notes),
       priceWatch: values.priceWatch,
+      ...(price === undefined ? {} : { price }),
     });
 
     if (!parsed.success) {
-      setErrors(fieldErrors(parsed.error.issues));
+      const found = fieldErrors(parsed.error.issues);
+      setErrors(found);
+      // The panel may be folded; a message inside it would go unseen.
+      if (found.price !== undefined) update({ priceOpen: true });
       return;
     }
 
@@ -251,6 +271,9 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
                           notes: emptyToNull(values.notes),
                           priceWatch: values.priceWatch,
                         },
+                        price: isPriceStarted(values.price)
+                          ? capturedPrice(values.price, kind)
+                          : null,
                         photos: capturedPhotos,
                       })
                       .then(
@@ -284,6 +307,7 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
               )
             }
             actionsRef={actionsRef}
+            priceEntry={{ open: priceOpen, onToggle: (open) => update({ priceOpen: open }) }}
           >
             <div className="photo-upload">
               <h2 className="section__title">{strings.photo.newTitle}</h2>

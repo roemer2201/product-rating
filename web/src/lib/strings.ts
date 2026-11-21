@@ -454,6 +454,8 @@ export const strings = {
     recordedBy: (username: string) => `erfasst von ${username}`,
     unknownUser: 'Gelöschtes Konto',
     capped: 'Es werden die 50 jüngsten Einträge gezeigt.',
+    /* Beim Anlegen: das aufklappbare Feld für den ersten Preis. */
+    entryHint: 'Wird zusammen mit dem Produkt gespeichert.',
 
     /* Bei einem Gericht steht hier, was eine Portion kostet. */
     dishTitle: 'Kosten pro Portion',
@@ -465,6 +467,7 @@ export const strings = {
     dishNoteHint: 'Zum Beispiel „für vier Portionen gerechnet“.',
     dishLowest: 'Günstigste Berechnung',
     dishLatest: 'Zuletzt berechnet',
+    dishEntryHint: 'Wird zusammen mit dem Gericht gespeichert.',
   },
 
   /* --------------------------------------------------------------- ratings */
