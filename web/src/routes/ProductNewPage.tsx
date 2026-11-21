@@ -204,8 +204,12 @@ function NewProductForm({ kind, ean }: { kind: ProductKind; ean: string | null }
       return;
     }
 
-    if (parsed.data.price !== undefined) {
-      // The online attempt and its offline retry describe the same purchase.
+    // The online attempt and its offline retry describe the same purchase.
+    // Only the queue needs the identifier, and it only takes entries with an
+    // EAN. Without one, a resubmission after a lost answer would run into the
+    // taken price with a `409` the screen has no way out of, where it used to
+    // add the entry once more like any other.
+    if (parsed.data.price !== undefined && ean !== null) {
       const { id: previousId, ...previousPrice } = draft?.submitted?.price ?? {};
       const id =
         previousId !== undefined &&

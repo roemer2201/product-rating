@@ -6,6 +6,7 @@ import { AppLayout } from '@/components/AppLayout';
 import { ProductDrafts } from '@/components/ProductDrafts';
 import { ProductNewPage } from '@/routes/ProductNewPage';
 import { listCaptures } from '@/lib/offlineQueue';
+import { formatDate } from '@/lib/format';
 import { formatPlainAmount, todayAsInputValue } from '@/lib/money';
 import { strings } from '@/lib/strings';
 import { mockFetch, testUser } from '@/testing/fetchMock';
@@ -180,6 +181,8 @@ describe('ProductNewPage', () => {
       brand: 'Thermomix',
       price: { cents: 350, shop: null, special: false },
     });
+    // No EAN, no offline queue: the price goes without an identifier.
+    expect(postedBody(fetchMock).price).not.toHaveProperty('id');
   });
 
   it('explains instead of queueing an entry without an EAN', async () => {
@@ -370,6 +373,7 @@ describe('ProductNewPage', () => {
         purchasedAt: todayAsInputValue(),
       },
     });
+    expect((postedBody(fetchMock).price as { id?: unknown }).id).toEqual(expect.any(String));
   });
 
   it('sends no price while none was begun', async () => {
@@ -403,6 +407,10 @@ describe('ProductNewPage', () => {
       target: { value: '2020-05-01' },
     });
     await user.click(priceToggle());
+    // Folded, the toggle names the date like everything else in the panel.
+    expect(priceToggle()).toHaveAccessibleName(
+      `${strings.price.add} ${formatDate('2020-05-01T12:00:00')}`,
+    );
     await user.click(screen.getByRole('button', { name: strings.product.create }));
 
     expect(priceToggle()).toHaveAttribute('aria-expanded', 'true');

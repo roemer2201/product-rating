@@ -37,6 +37,12 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
   Datum öffnen den Bereich und erscheinen direkt am Feld. Dieselbe Preis-ID
   verbindet den ersten Speicherversuch mit dem Offline-Abgleich, damit eine
   verlorene Antwort keinen zweiten Preiseintrag erzeugt.
+- Nachprüfung dieser Korrekturen: Die Preis-ID geht nur bei Einträgen mit EAN
+  mit, denn nur die nimmt die Warteschlange. Ohne EAN wäre ein erneutes
+  Absenden nach verlorener Antwort an der schon vergebenen ID mit `409`
+  gescheitert, ohne dass die Seite einen Ausweg anbietet. Die zugeklappte
+  Schaltfläche nennt jetzt auch ein geändertes Datum, das seit dem Review als
+  Preiseingabe zählt.
 - Offen geblieben und als Punkt in TODO.md: Meldet das Anlegen `409`, geht der
   eingegebene Preis wie die übrigen Felder verloren.
 - Geprüft mit neuen Tests für Schema, Route (Preis, Ablehnung ohne Produkt,

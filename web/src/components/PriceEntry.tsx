@@ -2,7 +2,8 @@ import { useId } from 'react';
 import type { ProductKind } from '@product-rating/shared';
 import { ChevronDownIcon } from '@/components/icons';
 import { isPriceStarted, PriceFields, type PriceFieldValues } from '@/components/PriceFields';
-import { formatPlainAmount, parseAmount } from '@/lib/money';
+import { formatDate } from '@/lib/format';
+import { formatPlainAmount, parseAmount, todayAsInputValue } from '@/lib/money';
 import { strings } from '@/lib/strings';
 
 /**
@@ -53,6 +54,11 @@ export function PriceEntry({
     cents === null ? typed : formatPlainAmount(cents),
     dish ? '' : values.shop.trim(),
     !dish && values.special ? strings.price.special : '',
+    // Only a date that is not the preset one; read as local noon, so the day
+    // stays the day that was picked whatever the time zone.
+    values.date === undefined || values.date === '' || values.date === todayAsInputValue()
+      ? ''
+      : formatDate(`${values.date}T12:00:00`),
     priceWatch ? strings.product.priceWatch : '',
   ]
     .filter((part) => part !== '')
