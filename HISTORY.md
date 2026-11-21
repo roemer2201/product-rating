@@ -5,6 +5,13 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-11-21 – Nach einem Produkt zum gefilterten Katalog zurückkehren
+
+Suchtext, Filter, Sortierung und der geöffnete Filterbereich bleiben pro
+Verlaufseintrag im Speicher der angemeldeten App. Beim Zurückwischen kann
+man mit dem nächsten Treffer weitermachen. In der eingeklappten Ansicht
+lassen sich einzelne Filter entfernen, während die übrige Auswahl erhalten bleibt.
+
 ## 2026-11-20 – Bearbeitete Galeriefotos offline vormerken (0.15.0)
 
 - Anlass: offener Punkt aus dem Review des Fotoeditors. Ein Galeriefoto ließ

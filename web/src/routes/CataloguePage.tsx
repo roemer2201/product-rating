@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import {
   normaliseEan,
   PRODUCT_SEARCH_MAX_LENGTH,
@@ -8,6 +8,11 @@ import {
   type ProductSortField,
   type SortOrder,
 } from '@product-rating/shared';
+import {
+  DEFAULT_VIEW,
+  useCatalogueVisit,
+  type PriceWatchChoice,
+} from '@/components/CatalogueVisits';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { EmptyState, ErrorNotice, SkeletonList } from '@/components/Feedback';
 import { LoadMore } from '@/components/LoadMore';
@@ -22,17 +27,15 @@ import { strings } from '@/lib/strings';
 /**
  * The catalogue: everything the household has entered.
  *
- * Search and filters are state of this screen rather than of the address bar.
- * The list is opened, scrolled and left again; nobody bookmarks "oats, at least
- * four stars", and a URL that changes on every keystroke would fill the back
- * button with search terms instead of screens.
+ * Each visit remembers its search and filters when the user opens a product
+ * and comes back. The camera belongs to the visible screen only.
  *
  * The search term is held back for a moment before it becomes a request. On a
  * phone keyboard that is the difference between one query and eight.
  *
  * Only the search line is always there. Everything else - filters, sorting,
  * the "mine" checkboxes - waits behind "Zusätzliche Filter", which is folded
- * whenever the screen opens: most visits are a search or a scroll. The button
+ * on a fresh visit: most visits are a search or a scroll. The button
  * counts the filters that are set, so a folded panel never hides that the
  * list is narrowed down, and the reset stays outside it for the same reason.
  *
@@ -72,8 +75,6 @@ const MIN_STARS_OPTIONS = Array.from({ length: RATING_MAX_STARS }, (_entry, inde
  * The choices of the price watch filter. `search` is the screen's own rule
  * rather than a value of the API: out of the plain list, in a search.
  */
-type PriceWatchChoice = 'search' | 'include' | 'only';
-
 const PRICE_WATCH_LABELS: Record<PriceWatchChoice, string> = {
   search: strings.catalogue.priceWatchSearch,
   include: strings.catalogue.priceWatchInclude,
@@ -88,22 +89,29 @@ const SORT_LABELS: Record<ProductSortField, string> = {
 };
 
 export function CataloguePage() {
+  const { key } = useLocation();
+  return <Catalogue key={key} />;
+}
+
+function Catalogue() {
+  const { view, update } = useCatalogueVisit();
+  const {
+    search,
+    category,
+    kind,
+    minStars,
+    createdByMe,
+    ratedByMe,
+    hasPrice,
+    priceWatch,
+    sort,
+    order,
+    moreFiltersOpen,
+  } = view;
   const searchInput = useRef<HTMLInputElement>(null);
-  const [search, setSearch] = useState('');
-  const [term, setTerm] = useState('');
+  const filterToggle = useRef<HTMLButtonElement>(null);
+  const [term, setTerm] = useState(() => search.trim());
   const [scannerOpen, setScannerOpen] = useState(false);
-  /** Identifier of the category filter; `''` lets every product through. */
-  const [category, setCategory] = useState('');
-  /** `''` shows both kinds of entry. */
-  const [kind, setKind] = useState<ProductKind | ''>('');
-  const [minStars, setMinStars] = useState('');
-  const [ratedByMe, setRatedByMe] = useState(false);
-  const [createdByMe, setCreatedByMe] = useState(false);
-  const [hasPrice, setHasPrice] = useState(false);
-  const [priceWatch, setPriceWatch] = useState<PriceWatchChoice>('search');
-  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
-  const [sort, setSort] = useState<ProductSortField>('updated');
-  const [order, setOrder] = useState<SortOrder>('desc');
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -136,30 +144,48 @@ export function CataloguePage() {
   const products = list.data?.pages.flatMap((page) => page.products) ?? [];
   const total = list.data?.pages[0]?.total ?? 0;
   /** The filters behind the fold that are set; sorting is not a filter. */
-  const activeFilters = [
-    category !== '',
-    kind !== '',
-    minStars !== '',
-    createdByMe,
-    ratedByMe,
-    hasPrice,
-    priceWatch !== 'search',
-  ].filter(Boolean).length;
-  const filtered = term !== '' || activeFilters > 0;
+  const activeFilters = (
+    [
+      {
+        field: 'category',
+        label:
+          categories.data?.find((item) => item.id === category)?.name ?? strings.catalogue.category,
+      },
+      {
+        field: 'kind',
+        label: kind === 'dish' ? strings.catalogue.kindDish : strings.catalogue.kindProduct,
+      },
+      { field: 'minStars', label: strings.catalogue.atLeastStars(minStars) },
+      { field: 'createdByMe', label: strings.catalogue.createdByMe },
+      { field: 'ratedByMe', label: strings.catalogue.ratedByMe },
+      { field: 'hasPrice', label: strings.catalogue.hasPrice },
+      {
+        field: 'priceWatch',
+        label:
+          priceWatch === 'only'
+            ? strings.catalogue.onlyPriceWatch
+            : strings.catalogue.includePriceWatch,
+      },
+    ] as const
+  ).filter(({ field }) => view[field] !== DEFAULT_VIEW[field]);
+  const filtered = term !== '' || activeFilters.length > 0;
 
   const emptyResult = !list.isPending && list.error === null && products.length === 0;
   // Only needed when filters could be hiding the product; without them the
   // empty list already says that the EAN is not in the catalogue.
-  const eanLookup = useProductByEan(searchedEan, emptyResult && activeFilters > 0);
+  const eanLookup = useProductByEan(searchedEan, emptyResult && activeFilters.length > 0);
 
-  const handleDetectedEan = useCallback((ean: string): void => {
-    // A scan is already a complete search term, so do not make it wait for the
-    // typing debounce. Keeping `search` in sync also leaves the EAN visible and
-    // editable in the regular search field after the camera closes.
-    setSearch(ean);
-    setTerm(ean);
-    setScannerOpen(false);
-  }, []);
+  const handleDetectedEan = useCallback(
+    (ean: string): void => {
+      // A scan is already a complete search term, so do not make it wait for the
+      // typing debounce. Keeping `search` in sync also leaves the EAN visible and
+      // editable in the regular search field after the camera closes.
+      update({ search: ean });
+      setTerm(ean);
+      setScannerOpen(false);
+    },
+    [update],
+  );
 
   /**
    * What the pull gesture reloads: the list as it currently stands - every page
@@ -172,16 +198,9 @@ export function CataloguePage() {
   };
 
   const resetFilters = (): void => {
-    setSearch('');
+    update({ ...DEFAULT_VIEW, sort, order, moreFiltersOpen });
     setTerm('');
     setScannerOpen(false);
-    setCategory('');
-    setKind('');
-    setMinStars('');
-    setRatedByMe(false);
-    setCreatedByMe(false);
-    setHasPrice(false);
-    setPriceWatch('search');
   };
 
   const resetButton = (
@@ -204,7 +223,7 @@ export function CataloguePage() {
     }
 
     if (searchedEan !== null) {
-      const known = activeFilters === 0 ? null : eanLookup.data;
+      const known = activeFilters.length === 0 ? null : eanLookup.data;
       // `undefined`: the lookup is still on its way or failed; until it has an
       // answer the screen does not claim either way.
       if (known === null) {
@@ -218,7 +237,7 @@ export function CataloguePage() {
               >
                 {strings.catalogue.eanCreate}
               </Link>
-              {activeFilters > 0 && resetButton}
+              {activeFilters.length > 0 && resetButton}
             </>
           ),
         };
@@ -262,7 +281,7 @@ export function CataloguePage() {
                   type="search"
                   value={search}
                   onChange={(event) => {
-                    setSearch(event.target.value);
+                    update({ search: event.target.value });
                   }}
                   placeholder={strings.catalogue.searchPlaceholder}
                   maxLength={PRODUCT_SEARCH_MAX_LENGTH}
@@ -274,7 +293,7 @@ export function CataloguePage() {
                     className="button button--quiet filters__clear"
                     onClick={() => {
                       // Clearing is complete immediately, including a pending search.
-                      setSearch('');
+                      update({ search: '' });
                       setTerm('');
                       searchInput.current?.focus();
                     }}
@@ -325,16 +344,17 @@ export function CataloguePage() {
           <div className="filters__toggle-row">
             <button
               type="button"
+              ref={filterToggle}
               className="button filters__toggle"
               onClick={() => {
-                setMoreFiltersOpen((open) => !open);
+                update({ moreFiltersOpen: !moreFiltersOpen });
               }}
               aria-expanded={moreFiltersOpen}
               // Only while the panel exists, as with the scanner above.
               aria-controls={moreFiltersOpen ? MORE_FILTERS_PANEL_ID : undefined}
             >
-              {activeFilters > 0
-                ? strings.catalogue.moreFiltersActive(activeFilters)
+              {activeFilters.length > 0
+                ? strings.catalogue.moreFiltersActive(activeFilters.length)
                 : strings.catalogue.moreFilters}
               <ChevronDownIcon className="button__icon filters__toggle-icon" />
             </button>
@@ -346,6 +366,27 @@ export function CataloguePage() {
             )}
           </div>
 
+          {!moreFiltersOpen && activeFilters.length > 0 && (
+            <ul className="filter-chips" aria-label={strings.catalogue.activeFilters}>
+              {activeFilters.map(({ field, label }) => (
+                <li key={field}>
+                  <button
+                    type="button"
+                    className="button filter-chip"
+                    aria-label={strings.catalogue.removeFilter(label)}
+                    onClick={() => {
+                      update({ [field]: DEFAULT_VIEW[field] });
+                      filterToggle.current?.focus();
+                    }}
+                  >
+                    {label}
+                    <CloseIcon className="button__icon" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
           {moreFiltersOpen && (
             <div id={MORE_FILTERS_PANEL_ID} className="filters__more">
               <div className="filters__row">
@@ -353,7 +394,7 @@ export function CataloguePage() {
                   label={strings.catalogue.category}
                   value={category}
                   onChange={(event) => {
-                    setCategory(event.target.value);
+                    update({ category: event.target.value });
                   }}
                 >
                   <option value="">{strings.catalogue.allCategories}</option>
@@ -368,7 +409,7 @@ export function CataloguePage() {
                   label={strings.catalogue.minStars}
                   value={minStars}
                   onChange={(event) => {
-                    setMinStars(event.target.value);
+                    update({ minStars: event.target.value });
                   }}
                 >
                   <option value="">{strings.catalogue.anyStars}</option>
@@ -385,7 +426,7 @@ export function CataloguePage() {
                   label={strings.catalogue.kind}
                   value={kind}
                   onChange={(event) => {
-                    setKind(event.target.value as ProductKind | '');
+                    update({ kind: event.target.value as ProductKind | '' });
                   }}
                 >
                   <option value="">{strings.catalogue.allKinds}</option>
@@ -397,7 +438,7 @@ export function CataloguePage() {
                   label={strings.catalogue.priceWatch}
                   value={priceWatch}
                   onChange={(event) => {
-                    setPriceWatch(event.target.value as PriceWatchChoice);
+                    update({ priceWatch: event.target.value as PriceWatchChoice });
                   }}
                 >
                   {Object.entries(PRICE_WATCH_LABELS).map(([value, label]) => (
@@ -413,7 +454,7 @@ export function CataloguePage() {
                   label={strings.catalogue.sort}
                   value={sort}
                   onChange={(event) => {
-                    setSort(event.target.value as ProductSortField);
+                    update({ sort: event.target.value as ProductSortField });
                   }}
                 >
                   {Object.entries(SORT_LABELS).map(([value, label]) => (
@@ -427,7 +468,7 @@ export function CataloguePage() {
                   label={strings.catalogue.order}
                   value={order}
                   onChange={(event) => {
-                    setOrder(event.target.value as SortOrder);
+                    update({ order: event.target.value as SortOrder });
                   }}
                 >
                   <option value="asc">{strings.catalogue.orderAsc}</option>
@@ -443,7 +484,7 @@ export function CataloguePage() {
                     type="checkbox"
                     checked={createdByMe}
                     onChange={(event) => {
-                      setCreatedByMe(event.target.checked);
+                      update({ createdByMe: event.target.checked });
                     }}
                   />
                   {strings.catalogue.createdByMe}
@@ -454,7 +495,7 @@ export function CataloguePage() {
                     type="checkbox"
                     checked={ratedByMe}
                     onChange={(event) => {
-                      setRatedByMe(event.target.checked);
+                      update({ ratedByMe: event.target.checked });
                     }}
                   />
                   {strings.catalogue.ratedByMe}
@@ -467,7 +508,7 @@ export function CataloguePage() {
                     type="checkbox"
                     checked={hasPrice}
                     onChange={(event) => {
-                      setHasPrice(event.target.checked);
+                      update({ hasPrice: event.target.checked });
                     }}
                   />
                   {strings.catalogue.hasPrice}

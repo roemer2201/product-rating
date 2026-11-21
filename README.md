@@ -118,6 +118,12 @@ mindestens 44 Pixel hoch, Ränder über `env(safe-area-inset-*)`.
 | `/admin/trash` | Papierkorb: zurückholen oder endgültig entfernen |
 | `/login`, `/register` | Anmeldung und Registrierung mit Einladungscode |
 
+Wer aus einem Produkt zum Katalog zurückwischt, erhält Suchtext, Filter und
+Sortierung dieses Besuchs zurück. Bei eingeklappten Filtern lässt sich jede
+aktive Auswahl direkt über der Trefferliste einzeln entfernen. Über „Katalog“
+in der Navigation beginnt eine neue Suche. Abmelden oder Neuladen verwirft
+die gemerkten Ansichten.
+
 Die Adressen sind wie der übrige Code englisch; deutsch ist ausschließlich, was
 auf dem Bildschirm steht. Sämtliche Oberflächentexte liegen in
 `web/src/lib/strings.ts`, damit eine spätere Übersetzung eine Datei betrifft und
