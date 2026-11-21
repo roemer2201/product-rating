@@ -138,6 +138,23 @@ jobs:
           package="$(find packaging/build -maxdepth 1 -name '*.deb' -print -quit)"
           sudo apt-get install --yes "${PWD}/${package}"
 
+          # Licence notices survive the clean-up in build-deb.sh: a LICENSE.md
+          # unchanged, and in every package directory either a licence file or
+          # the README that states the licence in its place (libvips).
+          cmp node_modules/@img/colour/LICENSE.md /opt/product-rating/node_modules/@img/colour/LICENSE.md
+          grep --quiet LGPLv3 /opt/product-rating/node_modules/@img/sharp-libvips-linux-*/README.md
+          missing=0
+          while IFS= read -r -d '' manifest; do
+            dir="${manifest%/package.json}"
+            grep --quiet '"name"' "${manifest}" || continue
+            if [[ -z "$(find "${dir}" -maxdepth 1 -type f \
+                -iregex '.*/\(licen[cs]e\|copying\|notice\|readme\)[^/]*' -print -quit)" ]]; then
+              echo "no licence notice left in ${dir}" >&2
+              missing=1
+            fi
+          done < <(find /opt/product-rating/node_modules -type f -name package.json -print0)
+          test "${missing}" -eq 0
+
           # postinst creates the user, the directories and the secret and
           # applies the migrations, but deliberately does not start a fresh
           # installation - base_url has to be set first (README 7.2). The

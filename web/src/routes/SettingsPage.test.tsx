@@ -11,7 +11,7 @@ import { enqueueCapture, listCaptures } from '@/lib/offlineQueue';
 import { mockFetch, testUser } from '@/testing/fetchMock';
 import { makeProductDetail, makeRating, TEST_EAN } from '@/testing/fixtures';
 import { createTestQueryClient, renderWithProviders } from '@/testing/render';
-import { APP_VERSION } from '@/lib/version';
+import { APP_SOURCE_URL, APP_VERSION } from '@/lib/version';
 import { setOnline } from '@/testing/online';
 import { captureOwner } from '@/lib/captureIdentity';
 import { createQueryClient, queryKeys } from '@/lib/queries';
@@ -69,6 +69,10 @@ describe('SettingsPage', () => {
     renderSettings();
 
     expect(await screen.findByText(strings.settings.version(APP_VERSION))).toBeInTheDocument();
+    // The program is under the GNU AGPL; the settings point to its source.
+    const source = screen.getByRole('link', { name: strings.settings.source });
+    expect(source).toHaveAttribute('href', APP_SOURCE_URL);
+    expect(source).toHaveAttribute('rel', 'noopener noreferrer');
     await waitFor(() => {
       expect(screen.queryByText(/^Server /u)).not.toBeInTheDocument();
     });

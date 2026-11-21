@@ -18,7 +18,7 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
 - [x] **[S]** Vitest einrichten, Skript `test`, ein Rauchtest je Workspace
 - [x] **[S]** `shared/` anlegen: Paketgerüst, Export-Barrel, erste gemeinsame Typen (`Product`, `Rating`, `Photo`, `User`)
 - [x] **[S]** Wurzel-Skripte `dev`, `build`, `start` verdrahten (concurrently)
-- [ ] **[S]** `LICENSE` wählen und ergänzen (Vorschlag: MIT oder AGPL-3.0 – Entscheidung des Projektinhabers)
+- [x] **[S]** `LICENSE` wählen und ergänzen (Vorschlag: MIT oder AGPL-3.0 – Entscheidung des Projektinhabers). Entschieden am 21.11.2026: `AGPL-3.0-or-later`, Rechteinhaber roemer2201, Link „Quellcode“ in den Einstellungen
 - [ ] **[S]** TypeScript auf 7.x heben, sobald `typescript-eslint` es unterstützt (aktuell Peer-Bereich `>=4.8.4 <6.1.0`, deshalb auf `~5.9.3` festgelegt)
 - [ ] **[S]** Verbleibende `esbuild`-Meldung aus `npm audit` beobachten (nur Dev-Server unter Windows betroffen, transitiv über `vite`/`tsup` gepinnt)
 - [x] **[S]** `jsdom` und Testing Library ergänzen, sobald es Komponenten zu testen gibt (mit M7)

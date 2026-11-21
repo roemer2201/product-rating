@@ -26,7 +26,7 @@ import {
   useUpdateProfile,
 } from '@/lib/queries';
 import { strings } from '@/lib/strings';
-import { APP_VERSION, compareVersions } from '@/lib/version';
+import { APP_SOURCE_URL, APP_VERSION, compareVersions } from '@/lib/version';
 
 /**
  * The account: who you are, your password, your devices, and the way out.
@@ -148,6 +148,14 @@ export function SettingsPage() {
         <p className="app-version">
           <span>{strings.settings.version(APP_VERSION)}</span>
           {serverHint !== null && <span className="app-version__server">{serverHint}</span>}
+          <a
+            className="app-version__source"
+            href={APP_SOURCE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {strings.settings.source}
+          </a>
         </p>
       </div>
 

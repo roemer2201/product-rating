@@ -1,8 +1,14 @@
 {
   "name": "@product-rating/server",
-  "version": "0.15.0",
+  "version": "0.15.1",
   "private": true,
   "description": "Fastify API server for product-rating",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/roemer2201/product-rating.git",
+    "directory": "server"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "scripts": {

@@ -70,7 +70,7 @@ FROM node:22-bookworm-slim AS runtime
 LABEL org.opencontainers.image.title="product-rating" \
       org.opencontainers.image.description="Self-hostable web app for recording products by EAN with a photo and a rating" \
       org.opencontainers.image.source="https://github.com/roemer2201/product-rating" \
-      org.opencontainers.image.licenses="UNLICENSED"
+      org.opencontainers.image.licenses="AGPL-3.0-or-later"
 
 ENV NODE_ENV=production
 # Where the health check looks; the port has to match server.port of the
@@ -88,6 +88,8 @@ COPY --from=build --chown=root:root /src/server/dist ./server/dist
 # it, node would read the .js files as CommonJS and refuse the first import.
 COPY --from=build --chown=root:root /src/server/package.json ./server/package.json
 COPY --from=build --chown=root:root /src/web/dist ./web
+# The licence travels with every copy of the program, the image included.
+COPY --chown=root:root LICENSE ./LICENSE
 COPY --chown=root:root docker/config.container.toml /etc/product-rating/config.toml
 COPY --chown=root:root docker/entrypoint.sh /usr/local/bin/product-rating-entrypoint
 RUN chmod 0755 /usr/local/bin/product-rating-entrypoint

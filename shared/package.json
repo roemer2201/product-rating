@@ -1,8 +1,14 @@
 {
   "name": "@product-rating/shared",
-  "version": "0.15.0",
+  "version": "0.15.1",
   "private": true,
   "description": "Types and schemas shared between the API server and the web client",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/roemer2201/product-rating.git",
+    "directory": "shared"
+  },
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",

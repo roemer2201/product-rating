@@ -573,6 +573,8 @@ export const strings = {
     memberSince: (date: string) => `Dabei seit ${date}`,
     /* Top right of the screen: the app on this device, and the server if it differs. */
     version: (version: string) => `Version ${version}`,
+    /** Link to the published source; the program is under the GNU AGPL 3.0 or later. */
+    source: 'Quellcode (AGPL-3.0)',
     serverVersion: (version: string) => `Server ${version}`,
     serverVersionNewer: (version: string) => `Server ${version} – Aktualisierung ausstehend`,
 

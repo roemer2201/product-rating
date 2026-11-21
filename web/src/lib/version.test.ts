@@ -1,6 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { APP_VERSION, compareVersions } from '@/lib/version';
+import { repositorySourceUrl } from '@/lib/sourceUrl';
 import webPackage from '../../package.json';
+
+describe('source address', () => {
+  it('links to the repository of this project', () => {
+    expect(repositorySourceUrl(webPackage.repository.url)).toBe(
+      'https://github.com/roemer2201/product-rating',
+    );
+  });
+
+  it('links to the repository of a fork', () => {
+    expect(repositorySourceUrl('git+https://example.org/household/catalogue.git')).toBe(
+      'https://example.org/household/catalogue',
+    );
+  });
+});
 
 describe('version', () => {
   it('is the version of the web package', () => {
