@@ -1921,7 +1921,12 @@ beieinander.
 
 Die mitgelieferten Abhängigkeiten behalten ihre eigenen Lizenzen; ihre Texte
 liegen jeweils in `node_modules`. Fast alle sind freizügig (MIT, ISC, BSD,
-Apache-2.0); `sharp` bringt `libvips` unter LGPL-3.0-or-later mit.
+Apache-2.0); `sharp` bringt `libvips` unter LGPL-3.0-or-later mit. Das
+Debian-Paket entfernt aus `node_modules` Tests, Dokumentation und
+Markdown-Dateien, lässt aber jeden Lizenzhinweis stehen: Dateien, deren Name
+auf Lizenz, Notice, Copyright oder COPYING lautet, und die README eines
+Pakets, das seine Lizenz nur dort nennt (etwa die Lizenztabelle der
+libvips-Binärdateien). Der CI-Job des Pakets prüft das nach der Installation.
 
 Weitere Dokumente: [CLAUDE.md](CLAUDE.md) (Arbeitsanweisungen und
 Projektkonventionen), [TODO.md](TODO.md) (Umsetzungsschritte),

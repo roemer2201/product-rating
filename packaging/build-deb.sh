@@ -32,7 +32,7 @@
 #                [--version VERSION] [-a|--arch ARCH] [--skip-build]
 #                [--skip-lintian]
 #
-# Version: 1.1.1  (2026-11-21)
+# Version: 1.1.2  (2026-11-21)
 
 # Robustness baseline: a package assembled from a half finished tree would
 # install and then fail at run time, which is the worst of both worlds.
@@ -450,6 +450,12 @@ prune_foreign_binaries() {
 # are removed. Nothing that a "require" can resolve is touched: no .js, no
 # .json, no .node, and in particular no .d.ts, which is where the type
 # information of drizzle-orm and zod lives.
+#
+# Licence notices stay, wherever they are: the licences of the dependencies
+# ask for them to travel with every copy, and debian/copyright promises that
+# they ship in their directories. That covers files named after a licence,
+# notice, copyright or COPYING, and the README of a package that has nothing
+# else to state its licence.
 prune_development_files() {
     local modules_dir="${1}"
 
@@ -464,13 +470,32 @@ prune_development_files() {
         find . -regextype posix-extended -depth ! -iregex "${legal}" -regex "${development}" \
             \( ! -type d -o -empty \) -delete
 
-        find . -regextype posix-extended -type f ! -iregex "${legal}" \
-        \( -name '*.md' -o -name '*.markdown' -o -name 'index.html' \
-        -o -name '.gitattributes' -o -name '.gitignore' -o -name '.npmignore' \
-        -o -name '.editorconfig' -o -name '.travis.yml' \
-        -o -name '.eslintrc*' -o -name 'eslint.config.*' \
-        -o -name '.prettierrc*' \) \
-        -delete
+        # A few packages state their licence only in the README (the
+        # libvips binaries of sharp with their table of LGPL and other
+        # licences, abstract-logging). Their README is that notice, so a
+        # package directory without a licence file of its own keeps it.
+        local -A notice_readmes=()
+        local manifest package_dir readme
+        while IFS= read -r -d '' manifest; do
+            package_dir="${manifest%/package.json}"
+            if [[ -z "$(find "${package_dir}" -maxdepth 1 -type f \
+                -regextype posix-extended -iregex "${legal}" -print -quit)" ]]; then
+                while IFS= read -r -d '' readme; do
+                    notice_readmes["${readme}"]=1
+                done < <(find "${package_dir}" -maxdepth 1 -type f -iname 'readme*' -print0)
+            fi
+        done < <(find . -type f -name package.json -print0)
+
+        local file
+        while IFS= read -r -d '' file; do
+            [[ -n "${notice_readmes["${file}"]:-}" ]] || rm -f -- "${file}"
+        done < <(find . -regextype posix-extended -type f ! -iregex "${legal}" \
+            \( -name '*.md' -o -name '*.markdown' -o -name 'index.html' \
+            -o -name '.gitattributes' -o -name '.gitignore' -o -name '.npmignore' \
+            -o -name '.editorconfig' -o -name '.travis.yml' \
+            -o -name '.eslintrc*' -o -name 'eslint.config.*' \
+            -o -name '.prettierrc*' \) -print0)
+        log debug "Kept ${#notice_readmes[@]} README file(s) as the only licence notice of their package"
     )
 }
 

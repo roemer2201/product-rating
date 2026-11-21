@@ -1,4 +1,4 @@
-import { repositorySourceUrl } from './src/lib/sourceUrl.ts';
+import { repositorySourceUrl } from './src/lib/sourceUrl';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vite';

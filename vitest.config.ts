@@ -1,4 +1,4 @@
-import { repositorySourceUrl } from './web/src/lib/sourceUrl.ts';
+import { repositorySourceUrl } from './web/src/lib/sourceUrl';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath, URL } from 'node:url';
 import react from '@vitejs/plugin-react';

@@ -36,6 +36,20 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 - Nebenbei: lintian meldete `latest-changelog-entry-without-new-date`, weil
   die Einträge zu 0.14.0 und 0.15.0 dasselbe Datum tragen. Der Eintrag zu
   0.15.1 mit neuem Datum löst das auf.
+- Review des Projektinhabers (Commit `ade311b`): `build-deb.sh` löschte
+  beim Aufräumen von `node_modules` auch Lizenztexte – jede `*.md`, also
+  etwa `LICENSE.md`, und was in `docs/` oder `test/` lag. Das widersprach
+  `debian/copyright`, nach dem die Lizenzen der Abhängigkeiten in ihren
+  Verzeichnissen mitkommen. Dateien mit Lizenz, Notice, Copyright oder COPYING
+  im Namen bleiben jetzt stehen. Dazu: Die Umrechnung der Repository-Adresse
+  steckt in `web/src/lib/sourceUrl.ts` und ist für einen Fork getestet.
+- Review dazu (21.11.2026): Vier Pakete nennen ihre Lizenz nur in der README,
+  darunter die libvips-Binärdateien von `sharp` mit ihrer Lizenztabelle
+  (LGPLv3 und andere). Die README eines Pakets ohne eigene Lizenzdatei bleibt
+  deshalb ebenfalls stehen. Der CI-Job prüft nach der Installation, dass jedes
+  Paket einen Lizenzhinweis behalten hat, statt nur eine einzelne Datei zu
+  vergleichen. Die Konfigurationsdateien importieren `sourceUrl` ohne
+  `.ts`-Endung, `allowImportingTsExtensions` ist damit überflüssig.
 - Nicht gemacht: Lizenzkopf in jeder Quelldatei. Die FSF empfiehlt ihn, nötig
   ist er nicht; `LICENSE` und die Manifeste genügen für die Zuordnung.
 
