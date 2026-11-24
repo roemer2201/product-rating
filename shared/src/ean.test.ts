@@ -130,6 +130,26 @@ describe('createProductSchema', () => {
     expect(createProductSchema.parse({ name: 'Gouda', priceWatch: true }).priceWatch).toBe(true);
   });
 
+  it('carries a first price, and refuses an offer on a dish', () => {
+    expect(createProductSchema.parse({ name: 'Gouda' })).not.toHaveProperty('price');
+    expect(
+      createProductSchema.parse({ name: 'Gouda', price: { cents: 199, shop: ' Markt ', note: '' } })
+        .price,
+    ).toEqual({ cents: 199, shop: 'Markt', note: null, special: false });
+
+    const offer = createProductSchema.safeParse({
+      kind: 'dish',
+      name: 'Gulasch',
+      price: { cents: 350, special: true },
+    });
+    expect(offer.success).toBe(false);
+    expect(offer.error?.issues[0]?.path).toEqual(['price', 'special']);
+    expect(
+      createProductSchema.safeParse({ kind: 'dish', name: 'Gulasch', price: { cents: 350 } })
+        .success,
+    ).toBe(true);
+  });
+
   it('requires a name', () => {
     expect(createProductSchema.safeParse({ ean: '96385074', name: '   ' }).success).toBe(false);
   });

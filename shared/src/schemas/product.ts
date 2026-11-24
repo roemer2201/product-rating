@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { normaliseEan } from '../ean.js';
 import { PRODUCT_KINDS, RATING_MAX_STARS, RATING_MIN_STARS } from '../types.js';
 import { categoryIdsSchema } from './category.js';
+import { createPriceSchema } from './price.js';
 import { SORT_ORDERS, type SortOrder } from './sort.js';
 
 /**
@@ -71,6 +72,10 @@ const optionalEanSchema = z
   .transform((value) => (value === undefined || value === '' ? null : value));
 
 const DISH_WITHOUT_EAN = { message: 'a dish has no EAN', path: ['ean'] };
+const DISH_WITHOUT_OFFER = {
+  message: 'a dish cannot have a special price',
+  path: ['price', 'special'],
+};
 
 export const createProductSchema = z
   .object({
@@ -91,8 +96,15 @@ export const createProductSchema = z
      * New products default to false in the service and database.
      */
     priceWatch: z.boolean().optional(),
+    /**
+     * The first price, entered on the same screen as the product. Stored in
+     * the same transaction, so a price the server refuses leaves no product
+     * behind either.
+     */
+    price: createPriceSchema.optional(),
   })
-  .refine((value) => value.kind === 'product' || value.ean === null, DISH_WITHOUT_EAN);
+  .refine((value) => value.kind === 'product' || value.ean === null, DISH_WITHOUT_EAN)
+  .refine((value) => value.kind === 'product' || value.price?.special !== true, DISH_WITHOUT_OFFER);
 
 /**
  * A change to the shared catalogue. Every field is optional, but at least one

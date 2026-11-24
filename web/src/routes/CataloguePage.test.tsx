@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { Link, Route, Routes, useLocation, useNavigate, useParams } from 'react-router';
 import { CatalogueVisits } from '@/components/CatalogueVisits';
 import { CataloguePage } from '@/routes/CataloguePage';
+import { queryKeys } from '@/lib/queries';
 import { strings } from '@/lib/strings';
 import { mockFetch } from '@/testing/fetchMock';
 import {
@@ -634,6 +635,37 @@ describe('CataloguePage', () => {
     await openMoreFilters(user);
     expect(screen.getByLabelText(strings.catalogue.minStars)).toHaveValue('');
     expect(screen.getByLabelText(strings.catalogue.hasPrice)).toBeChecked();
+  });
+
+  it('drops a category deleted since the previous visit and keeps the other filters', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([
+      CATEGORIES,
+      { path: '/products', body: makeProductPage([makeProduct()]) },
+    ]);
+    const { client } = renderCatalogue();
+    await screen.findByText('Apfelsaft');
+    await openMoreFilters(user);
+    await user.selectOptions(screen.getByLabelText(strings.catalogue.category), 'Getränke');
+    await user.click(screen.getByLabelText(strings.catalogue.hasPrice));
+    await user.click(await screen.findByText('Apfelsaft'));
+
+    client.setQueryData(
+      queryKeys.products.categories,
+      CATEGORY_LIST.filter(({ id }) => id !== 'cat-drinks'),
+    );
+    await user.click(screen.getByRole('button', { name: 'Zurück' }));
+
+    expect(screen.getByLabelText(strings.catalogue.category)).toHaveValue('');
+    expect(screen.getByLabelText(strings.catalogue.hasPrice)).toBeChecked();
+    expect(
+      screen.getByRole('button', { name: strings.catalogue.moreFiltersActive(1) }),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      const url = lastListUrl(fetchMock.mock.calls);
+      expect(url).toContain('hasPrice=true');
+      expect(url).not.toContain('categoryId=');
+    });
   });
 
   it('loads the next page on demand', async () => {

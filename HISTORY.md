@@ -5,6 +5,15 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-11-24 – Review von PR #59 (0.17.0)
+
+- Mit dem aktuellen Stand von `main` zusammengeführt. Die Lizenzen der
+  Abhängigkeiten bleiben in beiden Paketen erhalten.
+- Die Dev-Proxy-Beispiele übernehmen den Unterpfad des ausgelieferten
+  Web-Clients und die Einstellungen des Paketprofils. Der Paket-Changelog
+  nennt die jeweilige Debian-Version samt Git-Kennung.
+- Der Katalog verwirft den gespeicherten Filter für eine gelöschte Kategorie.
+
 ## 2026-11-21 – Entwicklungsbranches als eigenes Debian-Paket ausrollen
 
 Der Paketbau erstellt mit `--dev` eine zweite Installation für einen
@@ -20,6 +29,99 @@ Suchtext, Filter, Sortierung und der geöffnete Filterbereich bleiben pro
 Verlaufseintrag im Speicher der angemeldeten App. Beim Zurückwischen kann
 man mit dem nächsten Treffer weitermachen. In der eingeklappten Ansicht
 lassen sich einzelne Filter entfernen, während die übrige Auswahl erhalten bleibt.
+
+## 2026-11-21 – Erster Preis beim Anlegen (0.16.0)
+
+- Anlass: Auf dem Formular nach dem Scan stand die Checkbox
+  „Preisbeobachtung“, einen Preis eintragen ließ sich dort aber nicht. Dafür
+  musste man nach dem Anlegen noch einmal auf die Produktseite.
+- Entscheidungen des Projektinhabers: Die Preisfelder liegen in einem
+  aufklappbaren Bereich, damit die Seite nicht unnötig lang wird.
+  „Preisbeobachtung“ wandert ans Ende dieses Bereichs, weil die Markierung
+  beim Anlegen nur als Folge eines Preises Sinn ergibt. Zuklappen versteckt nur
+  und verwirft nichts; die zugeklappte Schaltfläche nennt deshalb, was darin
+  steht. Gerichte bekommen den Bereich als „Kosten erfassen“.
+- Die Schaltfläche steht über dem Foto: Das Foto soll direkt über „Produkt
+  anlegen“ bleiben, weil die Seite nach dem Aufnehmen dorthin scrollt. Das
+  Muster (Schaltfläche mit Pfeil, `aria-expanded`) ist das der zusätzlichen
+  Filter im Katalog.
+- Server: `POST /api/v1/products` nimmt optional `price` mit dem Körper von
+  `POST /api/v1/products/:id/prices` an, `createProductWithPrice()` legt beides
+  in einer Transaktion an. So gibt es keinen Zwischenstand „Produkt da, Preis
+  fehlt“, den die Seite wie beim Foto eigens hätte behandeln müssen. Ein
+  abgelehnter Preis (Datum in der Zukunft, Aktionspreis bei einem Gericht)
+  verhindert auch das Produkt. Die Änderung ist additiv; ältere Clients und die
+  Offline-Warteschlange, die den Preis weiter getrennt schickt, merken nichts.
+- Oberfläche: Die Preisfelder sind aus `PriceHistory` in `PriceFields`
+  herausgezogen, damit Produktseite und Anlegeformular gleich bleiben. Ist ein
+  Preis begonnen (Ort, Notiz oder Aktionspreis), aber kein gültiger Betrag da,
+  klappt der Bereich auf und meldet den Fehler. Der Entwurf behält die
+  Eingaben und den Klappzustand, wenn man die Seite kurz verlässt. „Offline
+  merken“ nimmt den Preis in die Erfassung mit.
+- Review von PR #61: Ein geändertes Datum zählt zur Preiseingabe. Fehler am
+  Datum öffnen den Bereich und erscheinen direkt am Feld. Dieselbe Preis-ID
+  verbindet den ersten Speicherversuch mit dem Offline-Abgleich, damit eine
+  verlorene Antwort keinen zweiten Preiseintrag erzeugt.
+- Nachprüfung dieser Korrekturen: Die Preis-ID geht nur bei Einträgen mit EAN
+  mit, denn nur die nimmt die Warteschlange. Ohne EAN wäre ein erneutes
+  Absenden nach verlorener Antwort an der schon vergebenen ID mit `409`
+  gescheitert, ohne dass die Seite einen Ausweg anbietet. Die zugeklappte
+  Schaltfläche nennt jetzt auch ein geändertes Datum, das seit dem Review als
+  Preiseingabe zählt.
+- Offen geblieben und als Punkt in TODO.md: Meldet das Anlegen `409`, geht der
+  eingegebene Preis wie die übrigen Felder verloren.
+- Geprüft mit neuen Tests für Schema, Route (Preis, Ablehnung ohne Produkt,
+  Gericht, Rückkehr aus dem Papierkorb) und Formular (Zusammenfassung,
+  Fehlermeldung, Gericht, Entwurf, Warteschlange), dazu im gebauten Stand im
+  Browser in allen drei Layouts, hell und dunkel.
+
+## 2026-11-21 – Lizenz: GNU AGPL 3.0 oder später (0.15.1)
+
+- Anlass: offener Punkt aus M0. Bis hierher stand das Projekt ohne Lizenz da
+  (`UNLICENSED`, also alle Rechte vorbehalten).
+- Entscheidungen des Projektinhabers: `AGPL-3.0-or-later`, Rechteinhaber
+  roemer2201, und ein Link „Quellcode“ in den Einstellungen. Zur Wahl standen
+  AGPL (nur Version 3 oder auch spätere), MIT und Apache-2.0. Die AGPL passt
+  zu einer selbst gehosteten Web-App, wenn Änderungen offen bleiben sollen:
+  Ihr Abschnitt 13 erfasst auch den Betrieb einer veränderten Fassung als
+  Netzwerkdienst. Die GPL ohne „A“ wurde nicht angeboten, weil sie bei einer
+  gehosteten Web-App kaum greift.
+- Die ausgelieferten Abhängigkeiten sind damit vereinbar: fast alle MIT, ISC,
+  BSD oder Apache-2.0, dazu `libvips` (LGPL-3.0-or-later) in `sharp`.
+- `LICENSE` ist der unveränderte Text der FSF, entnommen aus GitHubs
+  choosealicense-Repository, weil gnu.org aus der Entwicklungsumgebung nicht
+  erreichbar war. Gegen den Text der SPDX-Lizenzliste wortgleich geprüft; die
+  einzige Abweichung sind drei Links mit `https://` statt `http://`.
+- Die Lizenz steht in allen vier `package.json` (dazu `repository`), in
+  `packaging/debian/copyright` mit vollem Text (Debian liefert die AGPL nicht
+  unter `/usr/share/common-licenses` aus), im Label des Container-Images und
+  als `LICENSE` im Image. `server/src/license.test.ts` hält diese Stellen
+  zusammen.
+- Den Link „Quellcode“ liest der Build aus `repository` in `web/package.json`
+  (`__APP_SOURCE_URL__`, wie die Version). Ein Fork, der dort seine Adresse
+  einträgt, verlinkt damit auf sich selbst. Es ist ein gewöhnlicher Link, den
+  die Nutzerin oder der Nutzer selbst öffnet; die App stellt dafür keine
+  Verbindung her (CLAUDE.md, Entscheidung 6).
+- CLAUDE.md nennt die Lizenz jetzt unter den festgelegten Entscheidungen.
+- Nebenbei: lintian meldete `latest-changelog-entry-without-new-date`, weil
+  die Einträge zu 0.14.0 und 0.15.0 dasselbe Datum tragen. Der Eintrag zu
+  0.15.1 mit neuem Datum löst das auf.
+- Review des Projektinhabers (Commit `ade311b`): `build-deb.sh` löschte
+  beim Aufräumen von `node_modules` auch Lizenztexte – jede `*.md`, also
+  etwa `LICENSE.md`, und was in `docs/` oder `test/` lag. Das widersprach
+  `debian/copyright`, nach dem die Lizenzen der Abhängigkeiten in ihren
+  Verzeichnissen mitkommen. Dateien mit Lizenz, Notice, Copyright oder COPYING
+  im Namen bleiben jetzt stehen. Dazu: Die Umrechnung der Repository-Adresse
+  steckt in `web/src/lib/sourceUrl.ts` und ist für einen Fork getestet.
+- Review dazu (21.11.2026): Vier Pakete nennen ihre Lizenz nur in der README,
+  darunter die libvips-Binärdateien von `sharp` mit ihrer Lizenztabelle
+  (LGPLv3 und andere). Die README eines Pakets ohne eigene Lizenzdatei bleibt
+  deshalb ebenfalls stehen. Der CI-Job prüft nach der Installation, dass jedes
+  Paket einen Lizenzhinweis behalten hat, statt nur eine einzelne Datei zu
+  vergleichen. Die Konfigurationsdateien importieren `sourceUrl` ohne
+  `.ts`-Endung, `allowImportingTsExtensions` ist damit überflüssig.
+- Nicht gemacht: Lizenzkopf in jeder Quelldatei. Die FSF empfiehlt ihn, nötig
+  ist er nicht; `LICENSE` und die Manifeste genügen für die Zuordnung.
 
 ## 2026-11-20 – Bearbeitete Galeriefotos offline vormerken (0.15.0)
 

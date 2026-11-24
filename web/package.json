@@ -1,8 +1,14 @@
 {
   "name": "@product-rating/web",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "private": true,
   "description": "React PWA client for product-rating",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/roemer2201/product-rating.git",
+    "directory": "web"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -105,8 +105,8 @@ mindestens 44 Pixel hoch, Ränder über `env(safe-area-inset-*)`.
 |---|---|
 | `/` | Katalog – Produktliste mit Suchzeile und Thumbnails; Filter und Sortierung hinter „Zusätzliche Filter“ (zugeklappt, mit Zahl der gesetzten Filter), „Filter zurücksetzen“ daneben; als Preisbeobachtung markierte Einträge erscheinen erst bei einer Suche oder über den Filter; findet die Suche nach einer gültigen EAN nichts, führt „Neuen Artikel erfassen“ zum Anlegeformular mit dieser EAN, blenden nur Filter den Artikel aus, „Artikel öffnen“ zu ihm |
 | `/scan` | Scanner, primäre Aktion („Kamera starten“ im Kamerafeld); darunter „Ohne Barcode erfassen“ und die Eingabe von Hand |
-| `/products/new?ean=…` | Anlegeformular mit vorbelegter EAN |
-| `/products/new?kind=dish` | Anlegeformular für ein Gericht oder Rezept, ohne EAN |
+| `/products/new?ean=…` | Anlegeformular mit vorbelegter EAN; über dem Foto aufklappbar „Preis erfassen“ mit dem ersten Preis und der Markierung „Preisbeobachtung“ |
+| `/products/new?kind=dish` | Anlegeformular für ein Gericht oder Rezept, ohne EAN; aufklappbar „Kosten erfassen“ |
 | `/products/new?kind=product` | Anlegeformular für ein Produkt ohne Barcode |
 | `/products/:id` | Produkt: Foto, Durchschnitt, eigene Bewertung, Bearbeiten, Löschen |
 | `/ratings` | Eigene Bewertungen |
@@ -122,7 +122,8 @@ Wer aus einem Produkt zum Katalog zurückwischt, erhält Suchtext, Filter und
 Sortierung dieses Besuchs zurück. Bei eingeklappten Filtern lässt sich jede
 aktive Auswahl direkt über der Trefferliste einzeln entfernen. Über „Katalog“
 in der Navigation beginnt eine neue Suche. Abmelden oder Neuladen verwirft
-die gemerkten Ansichten.
+die gemerkten Ansichten. Wurde eine Kategorie zwischenzeitlich gelöscht,
+entfällt ihr Filter beim Zurückkehren.
 
 Die Adressen sind wie der übrige Code englisch; deutsch ist ausschließlich, was
 auf dem Bildschirm steht. Sämtliche Oberflächentexte liegen in
@@ -288,6 +289,28 @@ daneben stehen „Upload wiederholen“ und der Weg zum Produkt. Ohne Verbindung
 wandert das Bild in die Warteschlange, bei einem gescheiterten Anlegen zusammen
 mit den eingegebenen Feldern, danach allein – der Abgleich findet das Produkt
 über seine EAN wieder.
+
+Auch der **erste Preis** lässt sich gleich beim Anlegen erfassen: Wer am Regal
+steht, hat das Preisschild vor Augen. Damit das Formular auf dem Telefon nicht
+unnötig lang wird, liegen die Felder hinter der Schaltfläche „Preis erfassen“
+über dem Foto, zugeklappt wie die zusätzlichen Filter im Katalog
+(`web/src/components/PriceEntry.tsx`). Aufgeklappt stehen dort dieselben Felder
+wie auf der Produktseite (`PriceFields.tsx` ist der gemeinsame Teil) und als
+letzte Option die Markierung „Preisbeobachtung“, die beim Anlegen nur als
+Folge eines Preises Sinn ergibt; beim Bearbeiten steht sie weiter direkt im
+Formular. **Zuklappen versteckt nur:** Was eingetragen ist, wird mit dem
+Produkt gespeichert, und die zugeklappte Schaltfläche nennt es in einer zweiten
+Zeile („2,49 · Wochenmarkt · Preisbeobachtung“). Ist ein Preis begonnen – ein
+Einkaufsort, eine Notiz, ein Aktionspreis oder ein abweichendes Datum –, aber kein
+gültiger Betrag eingetragen, klappt der Bereich auf und sagt es, statt die Angaben
+stillschweigend zu verwerfen. Bei einem Gericht heißt der Bereich „Kosten
+erfassen“, wie auf der Gerichtsseite ohne Einkaufsort und Aktionspreis.
+Gespeichert wird in **einer** Anfrage (`price` in `POST /api/v1/products`,
+Abschnitt 4.3); ein Zwischenstand „Produkt da, Preis fehlt“ entsteht so nicht.
+Ohne Verbindung nimmt „Offline merken“ den Preis mit in die Erfassung. Meldet
+das Anlegen `409`, weil jemand anders die EAN inzwischen erfasst hat, führt der
+Hinweis zum vorhandenen Produkt; der eingegebene Preis ist dort noch einmal
+einzutragen (TODO.md).
 
 ### 2.2 PWA: Installation, Offline-Verhalten und Aktualisierung
 
@@ -584,7 +607,7 @@ vorbehalten, weil es fremde Bewertungen und Fotos mitnimmt.
 
 | Route | Rolle | Zweck |
 |---|---|---|
-| `POST /api/v1/products` | angemeldet | Produkt oder Gericht anlegen (`kind`, EAN optional); belegte EAN → `409` mit `details.productId` |
+| `POST /api/v1/products` | angemeldet | Produkt oder Gericht anlegen (`kind`, EAN optional, erster Preis optional als `price`); belegte EAN → `409` mit `details.productId` |
 | `GET /api/v1/products` | angemeldet | Liste mit Suche, Filtern, Sortierung und Cursor-Pagination |
 | `GET /api/v1/products/by-ean/:ean` | angemeldet | Nachschlagen nach dem Scan |
 | `GET /api/v1/products/:id` | angemeldet | Produkt inklusive Ersteller, eigener Bewertung, Durchschnitt, Anzahl, Fotos und aller Bewertungen |
@@ -708,7 +731,7 @@ welches Symbol der Scanner gelesen hat, denselben Eintrag. Führende Nullen
 **Preisbeobachtung.** Manches landet nur wegen des Preises im Katalog –
 Gouda in Scheiben, Butter, Milch –, und bewerten will das im Haushalt niemand.
 Solche Einträge bekommen im Produktformular die Markierung „Preisbeobachtung“
-(Spalte `products.price_watch`, Migration `0012_price_watch.sql`). Sie wirkt
+(beim Anlegen als letzte Option unter „Preis erfassen“, Abschnitt 2.1; Spalte `products.price_watch`, Migration `0012_price_watch.sql`). Sie wirkt
 **nur auf die Katalogliste**: Ohne Suchbegriff blendet die Katalogseite markierte
 Einträge aus (`priceWatch=exclude`), mit Suchbegriff zeigt sie sie wie alle
 anderen (`include`) – wer „Gouda“ tippt, findet den Käse samt Preisverlauf.
@@ -856,6 +879,20 @@ interessant.
 **Körper von `POST`:** `{ "cents": 199, "shop": "Bioladen", "note": "500-g-Packung",
 "special": false, "purchasedAt": "2026-08-10" }`. Nur `cents` ist Pflicht;
 `special` fehlt bei älteren Clients und gilt dann als `false`.
+
+**Erster Preis beim Anlegen.** `POST /api/v1/products` nimmt denselben Körper
+optional unter `price` an. Produkt und Preis entstehen in einer Transaktion:
+Lehnt der Server den Preis ab (Datum in der Zukunft, Aktionspreis bei einem
+Gericht), entsteht auch kein Produkt. Die Antwort trägt den Eintrag unter
+`price`, ohne Preis `null`. Holt die Anfrage ein Produkt aus dem Papierkorb
+zurück, kommt der Preis zu dessen Verlauf hinzu.
+
+Beide Routen akzeptieren optional eine vom Client erzeugte UUIDv4 unter
+`id` im Preiskörper. Die Offline-Warteschlange übernimmt die ID aus dem
+ersten Speicherversuch. Schickt sie den Preis an
+`POST /api/v1/products/:id/prices`, liefert der Server bei derselben ID,
+denselben Preisangaben, demselben Produkt und demselben Konto den
+gespeicherten Eintrag. Bei abweichenden Angaben antwortet er mit `409`.
 
 **Aktionspreise** (Angebot, Aktion, reduziert) sind am Eintrag markiert, im
 Formular über die Checkbox „Aktionspreis“ rechts neben dem Betrag. Der
@@ -1422,7 +1459,8 @@ Für Apache, Caddy und Traefik denselben Befehl mit `--server apache`,
 `product-rating-dev.conf`, `product-rating-dev.caddy` oder
 `product-rating-dev.yml`. Die vereinbarte Konfiguration aktiviert der
 Betreiber im jeweiligen Webserver (Abschnitt 7.3). Vier fertige Beispiele
-liegen in `/usr/share/doc/product-rating-dev/examples/`.
+liegen in `/usr/share/doc/product-rating-dev/examples/`. Sie übernehmen den
+Unterpfad aus dem gebauten Web-Client, auch bei `--skip-build`.
 
 **Aktualisieren und zurücknehmen.** Vor einem Branchwechsel mit
 Schemaänderungen die Entwicklungsdaten sichern:
@@ -1994,6 +2032,36 @@ Zwei Workflows unter `.github/workflows/`:
 
 Beide Workflows brauchen keine eingerichteten Secrets: `GITHUB_TOKEN` reicht
 für Release und Registry.
+
+## 10. Lizenz
+
+Copyright 2026 roemer2201. product-rating steht unter der **GNU Affero General
+Public License, Version 3 oder (nach Wahl) jeder späteren Version**
+(SPDX: `AGPL-3.0-or-later`); der vollständige Text liegt in [LICENSE](LICENSE).
+
+Die AGPL ist eine Copyleft-Lizenz mit einer Klausel für Netzwerkdienste
+(Abschnitt 13): Wer eine **veränderte** Fassung so betreibt, dass andere über
+ein Netzwerk mit ihr arbeiten, muss diesen Nutzern den Quellcode der
+veränderten Fassung anbieten. Dafür steht in den Einstellungen neben der
+Version der Link „Quellcode (AGPL-3.0)“. Sein Ziel kommt beim Bau aus
+`repository` in `web/package.json` (`__APP_SOURCE_URL__`, wie die Version); ein
+Fork trägt dort seine eigene Adresse ein und veröffentlicht seinen Code dort.
+
+Dieselbe Angabe steht im Debian-Paket (`/usr/share/doc/product-rating/copyright`,
+mit dem vollen Text, weil Debian die AGPL nicht unter
+`/usr/share/common-licenses` mitliefert), im Label
+`org.opencontainers.image.licenses` des Container-Images und als `LICENSE` im
+Image unter `/app`. `server/src/license.test.ts` hält alle diese Stellen
+beieinander.
+
+Die mitgelieferten Abhängigkeiten behalten ihre eigenen Lizenzen; ihre Texte
+liegen jeweils in `node_modules`. Fast alle sind freizügig (MIT, ISC, BSD,
+Apache-2.0); `sharp` bringt `libvips` unter LGPL-3.0-or-later mit. Das
+Debian-Paket entfernt aus `node_modules` Tests, Dokumentation und
+Markdown-Dateien, lässt aber jeden Lizenzhinweis stehen: Dateien, deren Name
+auf Lizenz, Notice, Copyright oder COPYING lautet, und die README eines
+Pakets, das seine Lizenz nur dort nennt (etwa die Lizenztabelle der
+libvips-Binärdateien). Der CI-Job des Pakets prüft das nach der Installation.
 
 Weitere Dokumente: [CLAUDE.md](CLAUDE.md) (Arbeitsanweisungen und
 Projektkonventionen), [TODO.md](TODO.md) (Umsetzungsschritte),

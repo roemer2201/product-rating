@@ -97,7 +97,7 @@ function Catalogue() {
   const { view, update } = useCatalogueVisit();
   const {
     search,
-    category,
+    category: rememberedCategory,
     kind,
     minStars,
     createdByMe,
@@ -124,6 +124,16 @@ function Catalogue() {
   }, [search]);
 
   const categories = useCategories();
+  // A category can be deleted while the user is on another screen. A saved
+  // filter must not silently narrow the results to a category that is gone.
+  const category =
+    categories.data?.some(({ id }) => id === rememberedCategory) !== false
+      ? rememberedCategory
+      : '';
+
+  useEffect(() => {
+    if (rememberedCategory !== category) update({ category });
+  }, [category, rememberedCategory, update]);
 
   // EAN input may contain spaces or hyphens. Search for its canonical value,
   // just as the by-EAN lookup and product form do, to avoid false "unknown" hits.
@@ -167,7 +177,7 @@ function Catalogue() {
             : strings.catalogue.includePriceWatch,
       },
     ] as const
-  ).filter(({ field }) => view[field] !== DEFAULT_VIEW[field]);
+  ).filter(({ field }) => (field === 'category' ? category : view[field]) !== DEFAULT_VIEW[field]);
   const filtered = term !== '' || activeFilters.length > 0;
 
   const emptyResult = !list.isPending && list.error === null && products.length === 0;

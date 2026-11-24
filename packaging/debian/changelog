@@ -1,8 +1,23 @@
-product-rating (0.16.0) unstable; urgency=medium
+product-rating (0.17.0) unstable; urgency=medium
 
   * Restore catalogue searches and filters on return from a product.
   * Build a co-installable development package with its own service,
     account, data, port and reverse proxy configuration.
+
+ -- roemer2201 <roemer2201@users.noreply.github.com>  Tue, 24 Nov 2026 00:00:00 +0000
+
+product-rating (0.16.0) unstable; urgency=medium
+
+  * Record the first price on the form for a new product, in a folded
+    panel that also holds the price watch mark; product and price are
+    stored together.
+
+ -- roemer2201 <roemer2201@users.noreply.github.com>  Sat, 21 Nov 2026 12:00:00 +0000
+
+product-rating (0.15.1) unstable; urgency=medium
+
+  * License the program under the GNU AGPL 3.0 or later; the settings
+    screen links to the source code.
 
  -- roemer2201 <roemer2201@users.noreply.github.com>  Sat, 21 Nov 2026 00:00:00 +0000
 

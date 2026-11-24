@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatAmount, parseAmount, todayAsInputValue } from '@/lib/money';
+import { formatAmount, formatPlainAmount, parseAmount, todayAsInputValue } from '@/lib/money';
 
 /**
  * Reading and writing money.
@@ -44,6 +44,17 @@ describe('formatAmount', () => {
 
   it('falls back to a bare number for a currency nobody knows', () => {
     expect(formatAmount(199, 'XYZ')).toContain('1.99');
+  });
+});
+
+describe('formatPlainAmount', () => {
+  it('writes two decimals and no currency sign', () => {
+    const expected = (value: number) =>
+      new Intl.NumberFormat(undefined, { minimumFractionDigits: 2 }).format(value);
+    expect(formatPlainAmount(249)).toBe(expected(2.49));
+    expect(formatPlainAmount(300)).toBe(expected(3));
+    expect(formatPlainAmount(5)).toBe(expected(0.05));
+    expect(formatPlainAmount(249)).not.toMatch(/[€$]/);
   });
 });
 

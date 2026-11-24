@@ -4,13 +4,14 @@ import {
   PRICE_LIST_LIMIT,
   PRICE_SHOP_SUGGESTION_LIMIT,
   type CreatePriceInput,
+  type CreateProductInput,
   type Price,
 } from '@product-rating/shared';
 import type { AppConfig } from '../config/index.js';
 import type { DbHandle } from '../db/index.js';
 import { prices, users, type PriceRow } from '../db/index.js';
-import { ForbiddenError, NotFoundError, ValidationError } from './errors.js';
-import { findProductById } from './products.js';
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from './errors.js';
+import { createProduct, findProductById, type CreatedProduct } from './products.js';
 
 /**
  * What a product cost, where it was bought and when.
@@ -141,7 +142,7 @@ export function createPrice(
   }
 
   const row: PriceRow = {
-    id: randomUUID(),
+    id: input.id ?? randomUUID(),
     productId,
     userId,
     cents: input.cents,
@@ -153,7 +154,21 @@ export function createPrice(
     createdAt: now,
   };
 
-  db.insert(prices).values(row).run();
+  const inserted = db.insert(prices).values(row).onConflictDoNothing({ target: prices.id }).run();
+  const saved = inserted.changes === 1 ? row : findPriceById(db, row.id);
+  // An offline retry may follow a successful insert whose response was lost.
+  if (
+    saved === undefined ||
+    saved.userId !== userId ||
+    saved.productId !== productId ||
+    saved.cents !== row.cents ||
+    saved.shop !== row.shop ||
+    saved.note !== row.note ||
+    saved.special !== row.special ||
+    (input.purchasedAt !== undefined && saved.purchasedAt.getTime() !== row.purchasedAt.getTime())
+  ) {
+    throw new ConflictError('this price ID is already in use');
+  }
 
   const account = db
     .select({ username: users.username, displayName: users.displayName })
@@ -161,7 +176,40 @@ export function createPrice(
     .where(eq(users.id, userId))
     .get();
 
-  return toPublicPrice(row, account?.username ?? null, account?.displayName ?? null);
+  return toPublicPrice(saved, account?.username ?? null, account?.displayName ?? null);
+}
+
+/**
+ * Adds a product together with the first price entered on the same screen.
+ *
+ * One transaction for both: a price the server refuses - a purchase dated
+ * in the future, an offer on a dish - leaves no product behind, so the screen
+ * has a single outcome to report instead of a product that is there with its
+ * price missing. Without a price this is `createProduct()` and nothing else;
+ * an EAN coming back from the trash takes the price along like a correction.
+ */
+export function createProductWithPrice(
+  db: DbHandle,
+  config: AppConfig,
+  userId: string,
+  input: CreateProductInput,
+  now: Date = new Date(),
+): CreatedProduct & { price: Price | null } {
+  const { price, ...product } = input;
+  if (price === undefined) return { ...createProduct(db, userId, product, now), price: null };
+
+  // Reserve the write lock before the EAN lookup so a competing writer can
+  // finish first and be reported through the usual EAN conflict.
+  return db.transaction(
+    (tx) => {
+      const created = createProduct(tx, userId, product, now);
+      return {
+        ...created,
+        price: createPrice(tx, config, userId, created.product.id, price, now),
+      };
+    },
+    { behavior: 'immediate' },
+  );
 }
 
 export function findPriceById(db: DbHandle, id: string): PriceRow | undefined {

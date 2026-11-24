@@ -3,10 +3,9 @@
 # build-deb.sh
 #
 # Description:
-#   Builds the stable or parallel-installable dev package of product-rating. Compiles both workspaces,
-#   assembles a runtime-only dependency tree, lays out the installation tree
-#   under packaging/build/ and turns it into a .deb with dpkg-deb. If lintian
-#   is installed, the result is checked with it.
+#   Builds the stable or parallel-installable dev package of product-rating.
+#   Compiles the application, assembles its runtime dependencies and package
+#   files under packaging/build/, then builds and optionally checks the .deb.
 #
 #   The package is architecture dependent, because better-sqlite3, sharp and
 #   @node-rs/argon2 carry native binaries. Those come from the build host, so
@@ -20,8 +19,9 @@
 #   3. Build the server bundle and the web client (unless --skip-build).
 #   4. Install the runtime dependencies of the server into a staging directory,
 #      then drop the binaries of every foreign platform from it.
-#   5. Lay out the selected instance and its proxy examples: /opt, /etc, /usr/bin, the systemd unit,
-#      the logrotate rule, the bash completion and the documentation.
+#   5. Lay out the selected instance: /opt, /etc, /usr/bin, the systemd unit,
+#      the logrotate rule, the bash completion and the documentation. Generate
+#      the dev proxy examples from the staged config and web bundle.
 #   6. Fill in DEBIAN/: control with its substitutions, conffiles, templates,
 #      the maintainer scripts and md5sums.
 #   7. Build the .deb with dpkg-deb and report where it is.
@@ -32,7 +32,7 @@
 #                [--version VERSION] [-a|--arch ARCH] [--skip-build]
 #                [--dev] [--skip-lintian]
 #
-# Version: 1.2.0  (2026-11-21)
+# Version: 1.2.1  (2026-11-24)
 
 # Robustness baseline: a package assembled from a half finished tree would
 # install and then fail at run time, which is the worst of both worlds.
@@ -475,26 +475,53 @@ prune_foreign_binaries() {
 # are removed. Nothing that a "require" can resolve is touched: no .js, no
 # .json, no .node, and in particular no .d.ts, which is where the type
 # information of drizzle-orm and zod lives.
+#
+# Licence notices stay, wherever they are: the licences of the dependencies
+# ask for them to travel with every copy, and debian/copyright promises that
+# they ship in their directories. That covers files named after a licence,
+# notice, copyright or COPYING, and the README of a package that has nothing
+# else to state its licence.
 prune_development_files() {
     local modules_dir="${1}"
 
     log info "Removing test suites, documentation and CI metadata of the dependencies"
 
-    find "${modules_dir}" -type d \
-        \( -name test -o -name tests -o -name __tests__ \
-        -o -name benchmark -o -name benchmarks \
-        -o -name integration -o -name .github -o -name .husky \
-        -o -name doc -o -name docs \
-        -o -name scripts -o -name tools \) \
-        -prune -exec rm -rf {} +
+    # Work bottom-up so a notice inside an otherwise disposable directory
+    # keeps its original path. Match relative to the dependency tree only.
+    (
+        cd -- "${modules_dir}"
+        local legal='.*/([^/]*(licen[cs]e|notice|copyright)[^/]*|copying[^/]*)(/.*)?'
+        local development='.*/(tests?|__tests__|benchmarks?|integration|[.]github|[.]husky|docs?|scripts|tools)(/.*)?'
+        find . -regextype posix-extended -depth ! -iregex "${legal}" -regex "${development}" \
+            \( ! -type d -o -empty \) -delete
 
-    find "${modules_dir}" -type f \
-        \( -name '*.md' -o -name '*.markdown' -o -name 'index.html' \
-        -o -name '.gitattributes' -o -name '.gitignore' -o -name '.npmignore' \
-        -o -name '.editorconfig' -o -name '.travis.yml' \
-        -o -name '.eslintrc*' -o -name 'eslint.config.*' \
-        -o -name '.prettierrc*' \) \
-        -delete
+        # A few packages state their licence only in the README (the
+        # libvips binaries of sharp with their table of LGPL and other
+        # licences, abstract-logging). Their README is that notice, so a
+        # package directory without a licence file of its own keeps it.
+        local -A notice_readmes=()
+        local manifest package_dir readme
+        while IFS= read -r -d '' manifest; do
+            package_dir="${manifest%/package.json}"
+            if [[ -z "$(find "${package_dir}" -maxdepth 1 -type f \
+                -regextype posix-extended -iregex "${legal}" -print -quit)" ]]; then
+                while IFS= read -r -d '' readme; do
+                    notice_readmes["${readme}"]=1
+                done < <(find "${package_dir}" -maxdepth 1 -type f -iname 'readme*' -print0)
+            fi
+        done < <(find . -type f -name package.json -print0)
+
+        local file
+        while IFS= read -r -d '' file; do
+            [[ -n "${notice_readmes["${file}"]:-}" ]] || rm -f -- "${file}"
+        done < <(find . -regextype posix-extended -type f ! -iregex "${legal}" \
+            \( -name '*.md' -o -name '*.markdown' -o -name 'index.html' \
+            -o -name '.gitattributes' -o -name '.gitignore' -o -name '.npmignore' \
+            -o -name '.editorconfig' -o -name '.travis.yml' \
+            -o -name '.eslintrc*' -o -name 'eslint.config.*' \
+            -o -name '.prettierrc*' \) -print0)
+        log debug "Kept ${#notice_readmes[@]} README file(s) as the only licence notice of their package"
+    )
 }
 
 # Makes the executable bit below node_modules agree with what the file is.
@@ -656,7 +683,10 @@ assemble_documentation() {
     #
     # -n keeps the timestamp out of the gzip header, so two builds of the same
     # source produce the same bytes.
-    gzip -9nc "${debian_dir}/changelog" > "${doc_dir}/changelog.gz"
+    # The first entry describes this build, including its package name and any
+    # Git suffix or explicit version. Older releases keep their original names.
+    sed "1s/^product-rating ([^)]*) /${PACKAGE_NAME} (${VERSION}) /" "${debian_dir}/changelog" \
+        | gzip -9n > "${doc_dir}/changelog.gz"
     chmod 0644 "${doc_dir}/changelog.gz"
 
     gzip -9nc "${REPO_ROOT}/README.md" > "${doc_dir}/README.md.gz"
@@ -669,13 +699,22 @@ assemble_documentation() {
     # Packaged as soon as they exist, so this build does not have to change
     # again for them.
     if [ "${PROFILE}" = "dev" ]; then
-        # Separate vhost files and proxy identifiers can coexist with stable.
-        # Generate with the shipped CLI so the examples follow its behaviour.
-        local proxy
+        # Read the actual bundle path, including when --skip-build reuses a
+        # previous build. Ignore runtime environment overrides from the host.
+        local base_path proxy
+        base_path="$(node --input-type=commonjs -e '
+            const fs = require("node:fs");
+            const { scope } = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            if (typeof scope !== "string" || !scope.startsWith("/") || scope.startsWith("//")) {
+                throw new Error("The bundled PWA manifest has no absolute path for its scope");
+            }
+            process.stdout.write(scope);
+        ' "${tree}${INSTALL_PREFIX}/web/manifest.webmanifest")"
         for proxy in nginx apache caddy traefik; do
-            node "${tree}${INSTALL_PREFIX}/server/dist/index.js" proxy-config \
+            env -i PATH="${PATH}" node "${tree}${INSTALL_PREFIX}/server/dist/index.js" proxy-config \
                 --config "${tree}/etc/${PACKAGE_NAME}/config.toml" \
-                --base-url https://produkte-dev.example.org --set server.trust_proxy=true \
+                --base-url "https://produkte-dev.example.org${base_path}" \
+                --set server.trust_proxy=true \
                 --server "${proxy}" --out "${doc_dir}/examples/${proxy}/"
         done
     elif [ -d "${REPO_ROOT}/packaging/examples" ]; then

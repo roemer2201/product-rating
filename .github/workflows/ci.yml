@@ -123,7 +123,8 @@ jobs:
       - name: Build the stable and development packages
         run: |
           npm run package:deb
-          npm run package:deb -- --dev --skip-build
+          PRODUCT_RATING_BASE_PATH=/dev-products npm run build --workspace @product-rating/web
+          PR_SERVER__PORT=9090 npm run package:deb -- --dev --skip-build
 
       # The package wants nodejs (>= 22), which neither Ubuntu 24.04 nor Debian
       # 13 have in their own archive - the installation instructions say the
@@ -139,6 +140,23 @@ jobs:
           set -euo pipefail
           sudo apt-get install --yes ./packaging/build/product-rating_*.deb
 
+          # Licence notices survive the clean-up in build-deb.sh: a LICENSE.md
+          # unchanged, and in every package directory either a licence file or
+          # the README that states the licence in its place (libvips).
+          cmp node_modules/@img/colour/LICENSE.md /opt/product-rating/node_modules/@img/colour/LICENSE.md
+          grep --quiet LGPLv3 /opt/product-rating/node_modules/@img/sharp-libvips-linux-*/README.md
+          missing=0
+          while IFS= read -r -d '' manifest; do
+            dir="${manifest%/package.json}"
+            grep --quiet '"name"' "${manifest}" || continue
+            if [[ -z "$(find "${dir}" -maxdepth 1 -type f \
+                -iregex '.*/\(licen[cs]e\|copying\|notice\|readme\)[^/]*' -print -quit)" ]]; then
+              echo "no licence notice left in ${dir}" >&2
+              missing=1
+            fi
+          done < <(find /opt/product-rating/node_modules -type f -name package.json -print0)
+          test "${missing}" -eq 0
+
           # postinst creates the user, the directories and the secret and
           # applies the migrations, but deliberately does not start a fresh
           # installation - base_url has to be set first (README 7.2). The
@@ -149,6 +167,16 @@ jobs:
 
           stable_pid="$(systemctl show -p MainPID --value product-rating)"
           sudo apt-get install --yes ./packaging/build/product-rating-dev_*.deb
+          dev_version="$(dpkg-query -W -f='${Version}' product-rating-dev)"
+          test "$(dpkg-parsechangelog -l /usr/share/doc/product-rating-dev/changelog.gz -S Version)" = "${dev_version}"
+          cmp node_modules/@img/colour/LICENSE.md /opt/product-rating-dev/node_modules/@img/colour/LICENSE.md
+          grep --quiet LGPLv3 /opt/product-rating-dev/node_modules/@img/sharp-libvips-linux-*/README.md
+          for example in nginx/product-rating-dev.conf apache/product-rating-dev.conf \
+              caddy/product-rating-dev.caddy traefik/product-rating-dev.yml; do
+            file="/usr/share/doc/product-rating-dev/examples/${example}"
+            grep -Fq '/dev-products' "${file}"
+            grep -Fq '127.0.0.1:8081' "${file}"
+          done
           sudo systemctl start product-rating-dev
           curl --fail --silent --show-error --retry 10 --retry-delay 1 \
             --retry-all-errors http://127.0.0.1:8081/healthz
@@ -161,11 +189,14 @@ jobs:
 
           # Exercise the upgrade path, including preservation of local settings
           # and the conditional restart of a running development service.
+          dev_pid="$(systemctl show -p MainPID --value product-rating-dev)"
+          test "${dev_pid}" -gt 0
           sudo sh -c 'echo "# local setting" >> /etc/product-rating-dev/config.toml'
           sudo dpkg -i ./packaging/build/product-rating-dev_*.deb
           sudo grep -Fx '# local setting' /etc/product-rating-dev/config.toml
           curl --fail --silent --show-error --retry 10 --retry-delay 1 \
             --retry-all-errors http://127.0.0.1:8081/healthz
+          test "$(systemctl show -p MainPID --value product-rating-dev)" != "${dev_pid}"
 
           # Purge dev including its data; stable must keep serving throughout.
           echo 'product-rating-dev product-rating-dev/purge-data boolean true' | sudo debconf-set-selections

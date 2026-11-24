@@ -44,6 +44,9 @@ Rückfrage zu ändern** – auch dann nicht, wenn eine Alternative naheliegt.
 9. **Konfiguration in TOML** unter `/etc/product-rating/config.toml`, mit
    Überschreibung durch Umgebungsvariablen. Speicherorte für Datenbank und
    Uploads sind frei konfigurierbar und nirgends im Code fest verdrahtet.
+10. **Lizenz `AGPL-3.0-or-later`** (abgestimmt am 21.11.2026), Rechteinhaber
+    roemer2201. Neue Abhängigkeiten müssen damit vereinbar sein; der Link
+    „Quellcode“ in den Einstellungen bleibt (README 10).
 
 ---
 

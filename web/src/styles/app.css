@@ -1117,6 +1117,55 @@ a {
   margin-top: calc(0.875rem * 1.5 + var(--space-1));
 }
 
+/*
+ * The first price on the form for a new entry: one framed block, the toggle
+ * across its full width and the fields folding out underneath. Closed, the
+ * toggle names what the panel holds on a second line.
+ */
+.price-disclosure {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.price-disclosure__toggle {
+  justify-content: space-between;
+  width: 100%;
+  padding-block: var(--space-2);
+  border-color: transparent;
+  background: transparent;
+  text-align: start;
+}
+
+.price-disclosure__label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.price-disclosure__summary {
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.price-disclosure__icon {
+  flex-shrink: 0;
+}
+
+.price-disclosure__toggle[aria-expanded='true'] .price-disclosure__icon {
+  transform: rotate(180deg);
+}
+
+.price-disclosure__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
 .price-list {
   display: flex;
   flex-direction: column;
