@@ -42,6 +42,11 @@ import { strings } from '@/lib/strings';
  * shop there, so the shop field, the shop in each row and the offer mark are
  * left out, and the date is the day of the calculation rather than of a
  * purchase.
+ *
+ * A price being typed is reported as a draft, so that coming back to the page
+ * through the browser history finds it again. Once it is saved, or kept for
+ * the offline queue, the form starts over, and so does the draft: a price that
+ * came back after it was recorded would be recorded twice.
  */
 
 interface PriceHistoryProps {
@@ -56,6 +61,9 @@ interface PriceHistoryProps {
   productName: string;
   prices: Price[];
   user: User;
+  /** A price typed on an earlier visit of the same history entry. */
+  entry?: PriceFieldValues | undefined;
+  onEntryChange?: (entry: PriceFieldValues) => void;
 }
 
 export function PriceHistory({
@@ -65,15 +73,19 @@ export function PriceHistory({
   productName,
   prices,
   user,
+  entry: draft,
+  onEntryChange,
 }: PriceHistoryProps) {
   const dish = kind === 'dish';
   /** What a row says after the amount: the shop, or nothing for a dish. */
   const whereOf = (price: Price): string[] => (dish ? [] : [price.shop ?? strings.price.noShop]);
 
-  const [entry, setEntry] = useState<PriceFieldValues>(emptyPriceFields);
+  const [entry, setEntry] = useState<PriceFieldValues>(() => draft ?? emptyPriceFields());
   const [amountError, setAmountError] = useState<string | undefined>(undefined);
   const change = (patch: Partial<PriceFieldValues>): void => {
-    setEntry((current) => ({ ...current, ...patch }));
+    const next = { ...entry, ...patch };
+    setEntry(next);
+    onEntryChange?.(next);
   };
 
   const add = useAddPrice();
@@ -117,15 +129,20 @@ export function PriceHistory({
     }
 
     setAmountError(undefined);
-    add.mutate(
-      { productId, input: parsed.data },
-      {
-        onSuccess: () => {
-          // The shop stays: the next entry is usually from the same one.
-          setEntry((current) => ({ ...emptyPriceFields(), shop: current.shop }));
-        },
-      },
+    // Not `mutate` with callbacks: those are dropped once the page is left,
+    // and the draft has to start over all the same.
+    add.mutateAsync({ productId, input: parsed.data }).then(
+      () => startOver(entry.shop),
+      // The failure is on screen through the mutation's own state.
+      () => undefined,
     );
+  };
+
+  /** Empties the form after a recorded price. The shop stays: the next entry is usually from the same one. */
+  const startOver = (shop: string): void => {
+    const next = { ...emptyPriceFields(), shop };
+    setEntry(next);
+    onEntryChange?.(next);
   };
 
   return (
@@ -212,7 +229,10 @@ export function PriceHistory({
             : () => {
                 const price = capturedPrice(entry, kind);
                 if (price === null) return;
-                capture.mutate({ ean, label: productName, price });
+                capture.mutateAsync({ ean, label: productName, price }).then(
+                  () => startOver(entry.shop),
+                  () => undefined,
+                );
               }
         }
         kept={capture.isSuccess}

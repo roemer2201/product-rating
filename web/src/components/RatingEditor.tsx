@@ -16,7 +16,17 @@ import { strings } from '@/lib/strings';
  * an accidental brush against a star while scrolling should not overwrite a
  * verdict — the save button is one deliberate tap, which is the right price for
  * the only piece of data in this app that is genuinely someone's opinion.
+ *
+ * What is changed and not saved yet is reported as a draft, so that coming
+ * back to the page through the browser history finds it again. Saving or
+ * removing the rating ends the draft; the page then shows what the server has.
  */
+
+/** Stars and comment as they stand on screen, before they are saved. */
+export interface RatingDraft {
+  stars: number | null;
+  comment: string;
+}
 
 interface RatingEditorProps {
   productId: string;
@@ -27,28 +37,56 @@ interface RatingEditorProps {
   ean: string | null;
   productName: string;
   rating: Rating | null;
+  /** Unsaved changes from an earlier visit of the same history entry. */
+  draft?: RatingDraft | undefined;
+  onDraftChange?: (draft: RatingDraft | undefined) => void;
 }
 
-export function RatingEditor({ productId, ean, productName, rating }: RatingEditorProps) {
-  const [stars, setStars] = useState<number | null>(rating?.stars ?? null);
-  const [comment, setComment] = useState(rating?.comment ?? '');
+export function RatingEditor({
+  productId,
+  ean,
+  productName,
+  rating,
+  draft,
+  onDraftChange,
+}: RatingEditorProps) {
+  const [stars, setStars] = useState<number | null>(
+    draft === undefined ? (rating?.stars ?? null) : draft.stars,
+  );
+  const [comment, setComment] = useState(
+    draft === undefined ? (rating?.comment ?? '') : draft.comment,
+  );
+
+  const change = (next: RatingDraft): void => {
+    setStars(next.stars);
+    setComment(next.comment);
+    onDraftChange?.(next);
+  };
 
   const upsert = useUpsertRating();
   const remove = useDeleteRating();
   const capture = useEnqueueCapture();
 
+  // Not `mutate` with callbacks: those are dropped once the page is left, and
+  // a draft that outlived its save would come back as unsaved on return.
   const onSave = (): void => {
     if (stars === null) return;
-    upsert.mutate({ productId, input: { stars, comment: emptyToNull(comment) } });
+    upsert.mutateAsync({ productId, input: { stars, comment: emptyToNull(comment) } }).then(
+      () => onDraftChange?.(undefined),
+      // The failure is on screen through the mutation's own state.
+      () => undefined,
+    );
   };
 
   const onRemove = (): void => {
-    remove.mutate(productId, {
-      onSuccess: () => {
+    remove.mutateAsync(productId).then(
+      () => {
         setStars(null);
         setComment('');
+        onDraftChange?.(undefined);
       },
-    });
+      () => undefined,
+    );
   };
 
   const failure = upsert.error ?? remove.error;
@@ -78,7 +116,9 @@ export function RatingEditor({ productId, ean, productName, rating }: RatingEdit
 
       <StarRating
         value={stars}
-        onChange={setStars}
+        onChange={(value) => {
+          change({ stars: value, comment });
+        }}
         disabled={upsert.isPending || remove.isPending}
         label={strings.rating.own}
       />
@@ -88,7 +128,9 @@ export function RatingEditor({ productId, ean, productName, rating }: RatingEdit
         label={strings.rating.comment}
         name="comment"
         value={comment}
-        onChange={(event) => setComment(event.target.value)}
+        onChange={(event) => {
+          change({ stars, comment: event.target.value });
+        }}
         maxLength={RATING_COMMENT_MAX_LENGTH}
         hint={strings.rating.commentHint}
         rows={3}

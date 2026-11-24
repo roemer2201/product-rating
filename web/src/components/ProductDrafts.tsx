@@ -1,14 +1,19 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router';
 import type { CreateProductInput } from '@product-rating/shared';
+import type { PriceFieldValues } from '@/components/PriceFields';
 import type { ProductFormValues } from '@/components/ProductForm';
+import type { RatingDraft } from '@/components/RatingEditor';
 import type { PreparedPhoto } from '@/lib/image';
 
 /**
- * What one product entry holds while it is not on screen. Kept in memory only:
- * a reload or a sign-out ends it, which is also where the picture would go.
+ * What a product screen holds while it is not on screen: the form for a new
+ * entry, or on the page of an existing one what was typed and not saved yet.
+ * Kept in memory only: a reload or a sign-out ends it, which is also where the
+ * picture would go.
  */
 interface ProductDraft {
+  /* The screen for a new entry. */
   /** The form as it stands. */
   values?: ProductFormValues;
   /** The form as it was sent, for the offer to keep it offline. */
@@ -24,6 +29,14 @@ interface ProductDraft {
   pending?: boolean;
   createError?: Error | null;
   uploadError?: Error | null;
+
+  /* The page of an existing entry. */
+  /** The correction as typed; set while the form is open. */
+  edit?: ProductFormValues | undefined;
+  /** The own rating as changed on screen and not saved yet. */
+  rating?: RatingDraft | undefined;
+  /** A price being entered into the list. */
+  price?: PriceFieldValues | undefined;
 }
 
 type UpdateDraft = (key: string, update: ProductDraft | null) => void;
