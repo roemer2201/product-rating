@@ -165,7 +165,7 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
       muss `overscroll-behavior-y: contain` das eingebaute Neuladen
       unterdrücken, in der Web-App vom Home-Bildschirm darf das Gummiband der
       Seite nicht stören (mit dem Gerätetest in M9)
-- [ ] **[S]** Suchbegriff und Filter des Katalogs beim Zurücknavigieren erhalten – aktuell sind sie Zustand der Ansicht und gehen beim Wechsel auf ein Produkt verloren
+- [x] **[S]** Suchbegriff, Filter und Sortierung des Katalogs beim Zurücknavigieren erhalten. Eingeklappte Filter lassen sich einzeln entfernen.
 - [ ] **[S]** Ton und Vibration beim Treffer abschaltbar machen, sobald es eine Stelle für persönliche Einstellungen gibt
 
 ## M9 – PWA und iOS
@@ -229,6 +229,12 @@ Legende: **[S]** klein (< 30 min) · **[M]** mittel · **[L]** groß, ggf. weite
       eine Nummer für das ganze Repository, `packaging/debian/changelog` bleibt
       von Hand gepflegt, aber `server/src/version.test.ts` besteht darauf, dass
       alle Stellen dieselbe nennen (README 9.1)
+- [x] **[M]** Entwicklungsstände als zweites Paket `product-rating-dev`
+      (`npm run package:deb -- --dev`): eigener Dienst, eigenes Dienstkonto,
+      eigene Daten und Secrets, Port 8081, eigenes Sitzungscookie und eigene
+      Proxy-Konfigurationen; parallel zu `product-rating` installierbar, die CI
+      prüft Installation, Upgrade und Purge neben der laufenden Produktivinstanz
+      (README 7.2, PR #59)
 - [ ] **[S]** Beim Löschen des Pakets bleibt `/opt` als von dpkg angelegtes
       Verzeichnis zurück; harmlos, aber es lohnt zu prüfen, ob das Paket den
       Eintrag für `/opt` selbst gar nicht mitliefern muss

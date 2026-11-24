@@ -1,3 +1,4 @@
+import { APP_NAME } from '../version.js';
 import type { DbHandle } from '../db/index.js';
 import { createInvite, listInvites, revokeInvite } from '../services/invites.js';
 import { findUserById, findUserByUsername, listUsers } from '../services/users.js';
@@ -5,7 +6,7 @@ import { EXIT_OK, formatMoment, formatTable, type CliCommand } from './command.j
 import { numberOption, parseArguments, stringOption, UsageError } from './options.js';
 import { loadRuntimeConfig, withDatabase } from './runtime.js';
 
-const USAGE = `Usage: product-rating invite <subcommand> [OPTIONS]
+const USAGE = `Usage: ${APP_NAME} invite <subcommand> [OPTIONS]
 
 Invite codes. There is no open registration: an account only comes into
 existence with a code, and a code is single use and short lived.
@@ -22,12 +23,12 @@ Options:
       --ttl DAYS      Lifetime of the code; defaults to auth.invite_ttl_days.
       --help          Show this help and exit.
 
-Configuration options are accepted as well; "product-rating help" lists them.
+Configuration options are accepted as well; "${APP_NAME} help" lists them.
 
 Examples:
-  product-rating invite create --note "for Tom"
-  product-rating invite list
-  product-rating invite revoke A1B2-C3D4-E5F6`;
+  ${APP_NAME} invite create --note "for Tom"
+  ${APP_NAME} invite list
+  ${APP_NAME} invite revoke A1B2-C3D4-E5F6`;
 
 /**
  * Decides whose name a code is handed out under.
@@ -52,7 +53,7 @@ function resolveIssuer(db: DbHandle, username: string | undefined): { id: string
   if (admin === undefined) {
     throw new Error(
       'there is no active administrator to attribute the code to; create one with: ' +
-        'product-rating user add NAME --role admin',
+        `${APP_NAME} user add NAME --role admin`,
     );
   }
 

@@ -1,9 +1,10 @@
+import { APP_NAME } from '../version.js';
 import { createBackup } from '../services/backup.js';
 import { EXIT_OK, formatBytes, type CliCommand } from './command.js';
 import { numberOption, parseArguments, requiredOption } from './options.js';
 import { loadRuntimeConfig } from './runtime.js';
 
-const USAGE = `Usage: product-rating backup --to DIR [--keep-days DAYS]
+const USAGE = `Usage: ${APP_NAME} backup --to DIR [--keep-days DAYS]
 
 Writes a snapshot of the database and the photos into a directory named after
 the moment it was taken:
@@ -28,13 +29,13 @@ Options:
                       is complete. 0 (the default) keeps every snapshot.
       --help          Show this help and exit.
 
-Configuration options are accepted as well; "product-rating help" lists them.
-The layout matches packaging/examples/backup/product-rating-backup, so
-snapshots of either can be restored with "product-rating restore".
+Configuration options are accepted as well; "${APP_NAME} help" lists them.
+The layout matches packaging/examples/backup/${APP_NAME}-backup, so
+snapshots of either can be restored with "${APP_NAME} restore".
 
 Examples:
-  product-rating backup --to /var/backups/product-rating
-  product-rating backup --to /srv/backups --keep-days 30`;
+  ${APP_NAME} backup --to /var/backups/${APP_NAME}
+  ${APP_NAME} backup --to /srv/backups --keep-days 30`;
 
 export const backupCommand: CliCommand = {
   name: 'backup',

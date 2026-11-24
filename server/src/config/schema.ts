@@ -1,3 +1,4 @@
+import { APP_NAME, DEFAULT_PORT } from '../version.js';
 import { z } from 'zod';
 
 /**
@@ -22,9 +23,9 @@ export const LOG_DESTINATIONS = ['stdout', 'file', 'syslog'] as const;
 const serverSection = z.strictObject({
   /** Interface the HTTP server binds to. Stays on loopback behind a proxy. */
   host: z.string().min(1).default('127.0.0.1'),
-  port: z.int().min(1).max(65535).default(8080),
+  port: z.int().min(1).max(65535).default(DEFAULT_PORT),
   /** Public origin, used for absolute links and cookie settings. */
-  base_url: z.url().default('http://127.0.0.1:8080'),
+  base_url: z.url().default(`http://127.0.0.1:${DEFAULT_PORT}`),
   /** Evaluate `X-Forwarded-*`; only enable behind a trusted reverse proxy. */
   trust_proxy: z.boolean().default(false),
   /**
@@ -41,9 +42,9 @@ const serverSection = z.strictObject({
 });
 
 const pathsSection = z.strictObject({
-  database: z.string().min(1).default('/var/lib/product-rating/db/app.db'),
-  uploads: z.string().min(1).default('/var/lib/product-rating/uploads'),
-  temp: z.string().min(1).default('/var/lib/product-rating/tmp'),
+  database: z.string().min(1).default(`/var/lib/${APP_NAME}/db/app.db`),
+  uploads: z.string().min(1).default(`/var/lib/${APP_NAME}/uploads`),
+  temp: z.string().min(1).default(`/var/lib/${APP_NAME}/tmp`),
 });
 
 const uploadsSection = z
@@ -65,7 +66,7 @@ const uploadsSection = z
 const authSection = z
   .strictObject({
     /** File holding the session secret, mode 0600, never the config file. */
-    secret_file: z.string().min(1).default('/etc/product-rating/secret.env'),
+    secret_file: z.string().min(1).default(`/etc/${APP_NAME}/secret.env`),
     session_ttl_days: z.int().min(1).max(3650).default(90),
     /** Rolling renewal kicks in once less than this many days are left. */
     session_renew_threshold_days: z.int().min(0).max(3650).default(7),
@@ -96,7 +97,7 @@ const logSection = z
     format: z.enum(LOG_FORMATS).default('json'),
     destination: z.enum(LOG_DESTINATIONS).default('stdout'),
     /** Only used when `destination = "file"`. */
-    file: z.string().min(1).default('/var/log/product-rating/app.log'),
+    file: z.string().min(1).default(`/var/log/${APP_NAME}/app.log`),
   })
   .refine((value) => value.destination !== 'file' || value.file.trim().length > 0, {
     message: 'log.file is required when destination is "file"',

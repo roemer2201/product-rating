@@ -11,7 +11,7 @@ Priority: optional
 Homepage: https://github.com/roemer2201/product-rating
 Description: self-hostable product ratings by EAN barcode
  product-rating records products by their EAN barcode, together with a photo
- and a rating from zero to five stars. It is built for a household: a handful
+ and a rating from zero to ten stars. It is built for a household: a handful
  of accounts share one product catalogue, while ratings and photos belong to
  the account that created them. Registration is by invitation code only, and
  the application makes no outgoing network requests of its own.

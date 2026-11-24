@@ -1471,6 +1471,35 @@ a {
   transform: rotate(180deg);
 }
 
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.filter-chips li {
+  max-width: 100%;
+}
+
+.filter-chip {
+  max-width: 100%;
+  padding-inline: var(--space-3);
+  border-radius: 2rem;
+  background: var(--color-accent-soft);
+  color: var(--color-text);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.filter-chip .button__icon {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
 /* What the toggle folds: the same column of rows the filters always were. */
 .filters__more {
   display: flex;

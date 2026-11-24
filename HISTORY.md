@@ -5,6 +5,40 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-11-24 – Review von PR #59 (0.17.0)
+
+- Mit dem aktuellen Stand von `main` zusammengeführt. Die Lizenzen der
+  Abhängigkeiten bleiben in beiden Paketen erhalten.
+- Die Dev-Proxy-Beispiele übernehmen den Unterpfad des ausgelieferten
+  Web-Clients und die Einstellungen des Paketprofils. Der Paket-Changelog
+  nennt die jeweilige Debian-Version samt Git-Kennung.
+- Der Katalog verwirft den gespeicherten Filter für eine gelöschte Kategorie.
+- Abschließendes Review: Beide Pakete gebaut und mit lintian ohne Befund
+  geprüft. Der Server aus dem entpackten Dev-Paket startet auf Port 8081,
+  setzt `pr_dev_session` und verweigert ohne
+  `/etc/product-rating-dev/config.toml` den Start, statt auf eine lokale
+  Konfiguration auszuweichen. Die Ersetzung der Namen in den Paketdateien
+  trifft nur Paket-, Konto-, Pfad- und Funktionsnamen sowie den Port. Nachgezogen:
+  die Paketbeschreibung nennt die Skala bis zehn Sterne statt fünf, die README
+  erklärt die Rückfrage von apt bei einem Dev-Paket mit älterem Commitstand, und
+  TODO.md führt das Dev-Paket unter M11.
+
+## 2026-11-21 – Entwicklungsbranches als eigenes Debian-Paket ausrollen
+
+Der Paketbau erstellt mit `--dev` eine zweite Installation für einen
+Teststand. Paket, Dienstkonto, systemd-Unit, Anwendung, Datenbank, Uploads,
+Secret, Sitzungscookie und Logs haben eigene Namen oder Pfade. Vier
+Proxy-Konfigurationen bedienen den Entwicklungs-Host auf Port 8081. Die
+Paketversion nennt den Git-Stand. Die CI baut beide Pakete und prüft
+Installation, erneute Konfiguration und Purge bei laufender Produktivinstanz.
+
+## 2026-11-21 – Nach einem Produkt zum gefilterten Katalog zurückkehren
+
+Suchtext, Filter, Sortierung und der geöffnete Filterbereich bleiben pro
+Verlaufseintrag im Speicher der angemeldeten App. Beim Zurückwischen kann
+man mit dem nächsten Treffer weitermachen. In der eingeklappten Ansicht
+lassen sich einzelne Filter entfernen, während die übrige Auswahl erhalten bleibt.
+
 ## 2026-11-21 – Erster Preis beim Anlegen (0.16.0)
 
 - Anlass: Auf dem Formular nach dem Scan stand die Checkbox

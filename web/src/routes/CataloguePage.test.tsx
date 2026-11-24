@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Route, Routes, useLocation, useParams } from 'react-router';
+import { Link, Route, Routes, useLocation, useNavigate, useParams } from 'react-router';
+import { CatalogueVisits } from '@/components/CatalogueVisits';
 import { CataloguePage } from '@/routes/CataloguePage';
+import { queryKeys } from '@/lib/queries';
 import { strings } from '@/lib/strings';
 import { mockFetch } from '@/testing/fetchMock';
 import {
@@ -49,17 +51,33 @@ function NewProductStub() {
 
 function ProductStub() {
   const { id } = useParams();
-  return <p>Produkt: {id}</p>;
+  const navigate = useNavigate();
+  return (
+    <>
+      <p>Produkt: {id}</p>
+      <button
+        type="button"
+        onClick={() => {
+          void navigate(-1);
+        }}
+      >
+        Zurück
+      </button>
+      <Link to="/">{strings.nav.catalogue}</Link>
+    </>
+  );
 }
 
 function renderCatalogue() {
   return renderWithProviders(
-    <Routes>
-      <Route path="/" element={<CataloguePage />} />
-      <Route path="/scan" element={<p>Scanner</p>} />
-      <Route path="/products/new" element={<NewProductStub />} />
-      <Route path="/products/:id" element={<ProductStub />} />
-    </Routes>,
+    <CatalogueVisits>
+      <Routes>
+        <Route path="/" element={<CataloguePage />} />
+        <Route path="/scan" element={<p>Scanner</p>} />
+        <Route path="/products/new" element={<NewProductStub />} />
+        <Route path="/products/:id" element={<ProductStub />} />
+      </Routes>
+    </CatalogueVisits>,
     { route: '/' },
   );
 }
@@ -566,6 +584,88 @@ describe('CataloguePage', () => {
 
     await user.click(screen.getByRole('button', { name: strings.catalogue.resetFilters }));
     expect(toggle).toHaveAccessibleName(strings.catalogue.moreFilters);
+  });
+
+  it('restores the same visit on Back and starts fresh through navigation', async () => {
+    const user = userEvent.setup();
+    mockFetch([CATEGORIES, { path: '/products', body: makeProductPage([makeProduct()]) }]);
+    renderCatalogue();
+    await screen.findByText('Apfelsaft');
+    await openMoreFilters(user);
+    await user.selectOptions(screen.getByLabelText(strings.catalogue.category), 'Getränke');
+    await user.selectOptions(screen.getByLabelText(strings.catalogue.sort), 'rating');
+    await user.selectOptions(screen.getByLabelText(strings.catalogue.order), 'asc');
+    await user.type(screen.getByLabelText(strings.catalogue.search), 'saft');
+
+    await user.click(await screen.findByText('Apfelsaft'));
+    await user.click(screen.getByRole('button', { name: 'Zurück' }));
+    expect(screen.getByLabelText(strings.catalogue.search)).toHaveValue('saft');
+    expect(screen.getByLabelText(strings.catalogue.category)).toHaveValue('cat-drinks');
+    expect(screen.getByLabelText(strings.catalogue.sort)).toHaveValue('rating');
+    expect(screen.getByLabelText(strings.catalogue.order)).toHaveValue('asc');
+
+    await user.click(await screen.findByText('Apfelsaft'));
+    await user.click(screen.getByRole('link', { name: strings.nav.catalogue }));
+    expect(screen.getByLabelText(strings.catalogue.search)).toHaveValue('');
+    expect(screen.getByRole('button', { name: strings.catalogue.moreFilters })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+  });
+
+  it('removes only the selected filter from the folded panel', async () => {
+    const user = userEvent.setup();
+    mockFetch([CATEGORIES, { path: '/products', body: makeProductPage([makeProduct()]) }]);
+    renderCatalogue();
+    await screen.findByText('Apfelsaft');
+    await openMoreFilters(user);
+    await user.selectOptions(screen.getByLabelText(strings.catalogue.minStars), '7');
+    await user.click(screen.getByLabelText(strings.catalogue.hasPrice));
+    await openMoreFilters(user);
+    const chips = screen.getByRole('list', { name: strings.catalogue.activeFilters });
+    await user.click(
+      within(chips).getByRole('button', {
+        name: strings.catalogue.removeFilter(strings.catalogue.atLeastStars('7')),
+      }),
+    );
+    expect(within(chips).getAllByRole('button')).toHaveLength(1);
+    expect(
+      screen.getByRole('button', { name: strings.catalogue.moreFiltersActive(1) }),
+    ).toHaveFocus();
+    await openMoreFilters(user);
+    expect(screen.getByLabelText(strings.catalogue.minStars)).toHaveValue('');
+    expect(screen.getByLabelText(strings.catalogue.hasPrice)).toBeChecked();
+  });
+
+  it('drops a category deleted since the previous visit and keeps the other filters', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([
+      CATEGORIES,
+      { path: '/products', body: makeProductPage([makeProduct()]) },
+    ]);
+    const { client } = renderCatalogue();
+    await screen.findByText('Apfelsaft');
+    await openMoreFilters(user);
+    await user.selectOptions(screen.getByLabelText(strings.catalogue.category), 'Getränke');
+    await user.click(screen.getByLabelText(strings.catalogue.hasPrice));
+    await user.click(await screen.findByText('Apfelsaft'));
+
+    client.setQueryData(
+      queryKeys.products.categories,
+      CATEGORY_LIST.filter(({ id }) => id !== 'cat-drinks'),
+    );
+    await user.click(screen.getByRole('button', { name: 'Zurück' }));
+
+    expect(screen.getByLabelText(strings.catalogue.category)).toHaveValue('');
+    expect(screen.getByLabelText(strings.catalogue.hasPrice)).toBeChecked();
+    expect(
+      screen.getByRole('button', { name: strings.catalogue.moreFiltersActive(1) }),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      const url = lastListUrl(fetchMock.mock.calls);
+      expect(url).toContain('hasPrice=true');
+      expect(url).not.toContain('categoryId=');
+    });
   });
 
   it('loads the next page on demand', async () => {

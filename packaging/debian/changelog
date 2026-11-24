@@ -1,3 +1,11 @@
+product-rating (0.17.0) unstable; urgency=medium
+
+  * Restore catalogue searches and filters on return from a product.
+  * Build a co-installable development package with its own service,
+    account, data, port and reverse proxy configuration.
+
+ -- roemer2201 <roemer2201@users.noreply.github.com>  Tue, 24 Nov 2026 00:00:00 +0000
+
 product-rating (0.16.0) unstable; urgency=medium
 
   * Record the first price on the form for a new product, in a folded
