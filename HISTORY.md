@@ -13,6 +13,15 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
   Web-Clients und die Einstellungen des Paketprofils. Der Paket-Changelog
   nennt die jeweilige Debian-Version samt Git-Kennung.
 - Der Katalog verwirft den gespeicherten Filter für eine gelöschte Kategorie.
+- Abschließendes Review: Beide Pakete gebaut und mit lintian ohne Befund
+  geprüft. Der Server aus dem entpackten Dev-Paket startet auf Port 8081,
+  setzt `pr_dev_session` und verweigert ohne
+  `/etc/product-rating-dev/config.toml` den Start, statt auf eine lokale
+  Konfiguration auszuweichen. Die Ersetzung der Namen in den Paketdateien
+  trifft nur Paket-, Konto-, Pfad- und Funktionsnamen sowie den Port. Nachgezogen:
+  die Paketbeschreibung nennt die Skala bis zehn Sterne statt fünf, die README
+  erklärt die Rückfrage von apt bei einem Dev-Paket mit älterem Commitstand, und
+  TODO.md führt das Dev-Paket unter M11.
 
 ## 2026-11-21 – Entwicklungsbranches als eigenes Debian-Paket ausrollen
 

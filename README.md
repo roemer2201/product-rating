@@ -1472,7 +1472,10 @@ sudo -u product-rating-dev product-rating-dev backup --to /var/backups/product-r
 
 Das nächste Dev-Paket wieder mit `sudo apt install ./<Paketdatei>.deb`
 installieren. Die Paketkonfiguration migriert die Dev-Datenbank und startet
-einen laufenden Dev-Dienst neu. `product-rating-dev version` nennt die
+einen laufenden Dev-Dienst neu. Die Versionsnummer sortiert nach der
+Commitzeit: Ein Branch mit älterem letzten Commit ergibt eine niedrigere
+Nummer. apt fragt vor einem solchen Downgrade nach; mit `-y` bricht es ab,
+solange `--allow-downgrades` fehlt. `product-rating-dev version` nennt die
 Paketversion samt Build-Kennung, `journalctl -u product-rating-dev` zeigt
 das Dienstprotokoll. Für einen Rücksprung über eine Migration hinweg den
 passenden Sicherungsstand einplanen (Wiederherstellung in Abschnitt 8.1).
