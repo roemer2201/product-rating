@@ -23,14 +23,16 @@
  * the settings screen as well. Without it the screen itself has to stay clear
  * of the notch, which the sticky header did until now.
  */
-[data-layout='compact'] .app-header,
-[data-layout='gallery'] .app-header {
-  display: none;
-}
+@media (max-width: 57.999rem) {
+  [data-layout='compact'] .app-header,
+  [data-layout='gallery'] .app-header {
+    display: none;
+  }
 
-[data-layout='compact'] .app-main,
-[data-layout='gallery'] .app-main {
-  padding-top: calc(var(--space-4) + env(safe-area-inset-top));
+  [data-layout='compact'] .app-main,
+  [data-layout='gallery'] .app-main {
+    padding-top: calc(var(--space-4) + env(safe-area-inset-top));
+  }
 }
 
 /*
@@ -81,6 +83,24 @@
   font-size: 1.1875rem;
 }
 
+[data-layout='compact'] .catalogue-cover {
+  grid-template-columns: minmax(0, 1fr) 30%;
+}
+
+[data-layout='compact'] .catalogue-cover__text {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+}
+
+[data-layout='compact'] .catalogue-cover .page__title {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
 [data-layout='compact'] .filters {
   gap: var(--space-2);
   margin-bottom: var(--space-3);
@@ -91,6 +111,7 @@
 }
 
 [data-layout='compact'] .product-list {
+  display: flex;
   gap: 0;
   border-top: 1px solid var(--color-border);
 }
@@ -206,6 +227,7 @@
 }
 
 [data-layout='compact'] .skeleton-list {
+  display: flex;
   gap: 0;
 }
 
@@ -255,7 +277,7 @@
   --nav-height: calc(var(--dock-height) + var(--dock-offset));
 }
 
-[data-layout='gallery'] .page__title {
+[data-layout='gallery'] :where(.page__title) {
   font-size: 1.875rem;
   font-weight: 800;
   letter-spacing: -0.02em;
@@ -265,27 +287,24 @@
 /* The search field as a lozenge, with the camera button as its round twin. */
 [data-layout='gallery'] .filters__search .field__input,
 [data-layout='gallery'] .filters__scan {
-  border-color: transparent;
   border-radius: 999px;
   box-shadow: var(--shadow-tile);
-}
-
-[data-layout='gallery'] .filters__search .field__input {
-  padding-left: var(--space-4);
 }
 
 [data-layout='gallery'] .filters__clear {
   border-radius: 999px;
 }
 
-[data-layout='gallery'] .product-list {
+[data-layout='gallery'] .product-list,
+[data-layout='gallery'] .skeleton-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
 }
 
 @media (min-width: 36rem) {
-  [data-layout='gallery'] .product-list {
+  [data-layout='gallery'] .product-list,
+  [data-layout='gallery'] .skeleton-list {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
@@ -334,12 +353,6 @@
 [data-layout='gallery'] .product-card__average {
   color: var(--color-text);
   font-weight: 600;
-}
-
-[data-layout='gallery'] .skeleton-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
 }
 
 [data-layout='gallery'] .skeleton-card {
@@ -414,4 +427,36 @@
 /* The notices float as well, so they get the shadow of the dock. */
 [data-layout='gallery'] .toast {
   box-shadow: var(--shadow-dock);
+}
+
+/* On wide screens the dock and the icon strip move into the header. */
+@media (min-width: 58rem) {
+  [data-layout='gallery'] .app-nav {
+    max-width: none;
+    margin: 0;
+  }
+
+  [data-layout='gallery'] .nav-link,
+  [data-layout='compact'] .nav-link {
+    min-width: var(--tap-target);
+  }
+
+  [data-layout='compact'] .nav-link--scan .nav-link__icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    padding: 0;
+  }
+
+  [data-layout='gallery'] .product-list,
+  [data-layout='gallery'] .skeleton-list {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  [data-layout='gallery'] .app-topbar {
+    background: var(--color-chrome);
+  }
+
+  [data-layout='gallery'] .app-header {
+    background: none;
+  }
 }

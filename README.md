@@ -198,10 +198,15 @@ Geräten des Kontos. An den Funktionen ändert keine davon etwas.
 
 | | Klassisch | Kompakt | Galerie |
 |---|---|---|---|
-| Listen | Karten mit vier Zeilen | Zweizeiler mit Trennlinien | Kacheln unter dem Foto, zwei je Reihe (ab 36 rem drei) |
+| Listen | Karten mit vier Zeilen, ab 48 rem zweispaltig | Zweizeiler mit Trennlinien | Kacheln unter dem Foto, zwei je Reihe (ab 36 rem drei, ab 58 rem vier) |
 | Bewertung in Listen | zehn Sterne, dahinter der Schnitt | ein Stern mit Zahl | ein Stern mit Zahl |
-| Kopfzeile | App-Name und Konto | entfällt | entfällt, großer Seitentitel |
-| Navigation | Leiste mit Beschriftung | flache Leiste, nur Symbole | schwebendes Dock mit Beschriftung |
+| Kopfzeile auf dem Handy | App-Name und Konto | entfällt | entfällt, großer Seitentitel |
+| Navigation auf dem Handy | Leiste mit Beschriftung | flache Leiste, nur Symbole | schwebendes Dock mit Beschriftung |
+
+Ab 58 rem Bildschirmbreite stehen App-Name, Konto und Hauptnavigation in
+einer gemeinsamen Kopfzeile. „Artikel erfassen“ im Katalog öffnet die
+Scanseite. Das Titelbild wird mit der App ausgeliefert und gehört zum
+Offline-Cache der PWA.
 
 Die Wahl gehört zum Konto und liegt auf dem Server (`users.appearance_*`,
 `PATCH /api/v1/auth/profile`). Im Browser kommt sie als drei Attribute an

@@ -4,11 +4,8 @@ import { CatalogueIcon, ScanIcon, SettingsIcon, StarIcon } from '@/components/ic
 import { strings } from '@/lib/strings';
 
 /**
- * The bottom navigation.
- *
- * It sits at the bottom because that is where the thumb is on a phone held in
- * one hand, and scanning is the middle entry and the only one with a filled
- * button: it is the action the app exists for. `NavLink` sets
+ * The main navigation sits within thumb reach on a phone and shares the
+ * header on wider screens. Scanning is the primary action. `NavLink` sets
  * `aria-current="page"` on the active entry, which is what both the styling and
  * a screen reader go by.
  */

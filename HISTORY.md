@@ -5,6 +5,15 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-11-25 – Neuer Auftritt für Anmeldung und Katalog
+
+Anmeldung, Registrierung und Passwortvergabe tragen das App-Symbol und
+teilen mit dem Katalog ein lokal mitgeliefertes Titelbild. Auf dem Handy
+bleiben die vier Ziele unten erreichbar. Auf breiten Bildschirmen stehen
+sie in der Kopfzeile, und die klassische Liste nutzt zwei Spalten.
+Einträge ohne Foto bekommen je nach Art ein Paket- oder Schüsselsymbol.
+Die gespeicherten Layouts, Farbpaletten und Modi gelten weiterhin.
+
 ## 2026-11-24 – Ungespeicherte Eingaben auf der Produktseite erhalten (0.18.0)
 
 - Anlass: Wer beim Bearbeiten eines Artikels versehentlich auf „Katalog“

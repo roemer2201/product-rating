@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router';
 import { registerSchema } from '@product-rating/shared';
+import { AuthLayout } from '@/components/AuthLayout';
 import { ErrorNotice } from '@/components/Feedback';
 import { Field } from '@/components/Field';
 import { errorMessage, isApiError } from '@/lib/api';
@@ -69,89 +70,84 @@ export function RegisterPage() {
     errors[field] ?? (serverField === field && serverMessage !== null ? serverMessage : undefined);
 
   return (
-    <div className="auth-layout">
-      <div className="auth-card">
-        <h1 className="auth-card__title">{strings.register.title}</h1>
-        <p className="auth-card__intro">{strings.register.intro}</p>
+    <AuthLayout title={strings.register.title} intro={strings.register.intro}>
+      <form className="form" onSubmit={onSubmit} noValidate>
+        {serverMessage !== null && serverField === undefined && (
+          <ErrorNotice message={serverMessage} />
+        )}
 
-        <form className="form" onSubmit={onSubmit} noValidate>
-          {serverMessage !== null && serverField === undefined && (
-            <ErrorNotice message={serverMessage} />
-          )}
+        <Field
+          label={strings.register.invite}
+          name="invite"
+          value={invite}
+          onChange={(event) => setInvite(event.target.value)}
+          autoCapitalize="characters"
+          autoCorrect="off"
+          spellCheck={false}
+          hint={strings.register.inviteHint}
+          error={errorFor('invite')}
+          required
+        />
 
-          <Field
-            label={strings.register.invite}
-            name="invite"
-            value={invite}
-            onChange={(event) => setInvite(event.target.value)}
-            autoCapitalize="characters"
-            autoCorrect="off"
-            spellCheck={false}
-            hint={strings.register.inviteHint}
-            error={errorFor('invite')}
-            required
-          />
+        <Field
+          label={strings.register.username}
+          name="username"
+          value={username}
+          onChange={(event) => setUsername(event.target.value)}
+          autoComplete="username"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          hint={strings.register.usernameHint}
+          error={errorFor('username')}
+          required
+        />
 
-          <Field
-            label={strings.register.username}
-            name="username"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-            autoComplete="username"
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            hint={strings.register.usernameHint}
-            error={errorFor('username')}
-            required
-          />
+        <Field
+          label={strings.register.displayName}
+          name="displayName"
+          value={displayName}
+          onChange={(event) => setDisplayName(event.target.value)}
+          autoComplete="nickname"
+          optional
+          hint={strings.register.displayNameHint}
+          error={errorFor('displayName')}
+        />
 
-          <Field
-            label={strings.register.displayName}
-            name="displayName"
-            value={displayName}
-            onChange={(event) => setDisplayName(event.target.value)}
-            autoComplete="nickname"
-            optional
-            hint={strings.register.displayNameHint}
-            error={errorFor('displayName')}
-          />
+        <Field
+          label={strings.register.password}
+          name="password"
+          type="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          autoComplete="new-password"
+          error={errorFor('password')}
+          required
+        />
 
-          <Field
-            label={strings.register.password}
-            name="password"
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            autoComplete="new-password"
-            error={errorFor('password')}
-            required
-          />
+        <Field
+          label={strings.register.email}
+          name="email"
+          type="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          autoComplete="email"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          optional
+          hint={strings.register.emailHint}
+          error={errorFor('email')}
+        />
 
-          <Field
-            label={strings.register.email}
-            name="email"
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            autoComplete="email"
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            optional
-            hint={strings.register.emailHint}
-            error={errorFor('email')}
-          />
+        <button type="submit" className="button button--primary" disabled={register.isPending}>
+          {register.isPending ? strings.register.submitting : strings.register.submit}
+        </button>
+      </form>
 
-          <button type="submit" className="button button--primary" disabled={register.isPending}>
-            {register.isPending ? strings.register.submitting : strings.register.submit}
-          </button>
-        </form>
-
-        <p className="auth-card__footer">
-          {strings.register.haveAccount} <Link to="/login">{strings.register.toLogin}</Link>
-        </p>
-      </div>
-    </div>
+      <p className="auth-card__footer">
+        {strings.register.haveAccount} <Link to="/login">{strings.register.toLogin}</Link>
+      </p>
+    </AuthLayout>
   );
 }

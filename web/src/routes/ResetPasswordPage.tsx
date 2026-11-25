@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { redeemResetSchema } from '@product-rating/shared';
+import { AuthLayout } from '@/components/AuthLayout';
 import { ErrorNotice } from '@/components/Feedback';
 import { Field } from '@/components/Field';
 import { errorMessage } from '@/lib/api';
@@ -82,17 +83,12 @@ export function ResetPasswordPage() {
   };
 
   return (
-    <div className="auth-layout">
-      <div className="auth-card">
-        <h1 className="auth-card__title">{strings.reset.title}</h1>
-        <p className="auth-card__intro">{strings.reset.intro}</p>
+    <AuthLayout title={strings.reset.title} intro={strings.reset.intro}>
+      {body()}
 
-        {body()}
-
-        <p className="auth-card__footer">
-          <Link to="/login">{strings.reset.toLogin}</Link>
-        </p>
-      </div>
-    </div>
+      <p className="auth-card__footer">
+        <Link to="/login">{strings.reset.toLogin}</Link>
+      </p>
+    </AuthLayout>
   );
 }

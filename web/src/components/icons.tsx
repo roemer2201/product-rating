@@ -179,3 +179,20 @@ export function RefreshIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+/** Keep dishes and packaged products recognisable when no photo was added. */
+export function DishIcon() {
+  return (
+    <svg {...base}>
+      <path d="M3 12h18a9 9 0 0 1-18 0Zm5 8h8M9 8c-2-2 2-2 0-4m5 4c-2-2 2-2 0-4" />
+    </svg>
+  );
+}
+
+export function PackageIcon() {
+  return (
+    <svg {...base}>
+      <path d="m12 2 9 5v10l-9 5-9-5V7l9-5Zm0 10 9-5M3 7l9 5v10M7.5 4.5l9 5V13" />
+    </svg>
+  );
+}

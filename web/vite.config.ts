@@ -84,7 +84,7 @@ export default defineConfig({
         // `start_url` and `scope` are left to the plugin, which derives both
         // from Vite's `base`. A deployment under a sub-path only has to set
         // that one option.
-        background_color: '#f4f4f6',
+        background_color: '#f6f6f1',
         // The colour of the header, so the iOS status bar continues it instead
         // of drawing a seam across the top of the screen.
         theme_color: '#ffffff',
@@ -121,7 +121,7 @@ export default defineConfig({
          * TanStack Query already holds the answers for as long as they are
          * useful.
          */
-        globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,webp,webmanifest}'],
         // The barcode decoder is over a megabyte of WebAssembly, is only
         // touched when the camera starts, and is useless offline anyway
         // because the EAN still has to be looked up on the server. It stays out

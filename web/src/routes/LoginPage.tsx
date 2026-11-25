@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 import { loginSchema } from '@product-rating/shared';
+import { AuthLayout } from '@/components/AuthLayout';
 import { ErrorNotice } from '@/components/Feedback';
 import { Field } from '@/components/Field';
 import type { RedirectState } from '@/components/RequireAuth';
@@ -68,47 +69,42 @@ export function LoginPage() {
         : errorMessage(login.error);
 
   return (
-    <div className="auth-layout">
-      <div className="auth-card">
-        <h1 className="auth-card__title">{strings.login.title}</h1>
-        <p className="auth-card__intro">{strings.login.intro}</p>
+    <AuthLayout title={strings.login.title} intro={strings.login.intro}>
+      <form className="form" onSubmit={onSubmit} noValidate>
+        {failure !== null && <ErrorNotice message={failure} />}
 
-        <form className="form" onSubmit={onSubmit} noValidate>
-          {failure !== null && <ErrorNotice message={failure} />}
+        <Field
+          label={strings.login.username}
+          name="username"
+          value={username}
+          onChange={(event) => setUsername(event.target.value)}
+          autoComplete="username"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          error={errors.username}
+          required
+        />
 
-          <Field
-            label={strings.login.username}
-            name="username"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-            autoComplete="username"
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            error={errors.username}
-            required
-          />
+        <Field
+          label={strings.login.password}
+          name="password"
+          type="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          autoComplete="current-password"
+          error={errors.password}
+          required
+        />
 
-          <Field
-            label={strings.login.password}
-            name="password"
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            autoComplete="current-password"
-            error={errors.password}
-            required
-          />
+        <button type="submit" className="button button--primary" disabled={login.isPending}>
+          {login.isPending ? strings.login.submitting : strings.login.submit}
+        </button>
+      </form>
 
-          <button type="submit" className="button button--primary" disabled={login.isPending}>
-            {login.isPending ? strings.login.submitting : strings.login.submit}
-          </button>
-        </form>
-
-        <p className="auth-card__footer">
-          {strings.login.noAccount} <Link to="/register">{strings.login.toRegister}</Link>
-        </p>
-      </div>
-    </div>
+      <p className="auth-card__footer">
+        {strings.login.noAccount} <Link to="/register">{strings.login.toRegister}</Link>
+      </p>
+    </AuthLayout>
   );
 }

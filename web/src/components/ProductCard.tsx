@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 import type { ProductWithRatings } from '@product-rating/shared';
+import { DishIcon, PackageIcon } from '@/components/icons';
 import { StarDisplay } from '@/components/StarRating';
 import { api } from '@/lib/api';
 import { formatAverage, SCORE_GLYPH } from '@/lib/format';
@@ -44,7 +45,9 @@ export function ProductCard({ product, showOwnRating = false }: ProductCardProps
     <li className="product-card">
       <Link className="product-card__link" to={`/products/${product.id}`}>
         {product.primaryPhotoId === null ? (
-          <span className="product-card__thumb product-card__thumb--empty" aria-hidden="true" />
+          <span className="product-card__thumb product-card__thumb--empty" aria-hidden="true">
+            {product.kind === 'dish' ? <DishIcon /> : <PackageIcon />}
+          </span>
         ) : (
           <img
             className="product-card__thumb"

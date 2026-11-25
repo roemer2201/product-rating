@@ -172,7 +172,7 @@ describe('CataloguePage', () => {
     renderCatalogue();
 
     expect(await screen.findByText(strings.catalogue.empty)).toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole('link', { name: strings.nav.scan }));
+    await userEvent.setup().click(screen.getByRole('link', { name: strings.catalogue.capture }));
     expect(screen.getByText('Scanner')).toBeInTheDocument();
   });
 

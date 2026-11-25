@@ -80,15 +80,23 @@
 :root {
   color-scheme: light dark;
 
-  --color-bg: #f4f4f6;
+  --color-bg: #f6f6f1;
   --color-surface: #ffffff;
-  --color-surface-muted: #ebebef;
-  --color-border: #d7d7de;
-  --color-text: #1a1a1f;
-  --color-text-muted: #5a5a66;
+  --color-surface-muted: #eeefe8;
+  --color-border: #d5d8ce;
+  --color-text: #202821;
+  --color-text-muted: #5c655d;
   --color-danger: #b3261e;
   --color-danger-soft: #fbe9e7;
   --color-star: #d99400;
+
+  /* The catalogue cover pairs its grocery photograph with dark green ink. */
+  --color-cover: #1c352e;
+  --color-cover-text: #fff9e9;
+  --color-cover-paper: #f6c45d;
+  --font-display: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  --collection-width: 64rem;
+  --bar-gutter: calc((100% - var(--collection-width)) / 2 + var(--space-4));
 
   --radius-sm: 0.375rem;
   --radius-md: 0.625rem;
@@ -105,7 +113,7 @@
   --space-6: 2rem;
 
   /* Height of the bottom navigation without the safe area below it. */
-  --nav-height: 3.75rem;
+  --nav-height: 4.5rem;
   /* Anything the thumb has to hit is at least this tall. */
   --tap-target: 2.75rem;
 

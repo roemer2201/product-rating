@@ -82,8 +82,8 @@ export const strings = {
     submit: 'Anmelden',
     submitting: 'Wird angemeldet …',
     wrongCredentials: 'Benutzername oder Passwort ist falsch.',
-    noAccount: 'Noch kein Konto? Mit einem Einladungscode registrieren.',
-    toRegister: 'Registrieren',
+    noAccount: 'Du hast einen Einladungscode?',
+    toRegister: 'Konto anlegen',
   },
 
   register: {
@@ -504,10 +504,11 @@ export const strings = {
 
   catalogue: {
     title: 'Katalog',
+    capture: 'Artikel erfassen',
     search: 'Suchen',
     clearSearch: 'Suche leeren',
     // Short enough for a narrow phone; variant and source are searched too.
-    searchPlaceholder: 'Name, Marke, Kategorie oder EAN',
+    searchPlaceholder: 'Name, Marke, Kategorie, EAN',
     // Not "Scannen": that is the screen in the navigation, which creates a
     // product. This one only fills the search field, and a screen reader
     // announces both one after the other.
@@ -547,7 +548,8 @@ export const strings = {
     resetFilters: 'Filter zurücksetzen',
     // "Einträge", not "Produkte": the catalogue holds dishes as well.
     total: (count: number) => (count === 1 ? '1 Eintrag' : `${count} Einträge`),
-    empty: 'Der Katalog ist noch leer. Scanne das erste Produkt.',
+    empty:
+      'Der Katalog ist noch leer. Über „Artikel erfassen“ legst du dein erstes Produkt oder Gericht an.',
     emptyFiltered: 'Zu dieser Suche gibt es nichts. Vielleicht mit weniger Filtern?',
     // A search for a valid EAN that found nothing: an EAN is unique, so this
     // means the product has not been entered yet - unless a filter hides it.

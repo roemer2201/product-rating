@@ -19,7 +19,7 @@ import { LoadMore } from '@/components/LoadMore';
 import { ProductCard } from '@/components/ProductCard';
 import { PullToRefresh } from '@/components/PullToRefresh';
 import { SelectField } from '@/components/Field';
-import { CameraIcon, ChevronDownIcon, CloseIcon } from '@/components/icons';
+import { CameraIcon, ChevronDownIcon, CloseIcon, ScanIcon, SearchIcon } from '@/components/icons';
 import { errorMessage } from '@/lib/api';
 import { useCategories, useProductByEan, useProductList } from '@/lib/queries';
 import { strings } from '@/lib/strings';
@@ -220,16 +220,9 @@ function Catalogue() {
   );
 
   /** What an empty list says, and what it offers instead. */
-  const emptyState = (): { text: string; action: ReactNode } => {
+  const emptyState = (): { text: string; action?: ReactNode } => {
     if (!filtered) {
-      return {
-        text: strings.catalogue.empty,
-        action: (
-          <Link className="button button--primary" to="/scan">
-            {strings.nav.scan}
-          </Link>
-        ),
-      };
+      return { text: strings.catalogue.empty };
     }
 
     if (searchedEan !== null) {
@@ -274,16 +267,26 @@ function Catalogue() {
     // The gesture is off while the first page is still on its way: there is
     // nothing to refresh yet, and the skeleton is already saying so.
     <PullToRefresh onRefresh={refreshCatalogue} disabled={list.isPending}>
-      <section>
-        <h1 className="page__title">{strings.catalogue.title}</h1>
+      <section className="collection-page">
+        <header className="catalogue-cover">
+          <div className="catalogue-cover__text">
+            <h1 className="page__title">{strings.catalogue.title}</h1>
+            <Link to="/scan" className="button catalogue-cover__scan">
+              <ScanIcon className="button__icon" />
+              {strings.catalogue.capture}
+            </Link>
+          </div>
+          <div className="catalogue-cover__photo" />
+        </header>
 
-        <div className="filters">
-          <div className="field">
-            <label className="field__label" htmlFor="catalogue-search">
+        <div className="filters catalogue-tools">
+          <div className="field catalogue-tools__search">
+            <label className="visually-hidden" htmlFor="catalogue-search">
               {strings.catalogue.search}
             </label>
             <div className="filters__search">
               <div className="filters__search-field">
+                <SearchIcon className="filters__search-icon" />
                 <input
                   ref={searchInput}
                   id="catalogue-search"
@@ -332,25 +335,6 @@ function Catalogue() {
             </div>
           </div>
 
-          {scannerOpen && (
-            <div id={SCANNER_PANEL_ID} className="filters__scanner">
-              <div className="filters__scanner-header">
-                <h2 className="section__title">{strings.catalogue.scanSearch}</h2>
-                <button
-                  type="button"
-                  className="button button--quiet"
-                  onClick={() => {
-                    setScannerOpen(false);
-                  }}
-                >
-                  {strings.common.close}
-                </button>
-              </div>
-              <p className="section__intro">{strings.scan.intro}</p>
-              <BarcodeScanner onDetected={handleDetectedEan} autoStart />
-            </div>
-          )}
-
           <div className="filters__toggle-row">
             <button
               type="button"
@@ -375,6 +359,25 @@ function Catalogue() {
               </button>
             )}
           </div>
+
+          {scannerOpen && (
+            <div id={SCANNER_PANEL_ID} className="filters__scanner">
+              <div className="filters__scanner-header">
+                <h2 className="section__title">{strings.catalogue.scanSearch}</h2>
+                <button
+                  type="button"
+                  className="button button--quiet"
+                  onClick={() => {
+                    setScannerOpen(false);
+                  }}
+                >
+                  {strings.common.close}
+                </button>
+              </div>
+              <p className="section__intro">{strings.scan.intro}</p>
+              <BarcodeScanner onDetected={handleDetectedEan} autoStart />
+            </div>
+          )}
 
           {!moreFiltersOpen && activeFilters.length > 0 && (
             <ul className="filter-chips" aria-label={strings.catalogue.activeFilters}>

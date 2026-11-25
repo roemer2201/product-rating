@@ -32,7 +32,7 @@ export function RatingsPage() {
   const ratings = list.data?.pages.flatMap((page) => page.ratings) ?? [];
 
   return (
-    <section>
+    <section className="collection-page">
       <h1 className="page__title">{strings.myRatings.title}</h1>
 
       <div className="filters filters__row">
