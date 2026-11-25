@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { accountName, updateProductSchema } from '@product-rating/shared';
 import { ErrorNotice, ErrorScreen, SkeletonBlock } from '@/components/Feedback';
 import { EditIcon } from '@/components/icons';
 import { PhotoManager } from '@/components/PhotoManager';
+import { emptyPriceFields } from '@/components/PriceFields';
 import { PriceHistory } from '@/components/PriceHistory';
+import { useProductDraft } from '@/components/ProductDrafts';
 import { ProductForm, type ProductFormValues } from '@/components/ProductForm';
 import { RatingEditor } from '@/components/RatingEditor';
 import { StarDisplay } from '@/components/StarRating';
@@ -33,6 +35,14 @@ import { strings } from '@/lib/strings';
  * bought without a barcode can be given one in the form, once.
  */
 export function ProductPage() {
+  // One screen per history entry: going back to an entry brings its unsaved
+  // input along (`ProductDrafts`), a new visit of the same product starts in
+  // the plain view.
+  const { key } = useLocation();
+  return <ProductScreen key={key} />;
+}
+
+function ProductScreen() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
 
@@ -41,7 +51,7 @@ export function ProductPage() {
   const update = useUpdateProduct(id);
   const remove = useDeleteProduct();
 
-  const [editing, setEditing] = useState(false);
+  const { draft, update: updateDraft } = useProductDraft();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
 
@@ -63,6 +73,30 @@ export function ProductPage() {
   const isAdmin = user?.role === 'admin';
   const dish = detail.kind === 'dish';
   const eanEditable = detail.kind === 'product' && detail.ean === null;
+  /** The correction being typed; while there is one, the form is open. */
+  const editValues = draft?.edit;
+  const editPending = draft?.editPending ?? false;
+  const editError = draft?.editError;
+
+  const startEditing = (): void => {
+    updateDraft({
+      edit: {
+        ean: '',
+        name: detail.name,
+        variant: detail.variant ?? '',
+        brand: detail.brand ?? '',
+        categoryIds: detail.categories.map((entry) => entry.id),
+        notes: detail.notes ?? '',
+        priceWatch: detail.priceWatch,
+        price: emptyPriceFields(),
+      },
+    });
+  };
+
+  const stopEditing = (): void => {
+    setErrors({});
+    updateDraft({ edit: undefined, editError: undefined });
+  };
 
   // Accounts are disabled rather than deleted, so a missing name is a corner
   // case; the date alone is still worth showing then.
@@ -79,6 +113,8 @@ export function ProductPage() {
         : strings.product.createdBy(creator, createdOn);
 
   const onSave = (values: ProductFormValues): void => {
+    if (editPending) return;
+
     const parsed = updateProductSchema.safeParse({
       // Only offered while there is none; an empty field leaves it that way.
       ...(eanEditable && values.ean.trim() !== '' ? { ean: values.ean } : {}),
@@ -96,11 +132,13 @@ export function ProductPage() {
     }
 
     setErrors({});
-    update.mutate(parsed.data, {
-      onSuccess: () => {
-        setEditing(false);
-      },
-    });
+    // Not `mutate` with callbacks: those are dropped once the page is left,
+    // and a correction that outlived its save would reopen the form on return.
+    updateDraft({ editPending: true, editError: undefined });
+    void update.mutateAsync(parsed.data).then(
+      () => updateDraft({ editPending: false, edit: undefined }),
+      (editError: Error) => updateDraft({ editPending: false, editError }),
+    );
   };
 
   const onDelete = (): void => {
@@ -111,43 +149,33 @@ export function ProductPage() {
     });
   };
 
-  if (editing) {
+  if (editValues !== undefined) {
     return (
       <section>
         <h1 className="page__title">
           {dish ? strings.product.editDishTitle : strings.product.editTitle}
         </h1>
 
-        <ProductForm
-          kind={detail.kind}
-          eanEditable={eanEditable}
-          initial={{
-            name: detail.name,
-            variant: detail.variant ?? '',
-            brand: detail.brand ?? '',
-            categoryIds: detail.categories.map((entry) => entry.id),
-            notes: detail.notes ?? '',
-            priceWatch: detail.priceWatch,
-          }}
-          initialCategories={detail.categories}
-          onSubmit={onSave}
-          submitLabel={strings.common.save}
-          pendingLabel={strings.common.saving}
-          pending={update.isPending}
-          errors={errors}
-          error={update.error === null ? null : errorMessage(update.error)}
-          secondaryAction={
-            <button
-              type="button"
-              className="button"
-              onClick={() => {
-                setEditing(false);
-              }}
-            >
-              {strings.common.cancel}
-            </button>
-          }
-        />
+        <fieldset className="form-fieldset" disabled={editPending}>
+          <ProductForm
+            kind={detail.kind}
+            eanEditable={eanEditable}
+            initial={editValues}
+            onChange={(values) => updateDraft({ edit: values })}
+            initialCategories={detail.categories}
+            onSubmit={onSave}
+            submitLabel={strings.common.save}
+            pendingLabel={strings.common.saving}
+            pending={editPending}
+            errors={errors}
+            error={editError === undefined ? null : errorMessage(editError)}
+            secondaryAction={
+              <button type="button" className="button" onClick={stopEditing}>
+                {strings.common.cancel}
+              </button>
+            }
+          />
+        </fieldset>
       </section>
     );
   }
@@ -181,9 +209,7 @@ export function ProductPage() {
         <button
           type="button"
           className="button button--quiet page__head-action"
-          onClick={() => {
-            setEditing(true);
-          }}
+          onClick={startEditing}
           aria-label={dish ? strings.product.editDishTitle : strings.product.editTitle}
           title={dish ? strings.product.editDishTitle : strings.product.editTitle}
         >
@@ -233,12 +259,10 @@ export function ProductPage() {
       )}
 
       <RatingEditor
-        // Keyed on the product, not on the rating: this route stays mounted
-        // when the identifier changes, so without it the next product would
-        // open with the stars of the previous one. Keying it on the rating
-        // instead would remount the editor on every save — and take its own
-        // "saved" confirmation down with it.
-        key={detail.id}
+        // Not keyed on the rating: that would remount the editor on every save
+        // and take its own "saved" confirmation down with it. A different
+        // product is a different history entry, and the whole screen is keyed
+        // on that.
         productId={detail.id}
         ean={detail.ean}
         productName={detail.name}
@@ -308,13 +332,7 @@ export function ProductPage() {
         </p>
 
         <div className="form__actions">
-          <button
-            type="button"
-            className="button"
-            onClick={() => {
-              setEditing(true);
-            }}
-          >
+          <button type="button" className="button" onClick={startEditing}>
             {strings.common.edit}
           </button>
 

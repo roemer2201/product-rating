@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Route, Routes } from 'react-router';
+import { Link, Outlet, Route, Routes, useNavigate } from 'react-router';
+import { AppLayout } from '@/components/AppLayout';
+import { ProductDrafts } from '@/components/ProductDrafts';
 import { ProductPage } from '@/routes/ProductPage';
 import { strings } from '@/lib/strings';
 import { queryKeys } from '@/lib/queries';
@@ -29,18 +31,61 @@ import { mockUpload } from '@/testing/xhrMock';
 
 const CATEGORIES = { path: '/categories', body: { categories: CATEGORY_LIST } };
 
-/** Who is logged in is decided by the `/auth/me` route the test sets up. */
-function renderProduct() {
+/**
+ * Who is logged in is decided by the `/auth/me` route the test sets up. With
+ * the navigation, the catalogue is one tap away and the way back is the
+ * browser history, which is what a swipe from the edge of the screen uses.
+ */
+function renderProduct(withNavigation = false) {
   return renderWithProviders(
     <Routes>
-      <Route path="/products/:id" element={<ProductPage />} />
-      <Route path="/" element={<p>Katalog</p>} />
+      <Route element={withNavigation ? <AppLayout /> : <DraftLayout />}>
+        <Route path="/products/:id" element={<ProductPage />} />
+        <Route
+          path="/"
+          element={
+            <>
+              <p>Katalog</p>
+              <HistoryBack label="Zurück zum Produkt" />
+              <Link to="/products/prod-1">Produkt neu öffnen</Link>
+            </>
+          }
+        />
+      </Route>
     </Routes>,
     { route: '/products/prod-1' },
   );
 }
 
+function DraftLayout() {
+  return (
+    <ProductDrafts>
+      <Outlet />
+    </ProductDrafts>
+  );
+}
+
+function HistoryBack({ label }: { label: string }) {
+  const navigate = useNavigate();
+  return <button onClick={() => void navigate(-1)}>{label}</button>;
+}
+
+/** Off to the catalogue through the navigation, and back through the history. */
+async function leaveAndReturn(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+  await user.click(screen.getByRole('link', { name: strings.nav.catalogue }));
+  await user.click(await screen.findByRole('button', { name: 'Zurück zum Produkt' }));
+}
+
 const ADMIN = { ...testUser, id: 'admin-1', username: 'chef', role: 'admin' as const };
+
+/** Leave the save in flight until the test has revisited the history entry. */
+function holdResponse<T>(body: T) {
+  let finish!: () => void;
+  const pending = new Promise<T>((resolve) => {
+    finish = () => resolve(body);
+  });
+  return { pending, finish };
+}
 
 describe('ProductPage', () => {
   it('shows the product with its average and its own rating', async () => {
@@ -898,5 +943,262 @@ describe('ProductPage', () => {
 
     expect(await screen.findByText(strings.photo.isPrimary)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: strings.photo.setPrimary })).toBeInTheDocument();
+  });
+});
+
+describe('ProductPage on the way back', () => {
+  it('reopens a correction left unsaved for the catalogue, until it is cancelled', async () => {
+    const user = userEvent.setup();
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      { path: '/products/prod-1', body: { product: makeProductDetail() } },
+    ]);
+
+    renderProduct(true);
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+    await user.click(screen.getByRole('button', { name: strings.common.edit }));
+    const name = screen.getByLabelText(new RegExp(strings.fields.name));
+    await user.clear(name);
+    await user.type(name, 'Apfelsaft naturtrüb');
+    await user.click(screen.getByRole('checkbox', { name: strings.product.priceWatch }));
+
+    await leaveAndReturn(user);
+
+    expect(
+      await screen.findByRole('heading', { name: strings.product.editTitle }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(new RegExp(strings.fields.name))).toHaveValue(
+      'Apfelsaft naturtrüb',
+    );
+    expect(screen.getByRole('checkbox', { name: strings.product.priceWatch })).toBeChecked();
+
+    // Cancelled, the correction is gone for this entry too.
+    await user.click(screen.getByRole('button', { name: strings.common.cancel }));
+    await leaveAndReturn(user);
+    expect(await screen.findByRole('heading', { name: 'Apfelsaft' })).toBeInTheDocument();
+    expect(screen.queryByLabelText(new RegExp(strings.fields.name))).not.toBeInTheDocument();
+  });
+
+  it('opens a new visit of the same product in the plain view', async () => {
+    const user = userEvent.setup();
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      { path: '/products/prod-1', body: { product: makeProductDetail() } },
+    ]);
+
+    renderProduct(true);
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+    await user.click(screen.getByRole('button', { name: strings.common.edit }));
+    await user.type(screen.getByLabelText(new RegExp(strings.fields.name)), ' trüb');
+
+    await user.click(screen.getByRole('link', { name: strings.nav.catalogue }));
+    await user.click(await screen.findByRole('link', { name: 'Produkt neu öffnen' }));
+
+    expect(await screen.findByRole('heading', { name: 'Apfelsaft' })).toBeInTheDocument();
+    expect(screen.queryByLabelText(new RegExp(strings.fields.name))).not.toBeInTheDocument();
+  });
+
+  it('keeps a correction locked until an in-flight save succeeds', async () => {
+    const user = userEvent.setup();
+    const body = { product: makeProductDetail() };
+    const { pending, finish } = holdResponse(body);
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      { path: '/products/prod-1', method: 'PATCH', body: pending },
+      { path: '/products/prod-1', body },
+    ]);
+
+    renderProduct(true);
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+    await user.click(screen.getByRole('button', { name: strings.common.edit }));
+    await user.type(screen.getByLabelText(new RegExp(strings.fields.name)), ' trüb');
+    await user.click(screen.getByRole('button', { name: strings.common.save }));
+    await leaveAndReturn(user);
+    expect(screen.getByRole('button', { name: strings.common.saving })).toBeDisabled();
+    expect(screen.getByLabelText(new RegExp(strings.fields.name))).toBeDisabled();
+    expect(screen.getByRole('button', { name: strings.common.cancel })).toBeDisabled();
+
+    finish();
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+
+    await leaveAndReturn(user);
+    expect(await screen.findByRole('heading', { name: 'Apfelsaft' })).toBeInTheDocument();
+    expect(screen.queryByLabelText(new RegExp(strings.fields.name))).not.toBeInTheDocument();
+  });
+
+  it('does not allow another price submission when returning during a save', async () => {
+    const user = userEvent.setup();
+    const { pending, finish } = holdResponse({ price: makePrice() });
+    const fetchMock = mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      { path: '/prices/shops', body: { shops: [] } },
+      { path: '/products/prod-1/prices', method: 'POST', body: pending },
+      { path: '/products/prod-1', body: { product: makeProductDetail() } },
+    ]);
+
+    renderProduct(true);
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+    await user.type(screen.getByLabelText(strings.price.amount), '2,49');
+    await user.click(screen.getByRole('button', { name: strings.price.add }));
+    await leaveAndReturn(user);
+
+    const amount = screen.getByLabelText(strings.price.amount);
+    expect(amount).toHaveValue('2,49');
+    expect(amount).toBeDisabled();
+    const submit = screen.getByRole('button', { name: strings.price.adding });
+    expect(submit).toBeDisabled();
+    await user.click(submit);
+    expect(
+      fetchMock.mock.calls.filter(([, init]) => (init as RequestInit)?.method === 'POST'),
+    ).toHaveLength(1);
+
+    finish();
+    await waitFor(() => expect(amount).toHaveValue(''));
+    expect(amount).toBeEnabled();
+  });
+
+  it('keeps an unsaved rating and a price being typed, and starts over once it is recorded', async () => {
+    const user = userEvent.setup();
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      { path: '/prices/shops', body: { shops: [] } },
+      { path: '/products/prod-1/prices', method: 'POST', body: { price: makePrice() } },
+      {
+        path: '/products/prod-1',
+        body: {
+          product: makeProductDetail({ ownRating: makeRating({ stars: 5, comment: 'Gut' }) }),
+        },
+      },
+    ]);
+
+    renderProduct(true);
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+    await user.click(screen.getByRole('radio', { name: strings.rating.starLabel(8) }));
+    const comment = screen.getByLabelText(new RegExp(strings.rating.comment));
+    await user.clear(comment);
+    await user.type(comment, 'Besser als gedacht');
+    await user.type(screen.getByLabelText(new RegExp(strings.price.amount)), '1,99');
+    await user.type(
+      screen.getByLabelText(new RegExp(strings.price.shop), { selector: 'input' }),
+      'Bioladen',
+    );
+
+    await leaveAndReturn(user);
+
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+    expect(screen.getByRole('radio', { name: strings.rating.starLabel(8) })).toBeChecked();
+    expect(screen.getByLabelText(new RegExp(strings.rating.comment))).toHaveValue(
+      'Besser als gedacht',
+    );
+    expect(screen.getByLabelText(new RegExp(strings.price.amount))).toHaveValue('1,99');
+
+    // Recorded, the price does not come back a second time; the shop stays.
+    await user.click(screen.getByRole('button', { name: strings.price.add }));
+    await waitFor(() => {
+      expect(screen.getByLabelText(new RegExp(strings.price.amount))).toHaveValue('');
+    });
+    await leaveAndReturn(user);
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+    expect(screen.getByLabelText(new RegExp(strings.price.amount))).toHaveValue('');
+    expect(
+      screen.getByLabelText(new RegExp(strings.price.shop), { selector: 'input' }),
+    ).toHaveValue('Bioladen');
+  });
+
+  it('starts the price over once it is kept for the offline queue', async () => {
+    const user = userEvent.setup();
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      { path: '/prices/shops', body: { shops: [] } },
+      { path: '/products/prod-1/prices', method: 'POST', networkError: true },
+      { path: '/products/prod-1', body: { product: makeProductDetail() } },
+    ]);
+
+    renderProduct(true);
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+    await user.type(screen.getByLabelText(new RegExp(strings.price.amount)), '2,49');
+    await user.click(screen.getByRole('button', { name: strings.price.add }));
+    await user.click(await screen.findByRole('button', { name: strings.offlineCapture.keep }));
+
+    expect(await screen.findByText(strings.offlineCapture.kept)).toBeInTheDocument();
+    expect((await listCaptures())[0]?.price).toMatchObject({ cents: 249 });
+    // Queued once is enough: neither the form nor the way back offers it again.
+    expect(screen.getByLabelText(new RegExp(strings.price.amount))).toHaveValue('');
+    await leaveAndReturn(user);
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+    expect(screen.getByLabelText(new RegExp(strings.price.amount))).toHaveValue('');
+  });
+
+  it('clears a queued rating draft and offers to queue a subsequent rating', async () => {
+    const user = userEvent.setup();
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      { path: '/prices/shops', body: { shops: [] } },
+      { path: '/products/prod-1/rating', method: 'PUT', networkError: true },
+      {
+        path: '/products/prod-1',
+        body: {
+          product: makeProductDetail({ ownRating: makeRating({ stars: 5, comment: 'Gut' }) }),
+        },
+      },
+    ]);
+
+    renderProduct(true);
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+    const selectStars = async (stars: number) =>
+      user.click(screen.getByRole('radio', { name: strings.rating.starLabel(stars) }));
+    const save = () => user.click(screen.getByRole('button', { name: strings.rating.save }));
+
+    await selectStars(8);
+    await save();
+    await user.click(await screen.findByRole('button', { name: strings.offlineCapture.keep }));
+    expect(await screen.findByText(strings.offlineCapture.kept)).toBeInTheDocument();
+    expect((await listCaptures()).map(({ rating }) => rating?.stars)).toEqual([8]);
+
+    await selectStars(9);
+    await save();
+    expect(await screen.findByRole('button', { name: strings.offlineCapture.keep })).toBeEnabled();
+    await selectStars(10);
+    await leaveAndReturn(user);
+    expect(screen.getByRole('radio', { name: strings.rating.starLabel(10) })).toBeChecked();
+    await user.click(screen.getByRole('button', { name: strings.offlineCapture.keep }));
+    expect(await screen.findByText(strings.offlineCapture.kept)).toBeInTheDocument();
+
+    await leaveAndReturn(user);
+    expect(screen.getByRole('radio', { name: strings.rating.starLabel(5) })).toBeChecked();
+    expect((await listCaptures()).map(({ rating }) => rating?.stars)).toEqual([8, 10]);
+  });
+
+  it('shows the saved rating again once the changed one is saved', async () => {
+    const user = userEvent.setup();
+    const saved = makeRating({ stars: 8, comment: 'Besser als gedacht' });
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      CATEGORIES,
+      { path: '/products/prod-1/rating', method: 'PUT', body: { rating: saved } },
+      {
+        path: '/products/prod-1',
+        body: {
+          product: makeProductDetail({ ownRating: makeRating({ stars: 5, comment: 'Gut' }) }),
+        },
+      },
+    ]);
+
+    renderProduct(true);
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+    await user.click(screen.getByRole('radio', { name: strings.rating.starLabel(8) }));
+    await user.click(screen.getByRole('button', { name: strings.rating.save }));
+    expect(await screen.findByText(strings.common.saved)).toBeInTheDocument();
+
+    // The draft ended with the save: back on the entry, the editor reads the
+    // rating from the server again (here still the old answer of the mock).
+    await leaveAndReturn(user);
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+    expect(screen.getByRole('radio', { name: strings.rating.starLabel(5) })).toBeChecked();
   });
 });

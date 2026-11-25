@@ -454,6 +454,10 @@ so freigegeben.
 - [ ] Offline-Ersetzen auf einem echten iPhone prüfen: Vormerken nach
       Verbindungsabbruch, Hinweis in der Galerie, Übertragung nach Neustart der App
 - [x] Entwurf einer Produkterfassung samt Foto beim Zurücknavigieren wiederherstellen
+- [x] Ebenso auf der Produktseite: geöffnetes Bearbeiten-Formular, ungespeicherte
+      eigene Bewertung und angefangener Preis bleiben am Verlaufseintrag und
+      kommen beim Zurückwischen wieder (abgestimmt mit dem Projektinhaber am
+      24.11.2026)
 - [x] Mehrere Fotos pro Produkt inklusive Sortierung
 - [x] Attribut „Sorte“ am Produkt (Name „5 Minuten Terrine“, Sorte „Spaghetti
       Bolognese“), auch in Suche, Export und Offline-Erfassung

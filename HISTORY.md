@@ -5,6 +5,43 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-11-24 – Ungespeicherte Eingaben auf der Produktseite erhalten (0.18.0)
+
+- Anlass: Wer beim Bearbeiten eines Artikels versehentlich auf „Katalog“
+  tippte und zurückwischte, landete in der normalen Produktansicht, die
+  Eingaben waren weg. Der Entwurfsspeicher aus 0.13.1 deckte nur die
+  Neuanlage ab; ob die Produktseite bearbeitet wurde, war ein lokaler Zustand,
+  der mit der Seite verschwand.
+- Entscheidungen des Projektinhabers: Neben dem Bearbeiten-Formular bleiben
+  auch eine geänderte eigene Bewertung und ein angefangener Preis erhalten.
+  Ein Hinweis beim Wiederherstellen, dass jemand anders das Produkt inzwischen
+  geändert haben könnte, entfällt; die README nennt das Verhalten.
+- Umsetzung: `ProductDrafts` nimmt auch die Eingaben der Produktseite auf,
+  wieder nach Verlaufseintrag geschlüsselt und nur im Arbeitsspeicher. Die
+  Produktseite entsteht je Verlaufseintrag neu, wie seit 0.17.0 der Katalog;
+  ein neuer Aufruf beginnt deshalb in der Ansicht. Das Bearbeiten-Formular
+  ist offen, solange der Entwurf eine Korrektur enthält.
+- Speichern läuft über `mutateAsync` statt `mutate` mit Rückruf: Der Rückruf
+  entfiele, wenn man die Seite während des Speicherns verlässt, und der
+  Entwurf käme dann als ungespeichert zurück. Nach dem Speichern der Bewertung
+  zeigt die Seite wieder den Stand des Servers.
+- Ein erfasster Preis leert das Formular und damit den Entwurf, ebenso jetzt
+  ein offline vorgemerkter. Sonst stünde derselbe Preis beim Zurückkehren noch
+  einmal zum Speichern da.
+- Geprüft mit neuen Tests (Zurückkehren mit offenem Formular, Abbrechen,
+  Speichern, neuer Aufruf, Bewertung und Preis) und im gebauten Stand im
+  Browser mit iPhone-Emulation.
+- Review von PR #62: Laufende Schreibvorgänge bleiben beim Zurückkehren am
+  Verlaufseintrag sichtbar und verhindern ein zweites Absenden. Die Preis-
+  und Bewertungsfelder lesen den aktuellen Entwurf direkt. Vorgemerkte
+  Bewertungen werden aus dem Formular entfernt, und nach einer weiteren
+  Änderung lässt sich die Offline-Warteschlange erneut nutzen.
+- Nachgezogen: Das `fieldset`, das das Preisformular während des Speicherns
+  sperrt, ist selbst kein Flex-Container mehr. Das Layout liegt wieder bei
+  einem inneren `.form`, weil es für Safari Fehlerberichte zu `display: flex`
+  auf einem `fieldset` gibt. Die Sperre beim Zurückkehren ist im gebauten
+  Stand mit iPhone-Emulation geprüft.
+
 ## 2026-11-24 – Review von PR #59 (0.17.0)
 
 - Mit dem aktuellen Stand von `main` zusammengeführt. Die Lizenzen der

@@ -1,3 +1,10 @@
+product-rating (0.18.0) unstable; urgency=medium
+
+  * Keep an open correction, an unsaved rating and a price being typed
+    on the product page when leaving it and swiping back.
+
+ -- roemer2201 <roemer2201@users.noreply.github.com>  Tue, 24 Nov 2026 23:45:00 +0000
+
 product-rating (0.17.0) unstable; urgency=medium
 
   * Restore catalogue searches and filters on return from a product.

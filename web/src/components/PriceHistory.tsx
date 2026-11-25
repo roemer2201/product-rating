@@ -16,6 +16,7 @@ import {
   priceRequest,
   type PriceFieldValues,
 } from '@/components/PriceFields';
+import { useProductDraft } from '@/components/ProductDrafts';
 import { TrashIcon } from '@/components/icons';
 import { errorMessage } from '@/lib/api';
 import { formatDate } from '@/lib/format';
@@ -42,6 +43,11 @@ import { strings } from '@/lib/strings';
  * shop there, so the shop field, the shop in each row and the offer mark are
  * left out, and the date is the day of the calculation rather than of a
  * purchase.
+ *
+ * A price being typed is reported as a draft, so that coming back to the page
+ * through the browser history finds it again. Once it is saved, or kept for
+ * the offline queue, the form starts over, and so does the draft: a price that
+ * came back after it was recorded would be recorded twice.
  */
 
 interface PriceHistoryProps {
@@ -70,15 +76,19 @@ export function PriceHistory({
   /** What a row says after the amount: the shop, or nothing for a dish. */
   const whereOf = (price: Price): string[] => (dish ? [] : [price.shop ?? strings.price.noShop]);
 
-  const [entry, setEntry] = useState<PriceFieldValues>(emptyPriceFields);
+  const { draft, update } = useProductDraft();
+  const entry = draft?.price ?? emptyPriceFields();
+  const pending = draft?.pricePending;
+  const saveError = draft?.priceError;
   const [amountError, setAmountError] = useState<string | undefined>(undefined);
-  const change = (patch: Partial<PriceFieldValues>): void => {
-    setEntry((current) => ({ ...current, ...patch }));
-  };
-
   const add = useAddPrice();
   const remove = useDeletePrice();
   const capture = useEnqueueCapture();
+
+  const change = (patch: Partial<PriceFieldValues>): void => {
+    if (capture.isSuccess) capture.reset();
+    update({ price: { ...entry, ...patch } });
+  };
 
   // The list arrives with the newest purchase first, so the first entry is the
   // latest one and the cheapest is a single pass over at most fifty rows.
@@ -103,7 +113,18 @@ export function PriceHistory({
 
   const mayRemove = (price: Price): boolean => price.userId === user.id || user.role === 'admin';
 
+  /** Empties the form after a recorded price. The shop stays: the next entry is usually from the same one. */
+  const startOver = (): void => {
+    update({
+      price: { ...emptyPriceFields(), shop: entry.shop },
+      pricePending: undefined,
+      priceError: undefined,
+    });
+  };
+
   const onSubmit = (): void => {
+    if (pending !== undefined) return;
+
     const request = priceRequest(entry, kind);
     if (request === null) {
       setAmountError(strings.price.amountInvalid);
@@ -117,15 +138,11 @@ export function PriceHistory({
     }
 
     setAmountError(undefined);
-    add.mutate(
-      { productId, input: parsed.data },
-      {
-        onSuccess: () => {
-          // The shop stays: the next entry is usually from the same one.
-          setEntry((current) => ({ ...emptyPriceFields(), shop: current.shop }));
-        },
-      },
-    );
+    capture.reset();
+    update({ pricePending: 'save', priceError: undefined });
+    void add
+      .mutateAsync({ productId, input: parsed.data })
+      .then(startOver, (priceError: Error) => update({ pricePending: undefined, priceError }));
   };
 
   return (
@@ -202,35 +219,46 @@ export function PriceHistory({
       )}
 
       {remove.error !== null && <ErrorNotice message={errorMessage(remove.error)} />}
-      {add.error !== null && <ErrorNotice message={errorMessage(add.error)} />}
+      {saveError !== undefined && <ErrorNotice message={errorMessage(saveError)} />}
+      {capture.error !== null && <ErrorNotice message={errorMessage(capture.error)} />}
 
       <OfflineCapture
-        error={add.error}
+        error={saveError}
         onKeep={
           ean === null
             ? null
             : () => {
+                if (pending !== undefined) return;
                 const price = capturedPrice(entry, kind);
                 if (price === null) return;
-                capture.mutate({ ean, label: productName, price });
+                update({ pricePending: 'queue' });
+                void capture
+                  .mutateAsync({ ean, label: productName, price })
+                  .then(startOver, () => update({ pricePending: undefined }));
               }
         }
         kept={capture.isSuccess}
-        pending={capture.isPending}
+        pending={pending !== undefined}
       />
 
-      <div className="form">
-        <PriceFields kind={kind} values={entry} onChange={change} amountError={amountError} />
+      <fieldset className="form-fieldset" disabled={pending !== undefined}>
+        <div className="form">
+          <PriceFields kind={kind} values={entry} onChange={change} amountError={amountError} />
 
-        <button
-          type="button"
-          className="button button--primary"
-          onClick={onSubmit}
-          disabled={add.isPending || entry.amount.trim() === ''}
-        >
-          {add.isPending ? strings.price.adding : dish ? strings.price.dishAdd : strings.price.add}
-        </button>
-      </div>
+          <button
+            type="button"
+            className="button button--primary"
+            onClick={onSubmit}
+            disabled={entry.amount.trim() === ''}
+          >
+            {pending === 'save'
+              ? strings.price.adding
+              : dish
+                ? strings.price.dishAdd
+                : strings.price.add}
+          </button>
+        </div>
+      </fieldset>
     </section>
   );
 }

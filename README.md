@@ -125,6 +125,21 @@ in der Navigation beginnt eine neue Suche. Abmelden oder Neuladen verwirft
 die gemerkten Ansichten. Wurde eine Kategorie zwischenzeitlich gelöscht,
 entfällt ihr Filter beim Zurückkehren.
 
+Ebenso gehen **ungespeicherte Eingaben** nicht verloren, wenn man versehentlich
+auf „Katalog“ oder einen anderen Bereich tippt und dann zurückwischt
+(`web/src/components/ProductDrafts.tsx`). Das betrifft das Formular für ein
+neues Produkt samt Foto, auf der Seite eines vorhandenen Produkts das geöffnete
+Bearbeiten-Formular, eine geänderte, noch nicht gespeicherte eigene Bewertung
+und einen angefangenen Preis. Die Eingaben hängen am Eintrag im Browserverlauf:
+Zurückwischen bringt sie wieder, ein neuer Aufruf desselben Produkts aus dem
+Katalog beginnt in der normalen Ansicht. Während eines Speichervorgangs
+bleibt das betreffende Formular auch nach dem Zurückkehren gesperrt.
+Erfolgreiches Speichern und Offline-Vormerken beenden den jeweiligen Entwurf.
+Abbrechen verwirft die Korrektur. Neuladen und Abmelden verwerfen alle
+Entwürfe, da sie im Arbeitsspeicher der App liegen. Wer ein wiederhergestelltes
+Bearbeiten-Formular speichert, überschreibt Änderungen, die jemand anders am
+Produkt inzwischen gemacht hat – wie bei einem Formular, das lange offen war.
+
 Die Adressen sind wie der übrige Code englisch; deutsch ist ausschließlich, was
 auf dem Bildschirm steht. Sämtliche Oberflächentexte liegen in
 `web/src/lib/strings.ts`, damit eine spätere Übersetzung eine Datei betrifft und
