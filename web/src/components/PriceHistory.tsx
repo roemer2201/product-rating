@@ -241,21 +241,23 @@ export function PriceHistory({
         pending={pending !== undefined}
       />
 
-      <fieldset className="form form-fieldset" disabled={pending !== undefined}>
-        <PriceFields kind={kind} values={entry} onChange={change} amountError={amountError} />
+      <fieldset className="form-fieldset" disabled={pending !== undefined}>
+        <div className="form">
+          <PriceFields kind={kind} values={entry} onChange={change} amountError={amountError} />
 
-        <button
-          type="button"
-          className="button button--primary"
-          onClick={onSubmit}
-          disabled={entry.amount.trim() === ''}
-        >
-          {pending === 'save'
-            ? strings.price.adding
-            : dish
-              ? strings.price.dishAdd
-              : strings.price.add}
-        </button>
+          <button
+            type="button"
+            className="button button--primary"
+            onClick={onSubmit}
+            disabled={entry.amount.trim() === ''}
+          >
+            {pending === 'save'
+              ? strings.price.adding
+              : dish
+                ? strings.price.dishAdd
+                : strings.price.add}
+          </button>
+        </div>
       </fieldset>
     </section>
   );

@@ -368,6 +368,8 @@ a {
   text-align: center;
 }
 
+/* Only locks a form while it is being saved. The layout stays with an inner
+   `.form`: there are Safari bug reports about a fieldset as a flex container. */
 .form-fieldset {
   min-inline-size: 0;
   margin: 0;

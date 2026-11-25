@@ -36,6 +36,11 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
   und Bewertungsfelder lesen den aktuellen Entwurf direkt. Vorgemerkte
   Bewertungen werden aus dem Formular entfernt, und nach einer weiteren
   Änderung lässt sich die Offline-Warteschlange erneut nutzen.
+- Nachgezogen: Das `fieldset`, das das Preisformular während des Speicherns
+  sperrt, ist selbst kein Flex-Container mehr. Das Layout liegt wieder bei
+  einem inneren `.form`, weil es für Safari Fehlerberichte zu `display: flex`
+  auf einem `fieldset` gibt. Die Sperre beim Zurückkehren ist im gebauten
+  Stand mit iPhone-Emulation geprüft.
 
 ## 2026-11-24 – Review von PR #59 (0.17.0)
 
