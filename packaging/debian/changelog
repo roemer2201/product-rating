@@ -1,3 +1,11 @@
+product-rating (0.19.0) unstable; urgency=medium
+
+  * Refresh the sign-in and catalogue screens with bundled artwork.
+  * Move navigation into the header on wide screens and use the available
+    space for product cards.
+
+ -- roemer2201 <roemer2201@users.noreply.github.com>  Wed, 25 Nov 2026 22:52:00 +0000
+
 product-rating (0.18.0) unstable; urgency=medium
 
   * Keep an open correction, an unsaved rating and a price being typed
