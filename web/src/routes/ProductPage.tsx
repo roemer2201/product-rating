@@ -75,6 +75,8 @@ function ProductScreen() {
   const eanEditable = detail.kind === 'product' && detail.ean === null;
   /** The correction being typed; while there is one, the form is open. */
   const editValues = draft?.edit;
+  const editPending = draft?.editPending ?? false;
+  const editError = draft?.editError;
 
   const startEditing = (): void => {
     updateDraft({
@@ -93,7 +95,7 @@ function ProductScreen() {
 
   const stopEditing = (): void => {
     setErrors({});
-    updateDraft({ edit: undefined });
+    updateDraft({ edit: undefined, editError: undefined });
   };
 
   // Accounts are disabled rather than deleted, so a missing name is a corner
@@ -111,6 +113,8 @@ function ProductScreen() {
         : strings.product.createdBy(creator, createdOn);
 
   const onSave = (values: ProductFormValues): void => {
+    if (editPending) return;
+
     const parsed = updateProductSchema.safeParse({
       // Only offered while there is none; an empty field leaves it that way.
       ...(eanEditable && values.ean.trim() !== '' ? { ean: values.ean } : {}),
@@ -130,10 +134,10 @@ function ProductScreen() {
     setErrors({});
     // Not `mutate` with callbacks: those are dropped once the page is left,
     // and a correction that outlived its save would reopen the form on return.
-    update.mutateAsync(parsed.data).then(
-      () => updateDraft({ edit: undefined }),
-      // The failure is on screen through the mutation's own state.
-      () => undefined,
+    updateDraft({ editPending: true, editError: undefined });
+    void update.mutateAsync(parsed.data).then(
+      () => updateDraft({ editPending: false, edit: undefined }),
+      (editError: Error) => updateDraft({ editPending: false, editError }),
     );
   };
 
@@ -152,24 +156,26 @@ function ProductScreen() {
           {dish ? strings.product.editDishTitle : strings.product.editTitle}
         </h1>
 
-        <ProductForm
-          kind={detail.kind}
-          eanEditable={eanEditable}
-          initial={editValues}
-          onChange={(values) => updateDraft({ edit: values })}
-          initialCategories={detail.categories}
-          onSubmit={onSave}
-          submitLabel={strings.common.save}
-          pendingLabel={strings.common.saving}
-          pending={update.isPending}
-          errors={errors}
-          error={update.error === null ? null : errorMessage(update.error)}
-          secondaryAction={
-            <button type="button" className="button" onClick={stopEditing}>
-              {strings.common.cancel}
-            </button>
-          }
-        />
+        <fieldset className="form-fieldset" disabled={editPending}>
+          <ProductForm
+            kind={detail.kind}
+            eanEditable={eanEditable}
+            initial={editValues}
+            onChange={(values) => updateDraft({ edit: values })}
+            initialCategories={detail.categories}
+            onSubmit={onSave}
+            submitLabel={strings.common.save}
+            pendingLabel={strings.common.saving}
+            pending={editPending}
+            errors={errors}
+            error={editError === undefined ? null : errorMessage(editError)}
+            secondaryAction={
+              <button type="button" className="button" onClick={stopEditing}>
+                {strings.common.cancel}
+              </button>
+            }
+          />
+        </fieldset>
       </section>
     );
   }
@@ -261,8 +267,6 @@ function ProductScreen() {
         ean={detail.ean}
         productName={detail.name}
         rating={detail.ownRating}
-        draft={draft?.rating}
-        onDraftChange={(rating) => updateDraft({ rating })}
       />
 
       <section className="section">
@@ -309,8 +313,6 @@ function ProductScreen() {
           productName={detail.name}
           prices={detail.prices}
           user={user}
-          entry={draft?.price}
-          onEntryChange={(price) => updateDraft({ price })}
         />
       )}
 

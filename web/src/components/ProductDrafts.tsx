@@ -33,10 +33,16 @@ interface ProductDraft {
   /* The page of an existing entry. */
   /** The correction as typed; set while the form is open. */
   edit?: ProductFormValues | undefined;
+  editPending?: boolean;
+  editError?: Error | undefined;
   /** The own rating as changed on screen and not saved yet. */
   rating?: RatingDraft | undefined;
+  ratingPending?: 'save' | 'remove' | 'queue' | undefined;
+  ratingError?: Error | undefined;
   /** A price being entered into the list. */
   price?: PriceFieldValues | undefined;
+  pricePending?: 'save' | 'queue' | undefined;
+  priceError?: Error | undefined;
 }
 
 type UpdateDraft = (key: string, update: ProductDraft | null) => void;

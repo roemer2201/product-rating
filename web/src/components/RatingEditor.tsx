@@ -1,7 +1,7 @@
-import { useState } from 'react';
 import { RATING_COMMENT_MAX_LENGTH, type Rating } from '@product-rating/shared';
 import { ErrorNotice } from '@/components/Feedback';
 import { OfflineCapture } from '@/components/OfflineCapture';
+import { useProductDraft } from '@/components/ProductDrafts';
 import { StarRating } from '@/components/StarRating';
 import { TextAreaField } from '@/components/Field';
 import { errorMessage } from '@/lib/api';
@@ -37,81 +37,76 @@ interface RatingEditorProps {
   ean: string | null;
   productName: string;
   rating: Rating | null;
-  /** Unsaved changes from an earlier visit of the same history entry. */
-  draft?: RatingDraft | undefined;
-  onDraftChange?: (draft: RatingDraft | undefined) => void;
 }
 
-export function RatingEditor({
-  productId,
-  ean,
-  productName,
-  rating,
-  draft,
-  onDraftChange,
-}: RatingEditorProps) {
-  const [stars, setStars] = useState<number | null>(
-    draft === undefined ? (rating?.stars ?? null) : draft.stars,
-  );
-  const [comment, setComment] = useState(
-    draft === undefined ? (rating?.comment ?? '') : draft.comment,
-  );
-
-  const change = (next: RatingDraft): void => {
-    setStars(next.stars);
-    setComment(next.comment);
-    onDraftChange?.(next);
+export function RatingEditor({ productId, ean, productName, rating }: RatingEditorProps) {
+  const { draft, update } = useProductDraft();
+  const { stars, comment } = draft?.rating ?? {
+    stars: rating?.stars ?? null,
+    comment: rating?.comment ?? '',
   };
-
+  const pending = draft?.ratingPending;
+  const saveError = draft?.ratingError;
   const upsert = useUpsertRating();
   const remove = useDeleteRating();
   const capture = useEnqueueCapture();
 
-  // Not `mutate` with callbacks: those are dropped once the page is left, and
-  // a draft that outlived its save would come back as unsaved on return.
+  const change = (rating: RatingDraft): void => {
+    if (capture.isSuccess) capture.reset();
+    if (upsert.isSuccess) upsert.reset();
+    if (remove.isSuccess) remove.reset();
+    update({ rating });
+  };
+
+  const finish = (): void =>
+    update({ rating: undefined, ratingPending: undefined, ratingError: undefined });
+
+  // Keep the request and draft in the same history entry so a quick return
+  // cannot submit them again before the original request settles.
   const onSave = (): void => {
-    if (stars === null) return;
-    upsert.mutateAsync({ productId, input: { stars, comment: emptyToNull(comment) } }).then(
-      () => onDraftChange?.(undefined),
-      // The failure is on screen through the mutation's own state.
-      () => undefined,
-    );
+    if (stars === null || pending !== undefined) return;
+    capture.reset();
+    remove.reset();
+    update({ ratingPending: 'save', ratingError: undefined });
+    void upsert
+      .mutateAsync({ productId, input: { stars, comment: emptyToNull(comment) } })
+      .then(finish, (ratingError: Error) => update({ ratingPending: undefined, ratingError }));
   };
 
   const onRemove = (): void => {
-    remove.mutateAsync(productId).then(
-      () => {
-        setStars(null);
-        setComment('');
-        onDraftChange?.(undefined);
-      },
-      () => undefined,
-    );
+    if (pending !== undefined) return;
+    capture.reset();
+    upsert.reset();
+    update({ ratingPending: 'remove', ratingError: undefined });
+    void remove.mutateAsync(productId).then(finish, () => update({ ratingPending: undefined }));
   };
 
-  const failure = upsert.error ?? remove.error;
+  const failure = capture.error ?? remove.error ?? saveError;
 
   /** The verdict as it stands on screen, for the queue. */
   const keepOffline = (): void => {
-    if (stars === null || ean === null) return;
-    capture.mutate({
-      ean,
-      label: productName,
-      rating: { stars, comment: emptyToNull(comment), capturedAt: Date.now() },
-    });
+    if (stars === null || ean === null || pending !== undefined) return;
+    update({ ratingPending: 'queue' });
+    void capture
+      .mutateAsync({
+        ean,
+        label: productName,
+        rating: { stars, comment: emptyToNull(comment), capturedAt: Date.now() },
+      })
+      .then(finish, () => update({ ratingPending: undefined }));
   };
 
   return (
     <section className="section">
       <h2 className="section__title">{strings.rating.own}</h2>
 
-      {failure !== null && <ErrorNotice message={errorMessage(failure)} />}
+      {failure !== undefined && <ErrorNotice message={errorMessage(failure)} />}
 
       <OfflineCapture
-        error={upsert.error}
+        error={saveError}
         onKeep={ean === null ? null : keepOffline}
         kept={capture.isSuccess}
-        pending={capture.isPending}
+        pending={pending !== undefined}
       />
 
       <StarRating
@@ -119,7 +114,7 @@ export function RatingEditor({
         onChange={(value) => {
           change({ stars: value, comment });
         }}
-        disabled={upsert.isPending || remove.isPending}
+        disabled={pending !== undefined}
         label={strings.rating.own}
       />
       <p className="field__hint">{strings.rating.zeroHint}</p>
@@ -134,6 +129,7 @@ export function RatingEditor({
         maxLength={RATING_COMMENT_MAX_LENGTH}
         hint={strings.rating.commentHint}
         rows={3}
+        disabled={pending !== undefined}
         optional
       />
 
@@ -144,9 +140,9 @@ export function RatingEditor({
           onClick={onSave}
           // Without a number of stars there is nothing to save; the comment
           // alone is not a rating.
-          disabled={stars === null || upsert.isPending}
+          disabled={stars === null || pending !== undefined}
         >
-          {upsert.isPending ? strings.common.saving : strings.rating.save}
+          {pending === 'save' ? strings.common.saving : strings.rating.save}
         </button>
 
         {rating !== null && (
@@ -154,14 +150,14 @@ export function RatingEditor({
             type="button"
             className="button button--danger"
             onClick={onRemove}
-            disabled={remove.isPending}
+            disabled={pending !== undefined}
           >
-            {remove.isPending ? strings.common.deleting : strings.rating.remove}
+            {pending === 'remove' ? strings.common.deleting : strings.rating.remove}
           </button>
         )}
       </div>
 
-      {upsert.isSuccess && !upsert.isPending && (
+      {upsert.isSuccess && (
         <p className="field__hint" role="status">
           {strings.common.saved}
         </p>

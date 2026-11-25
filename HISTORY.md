@@ -31,6 +31,11 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 - Geprüft mit neuen Tests (Zurückkehren mit offenem Formular, Abbrechen,
   Speichern, neuer Aufruf, Bewertung und Preis) und im gebauten Stand im
   Browser mit iPhone-Emulation.
+- Review von PR #62: Laufende Schreibvorgänge bleiben beim Zurückkehren am
+  Verlaufseintrag sichtbar und verhindern ein zweites Absenden. Die Preis-
+  und Bewertungsfelder lesen den aktuellen Entwurf direkt. Vorgemerkte
+  Bewertungen werden aus dem Formular entfernt, und nach einer weiteren
+  Änderung lässt sich die Offline-Warteschlange erneut nutzen.
 
 ## 2026-11-24 – Review von PR #59 (0.17.0)
 

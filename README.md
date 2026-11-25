@@ -132,9 +132,11 @@ neues Produkt samt Foto, auf der Seite eines vorhandenen Produkts das geöffnete
 Bearbeiten-Formular, eine geänderte, noch nicht gespeicherte eigene Bewertung
 und einen angefangenen Preis. Die Eingaben hängen am Eintrag im Browserverlauf:
 Zurückwischen bringt sie wieder, ein neuer Aufruf desselben Produkts aus dem
-Katalog beginnt in der normalen Ansicht. Speichern, Abbrechen, ein erfasster
-oder offline vorgemerkter Preis, Neuladen und Abmelden beenden den Entwurf; er
-liegt nur im Arbeitsspeicher der App. Wer ein wiederhergestelltes
+Katalog beginnt in der normalen Ansicht. Während eines Speichervorgangs
+bleibt das betreffende Formular auch nach dem Zurückkehren gesperrt.
+Erfolgreiches Speichern und Offline-Vormerken beenden den jeweiligen Entwurf.
+Abbrechen verwirft die Korrektur. Neuladen und Abmelden verwerfen alle
+Entwürfe, da sie im Arbeitsspeicher der App liegen. Wer ein wiederhergestelltes
 Bearbeiten-Formular speichert, überschreibt Änderungen, die jemand anders am
 Produkt inzwischen gemacht hat – wie bei einem Formular, das lange offen war.
 

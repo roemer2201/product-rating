@@ -78,6 +78,15 @@ async function leaveAndReturn(user: ReturnType<typeof userEvent.setup>): Promise
 
 const ADMIN = { ...testUser, id: 'admin-1', username: 'chef', role: 'admin' as const };
 
+/** Leave the save in flight until the test has revisited the history entry. */
+function holdResponse<T>(body: T) {
+  let finish!: () => void;
+  const pending = new Promise<T>((resolve) => {
+    finish = () => resolve(body);
+  });
+  return { pending, finish };
+}
+
 describe('ProductPage', () => {
   it('shows the product with its average and its own rating', async () => {
     mockFetch([
@@ -991,13 +1000,15 @@ describe('ProductPage on the way back', () => {
     expect(screen.queryByLabelText(new RegExp(strings.fields.name))).not.toBeInTheDocument();
   });
 
-  it('does not reopen a correction that was saved', async () => {
+  it('keeps a correction locked until an in-flight save succeeds', async () => {
     const user = userEvent.setup();
+    const body = { product: makeProductDetail() };
+    const { pending, finish } = holdResponse(body);
     mockFetch([
       { path: '/auth/me', body: { user: testUser } },
       CATEGORIES,
-      { path: '/products/prod-1', method: 'PATCH', body: { product: makeProductDetail() } },
-      { path: '/products/prod-1', body: { product: makeProductDetail() } },
+      { path: '/products/prod-1', method: 'PATCH', body: pending },
+      { path: '/products/prod-1', body },
     ]);
 
     renderProduct(true);
@@ -1005,11 +1016,48 @@ describe('ProductPage on the way back', () => {
     await user.click(screen.getByRole('button', { name: strings.common.edit }));
     await user.type(screen.getByLabelText(new RegExp(strings.fields.name)), ' trüb');
     await user.click(screen.getByRole('button', { name: strings.common.save }));
+    await leaveAndReturn(user);
+    expect(screen.getByRole('button', { name: strings.common.saving })).toBeDisabled();
+    expect(screen.getByLabelText(new RegExp(strings.fields.name))).toBeDisabled();
+    expect(screen.getByRole('button', { name: strings.common.cancel })).toBeDisabled();
+
+    finish();
     await screen.findByRole('heading', { name: 'Apfelsaft' });
 
     await leaveAndReturn(user);
     expect(await screen.findByRole('heading', { name: 'Apfelsaft' })).toBeInTheDocument();
     expect(screen.queryByLabelText(new RegExp(strings.fields.name))).not.toBeInTheDocument();
+  });
+
+  it('does not allow another price submission when returning during a save', async () => {
+    const user = userEvent.setup();
+    const { pending, finish } = holdResponse({ price: makePrice() });
+    const fetchMock = mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      { path: '/prices/shops', body: { shops: [] } },
+      { path: '/products/prod-1/prices', method: 'POST', body: pending },
+      { path: '/products/prod-1', body: { product: makeProductDetail() } },
+    ]);
+
+    renderProduct(true);
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+    await user.type(screen.getByLabelText(strings.price.amount), '2,49');
+    await user.click(screen.getByRole('button', { name: strings.price.add }));
+    await leaveAndReturn(user);
+
+    const amount = screen.getByLabelText(strings.price.amount);
+    expect(amount).toHaveValue('2,49');
+    expect(amount).toBeDisabled();
+    const submit = screen.getByRole('button', { name: strings.price.adding });
+    expect(submit).toBeDisabled();
+    await user.click(submit);
+    expect(
+      fetchMock.mock.calls.filter(([, init]) => (init as RequestInit)?.method === 'POST'),
+    ).toHaveLength(1);
+
+    finish();
+    await waitFor(() => expect(amount).toHaveValue(''));
+    expect(amount).toBeEnabled();
   });
 
   it('keeps an unsaved rating and a price being typed, and starts over once it is recorded', async () => {
@@ -1084,6 +1132,46 @@ describe('ProductPage on the way back', () => {
     await leaveAndReturn(user);
     await screen.findByRole('heading', { name: 'Apfelsaft' });
     expect(screen.getByLabelText(new RegExp(strings.price.amount))).toHaveValue('');
+  });
+
+  it('clears a queued rating draft and offers to queue a subsequent rating', async () => {
+    const user = userEvent.setup();
+    mockFetch([
+      { path: '/auth/me', body: { user: testUser } },
+      { path: '/prices/shops', body: { shops: [] } },
+      { path: '/products/prod-1/rating', method: 'PUT', networkError: true },
+      {
+        path: '/products/prod-1',
+        body: {
+          product: makeProductDetail({ ownRating: makeRating({ stars: 5, comment: 'Gut' }) }),
+        },
+      },
+    ]);
+
+    renderProduct(true);
+    await screen.findByRole('heading', { name: 'Apfelsaft' });
+    const selectStars = async (stars: number) =>
+      user.click(screen.getByRole('radio', { name: strings.rating.starLabel(stars) }));
+    const save = () => user.click(screen.getByRole('button', { name: strings.rating.save }));
+
+    await selectStars(8);
+    await save();
+    await user.click(await screen.findByRole('button', { name: strings.offlineCapture.keep }));
+    expect(await screen.findByText(strings.offlineCapture.kept)).toBeInTheDocument();
+    expect((await listCaptures()).map(({ rating }) => rating?.stars)).toEqual([8]);
+
+    await selectStars(9);
+    await save();
+    expect(await screen.findByRole('button', { name: strings.offlineCapture.keep })).toBeEnabled();
+    await selectStars(10);
+    await leaveAndReturn(user);
+    expect(screen.getByRole('radio', { name: strings.rating.starLabel(10) })).toBeChecked();
+    await user.click(screen.getByRole('button', { name: strings.offlineCapture.keep }));
+    expect(await screen.findByText(strings.offlineCapture.kept)).toBeInTheDocument();
+
+    await leaveAndReturn(user);
+    expect(screen.getByRole('radio', { name: strings.rating.starLabel(5) })).toBeChecked();
+    expect((await listCaptures()).map(({ rating }) => rating?.stars)).toEqual([8, 10]);
   });
 
   it('shows the saved rating again once the changed one is saved', async () => {
