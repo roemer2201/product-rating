@@ -5,6 +5,16 @@ Eintrag nennt Datum, Umfang der Arbeit und die dabei getroffenen Entscheidungen.
 
 ---
 
+## 2026-11-26 – Mobiler Katalog mit Direktfiltern und Bewertungseinstieg
+
+Die klassische Produktkarte stellt Foto, Name und Variante über eine eigene
+Bewertungszeile. In der Galerie steht die Punktzahl auf dem Foto. Über
+„Bewerten“ erreicht man aus beiden Listen die eigene Bewertung, auch wenn
+die Produktdaten erst nach dem Seitenwechsel eintreffen. „Alle“, „Produkte“
+und „Gerichte“ sind direkt im Katalog erreichbar und teilen sich den
+Filterzustand mit der Suche und der Verlaufsnavigation. Auf schmalen
+Bildschirmen macht das Titelbild Platz für die Treffer.
+
 ## 2026-11-25 – Neuer Auftritt für Anmeldung und Katalog
 
 Anmeldung, Registrierung und Passwortvergabe tragen das App-Symbol und

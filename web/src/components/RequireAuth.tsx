@@ -59,7 +59,7 @@ export function RequireAuth() {
   }
 
   if (session.data === null) {
-    const from = `${location.pathname}${location.search}`;
+    const from = `${location.pathname}${location.search}${location.hash}`;
     return <Navigate to="/login" replace state={{ from } satisfies RedirectState} />;
   }
 

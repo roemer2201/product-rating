@@ -4,7 +4,6 @@ import {
   normaliseEan,
   PRODUCT_SEARCH_MAX_LENGTH,
   RATING_MAX_STARS,
-  type ProductKind,
   type ProductSortField,
   type SortOrder,
 } from '@product-rating/shared';
@@ -18,8 +17,9 @@ import { EmptyState, ErrorNotice, SkeletonList } from '@/components/Feedback';
 import { LoadMore } from '@/components/LoadMore';
 import { ProductCard } from '@/components/ProductCard';
 import { PullToRefresh } from '@/components/PullToRefresh';
+import { ChoiceGroup } from '@/components/ChoiceGroup';
 import { SelectField } from '@/components/Field';
-import { CameraIcon, ChevronDownIcon, CloseIcon, ScanIcon, SearchIcon } from '@/components/icons';
+import { CameraIcon, FilterIcon, CloseIcon, ScanIcon, SearchIcon } from '@/components/icons';
 import { errorMessage } from '@/lib/api';
 import { useCategories, useProductByEan, useProductList } from '@/lib/queries';
 import { strings } from '@/lib/strings';
@@ -33,8 +33,8 @@ import { strings } from '@/lib/strings';
  * The search term is held back for a moment before it becomes a request. On a
  * phone keyboard that is the difference between one query and eight.
  *
- * Only the search line is always there. Everything else - filters, sorting,
- * the "mine" checkboxes - waits behind "Zusätzliche Filter", which is folded
+ * The search and product kind are always visible. Other filters, sorting,
+ * and the "mine" checkboxes wait behind "Zusätzliche Filter", which is folded
  * on a fresh visit: most visits are a search or a scroll. The button
  * counts the filters that are set, so a folded panel never hides that the
  * list is narrowed down, and the reset stays outside it for the same reason.
@@ -80,6 +80,12 @@ const PRICE_WATCH_LABELS: Record<PriceWatchChoice, string> = {
   include: strings.catalogue.priceWatchInclude,
   only: strings.catalogue.priceWatchOnly,
 };
+
+const KIND_OPTIONS = [
+  { value: '', label: strings.catalogue.allKinds },
+  { value: 'product', label: strings.catalogue.kindProduct },
+  { value: 'dish', label: strings.catalogue.kindDish },
+] as const;
 
 const SORT_LABELS: Record<ProductSortField, string> = {
   name: strings.catalogue.sortName,
@@ -161,10 +167,6 @@ function Catalogue() {
         label:
           categories.data?.find((item) => item.id === category)?.name ?? strings.catalogue.category,
       },
-      {
-        field: 'kind',
-        label: kind === 'dish' ? strings.catalogue.kindDish : strings.catalogue.kindProduct,
-      },
       { field: 'minStars', label: strings.catalogue.atLeastStars(minStars) },
       { field: 'createdByMe', label: strings.catalogue.createdByMe },
       { field: 'ratedByMe', label: strings.catalogue.ratedByMe },
@@ -178,12 +180,13 @@ function Catalogue() {
       },
     ] as const
   ).filter(({ field }) => (field === 'category' ? category : view[field]) !== DEFAULT_VIEW[field]);
-  const filtered = term !== '' || activeFilters.length > 0;
+  const hasFilters = kind !== '' || activeFilters.length > 0;
+  const filtered = term !== '' || hasFilters;
 
   const emptyResult = !list.isPending && list.error === null && products.length === 0;
   // Only needed when filters could be hiding the product; without them the
   // empty list already says that the EAN is not in the catalogue.
-  const eanLookup = useProductByEan(searchedEan, emptyResult && activeFilters.length > 0);
+  const eanLookup = useProductByEan(searchedEan, emptyResult && hasFilters);
 
   const handleDetectedEan = useCallback(
     (ean: string): void => {
@@ -226,7 +229,7 @@ function Catalogue() {
     }
 
     if (searchedEan !== null) {
-      const known = activeFilters.length === 0 ? null : eanLookup.data;
+      const known = hasFilters ? eanLookup.data : null;
       // `undefined`: the lookup is still on its way or failed; until it has an
       // answer the screen does not claim either way.
       if (known === null) {
@@ -240,7 +243,7 @@ function Catalogue() {
               >
                 {strings.catalogue.eanCreate}
               </Link>
-              {activeFilters.length > 0 && resetButton}
+              {hasFilters && resetButton}
             </>
           ),
         };
@@ -332,33 +335,48 @@ function Catalogue() {
               >
                 <CameraIcon className="button__icon" />
               </button>
+              <button
+                type="button"
+                ref={filterToggle}
+                aria-label={
+                  activeFilters.length > 0
+                    ? strings.catalogue.moreFiltersActive(activeFilters.length)
+                    : strings.catalogue.moreFilters
+                }
+                title={strings.catalogue.moreFilters}
+                className="button filters__toggle"
+                onClick={() => {
+                  update({ moreFiltersOpen: !moreFiltersOpen });
+                }}
+                aria-expanded={moreFiltersOpen}
+                // Only while the panel exists, as with the scanner above.
+                aria-controls={moreFiltersOpen ? MORE_FILTERS_PANEL_ID : undefined}
+              >
+                <FilterIcon className="button__icon" />
+                <span className="filters__toggle-label">{strings.catalogue.filters}</span>
+                {activeFilters.length > 0 && <span aria-hidden="true">{activeFilters.length}</span>}
+              </button>
             </div>
           </div>
 
-          <div className="filters__toggle-row">
+          <ChoiceGroup
+            variant="segmented"
+            legend={strings.catalogue.kind}
+            name="catalogue-kind"
+            value={kind}
+            options={KIND_OPTIONS}
+            onChange={(value) => update({ kind: value })}
+          />
+
+          {filtered && (
             <button
               type="button"
-              ref={filterToggle}
-              className="button filters__toggle"
-              onClick={() => {
-                update({ moreFiltersOpen: !moreFiltersOpen });
-              }}
-              aria-expanded={moreFiltersOpen}
-              // Only while the panel exists, as with the scanner above.
-              aria-controls={moreFiltersOpen ? MORE_FILTERS_PANEL_ID : undefined}
+              className="button button--quiet filters__reset"
+              onClick={resetFilters}
             >
-              {activeFilters.length > 0
-                ? strings.catalogue.moreFiltersActive(activeFilters.length)
-                : strings.catalogue.moreFilters}
-              <ChevronDownIcon className="button__icon filters__toggle-icon" />
+              {strings.catalogue.resetFilters}
             </button>
-
-            {filtered && (
-              <button type="button" className="button button--quiet" onClick={resetFilters}>
-                {strings.catalogue.resetFilters}
-              </button>
-            )}
-          </div>
+          )}
 
           {scannerOpen && (
             <div id={SCANNER_PANEL_ID} className="filters__scanner">
@@ -435,18 +453,6 @@ function Catalogue() {
               </div>
 
               <div className="filters__row">
-                <SelectField
-                  label={strings.catalogue.kind}
-                  value={kind}
-                  onChange={(event) => {
-                    update({ kind: event.target.value as ProductKind | '' });
-                  }}
-                >
-                  <option value="">{strings.catalogue.allKinds}</option>
-                  <option value="product">{strings.catalogue.kindProduct}</option>
-                  <option value="dish">{strings.catalogue.kindDish}</option>
-                </SelectField>
-
                 <SelectField
                   label={strings.catalogue.priceWatch}
                   value={priceWatch}

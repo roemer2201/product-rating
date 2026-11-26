@@ -103,7 +103,7 @@ mindestens 44 Pixel hoch, Ränder über `env(safe-area-inset-*)`.
 
 | Adresse | Ansicht |
 |---|---|
-| `/` | Katalog – Produktliste mit Suchzeile und Thumbnails; Filter und Sortierung hinter „Zusätzliche Filter“ (zugeklappt, mit Zahl der gesetzten Filter), „Filter zurücksetzen“ daneben; als Preisbeobachtung markierte Einträge erscheinen erst bei einer Suche oder über den Filter; findet die Suche nach einer gültigen EAN nichts, führt „Neuen Artikel erfassen“ zum Anlegeformular mit dieser EAN, blenden nur Filter den Artikel aus, „Artikel öffnen“ zu ihm |
+| `/` | Katalog mit Suchzeile, Barcode-Suche und Direktauswahl für Produkte und Gerichte; weitere Filter und Sortierung über die Filtertaste neben der Suche; als Preisbeobachtung markierte Einträge erscheinen erst bei einer Suche oder über den Filter; findet die Suche nach einer gültigen EAN nichts, führt „Neuen Artikel erfassen“ zum Anlegeformular mit dieser EAN, blenden nur Filter den Artikel aus, „Artikel öffnen“ zu ihm |
 | `/scan` | Scanner, primäre Aktion („Kamera starten“ im Kamerafeld); darunter „Ohne Barcode erfassen“ und die Eingabe von Hand |
 | `/products/new?ean=…` | Anlegeformular mit vorbelegter EAN; über dem Foto aufklappbar „Preis erfassen“ mit dem ersten Preis und der Markierung „Preisbeobachtung“ |
 | `/products/new?kind=dish` | Anlegeformular für ein Gericht oder Rezept, ohne EAN; aufklappbar „Kosten erfassen“ |
@@ -198,8 +198,8 @@ Geräten des Kontos. An den Funktionen ändert keine davon etwas.
 
 | | Klassisch | Kompakt | Galerie |
 |---|---|---|---|
-| Listen | Karten mit vier Zeilen, ab 48 rem zweispaltig | Zweizeiler mit Trennlinien | Kacheln unter dem Foto, zwei je Reihe (ab 36 rem drei, ab 58 rem vier) |
-| Bewertung in Listen | zehn Sterne, dahinter der Schnitt | ein Stern mit Zahl | ein Stern mit Zahl |
+| Listen | Karten mit Foto und eigener Bewertungszeile, ab 48 rem zweispaltig | Zweizeiler mit Trennlinien | Kacheln unter dem Foto, zwei je Reihe (ab 36 rem drei, ab 58 rem vier) |
+| Bewertung in Listen | Punktzahl von 10 und Sternreihe | Punktzahl neben dem Namen | Punktzahl auf dem Foto |
 | Kopfzeile auf dem Handy | App-Name und Konto | entfällt | entfällt, großer Seitentitel |
 | Navigation auf dem Handy | Leiste mit Beschriftung | flache Leiste, nur Symbole | schwebendes Dock mit Beschriftung |
 
@@ -207,6 +207,12 @@ Ab 58 rem Bildschirmbreite stehen App-Name, Konto und Hauptnavigation in
 einer gemeinsamen Kopfzeile. „Artikel erfassen“ im Katalog öffnet die
 Scanseite. Das Titelbild wird mit der App ausgeliefert und gehört zum
 Offline-Cache der PWA.
+
+Im Katalog schaltet „Alle / Produkte / Gerichte“ mit einem Tipp die Art des
+Eintrags um. Suchtext und weitere Filter gelten dabei weiter. Auf dem Handy
+beginnt die Trefferliste direkt unter diesen Bedienelementen. Die Karte öffnet
+die Produktdetails. „Bewerten“ (in Kompakt und Galerie das Stiftsymbol) führt
+direkt zur eigenen Bewertung. Erst „Bewertung speichern“ übernimmt die Eingabe.
 
 Die Wahl gehört zum Konto und liegt auf dem Server (`users.appearance_*`,
 `PATCH /api/v1/auth/profile`). Im Browser kommt sie als drei Attribute an

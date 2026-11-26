@@ -121,18 +121,17 @@ describe('CataloguePage', () => {
 
     expect(await screen.findByText('Apfelsaft')).toBeInTheDocument();
     expect(screen.getByText('Haferflocken')).toBeInTheDocument();
-    // The variant is what tells two products of one line apart, so the row
-    // shows it; a product without one keeps the line empty, so that every row
-    // has the same four lines.
+    // Keep the variant with its product and leave room for the name when it is absent.
     expect(screen.getByText('naturtrüb')).toBeInTheDocument();
     const rows = screen.getAllByRole('listitem');
-    for (const row of rows) {
-      expect(row.querySelectorAll('.product-card__variant')).toHaveLength(1);
-    }
+    expect(rows[0]?.querySelector('.product-card__variant')).toHaveTextContent('naturtrüb');
+    expect(rows[1]?.querySelector('.product-card__variant')).toBeNull();
     expect(screen.getByText(strings.catalogue.total(2))).toBeInTheDocument();
     // The average is shown short enough to stay beside the stars, and read out
     // in full.
-    expect(screen.getByText(/^4[.,]5 \(2\)$/)).toBeInTheDocument();
+    expect(screen.getByText(/^4[.,]5$/, { selector: '.product-card__score' })).toHaveTextContent(
+      '/10',
+    );
     expect(screen.getByText(/^4[.,]5 · 2 Bewertungen$/)).toHaveClass('visually-hidden');
     // A product nobody has rated says so rather than showing zero stars.
     expect(screen.getByText(strings.rating.averageNone)).toBeInTheDocument();
@@ -244,8 +243,7 @@ describe('CataloguePage', () => {
     await waitFor(() => {
       expect(lastListUrl(fetchMock.mock.calls)).toContain('q=saft');
     });
-    await openMoreFilters(user);
-    await user.selectOptions(screen.getByLabelText(strings.catalogue.kind), 'dish');
+    await user.click(screen.getByRole('radio', { name: strings.catalogue.kindDish }));
     await waitFor(() => {
       const url = lastListUrl(fetchMock.mock.calls);
       expect(url).toContain('q=saft');
@@ -282,7 +280,7 @@ describe('CataloguePage', () => {
     await user.click(screen.getByLabelText(strings.catalogue.ratedByMe));
     await user.click(screen.getByLabelText(strings.catalogue.createdByMe));
     await user.click(screen.getByLabelText(strings.catalogue.hasPrice));
-    await user.selectOptions(screen.getByLabelText(strings.catalogue.kind), 'dish');
+    await user.click(screen.getByRole('radio', { name: strings.catalogue.kindDish }));
     await user.selectOptions(screen.getByLabelText(strings.catalogue.sort), 'name');
 
     await waitFor(() => {
@@ -538,7 +536,7 @@ describe('CataloguePage', () => {
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/by-ean/'))).toBe(false);
   });
 
-  it('shows only the search line until the other filters are unfolded', async () => {
+  it('shows search and kind while the other filters are folded', async () => {
     const user = userEvent.setup();
     const fetchMock = mockFetch([
       CATEGORIES,
@@ -554,7 +552,6 @@ describe('CataloguePage', () => {
     for (const label of [
       strings.catalogue.category,
       strings.catalogue.minStars,
-      strings.catalogue.kind,
       strings.catalogue.sort,
       strings.catalogue.order,
       strings.catalogue.createdByMe,

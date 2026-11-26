@@ -196,3 +196,13 @@ export function PackageIcon() {
     </svg>
   );
 }
+
+export function FilterIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M3 7h5m4 0h9M3 17h11m4 0h3" />
+      <circle cx="10" cy="7" r="2" />
+      <circle cx="16" cy="17" r="2" />
+    </svg>
+  );
+}

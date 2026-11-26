@@ -475,12 +475,12 @@ export const strings = {
 
   rating: {
     own: 'Deine Bewertung',
+    rate: 'Bewerten',
+    rateProduct: (name: string) => `„${name}“ bewerten`,
     ownNone: 'Noch nicht bewertet',
     average: 'Durchschnitt',
     averageNone: 'Noch keine Bewertung',
     count: (count: number) => (count === 1 ? '1 Bewertung' : `${count} Bewertungen`),
-    /* Average and count in a list row, where the long form would not fit. */
-    averageShort: (average: string, count: number) => `${average} (${count})`,
     starsLabel: 'Sterne',
     starLabel: (stars: number) => (stars === 1 ? '1 Stern' : `${stars} Sterne`),
     starsOf: (stars: number) => `${stars} von ${RATING_MAX_STARS} Sternen`,
@@ -507,8 +507,7 @@ export const strings = {
     capture: 'Artikel erfassen',
     search: 'Suchen',
     clearSearch: 'Suche leeren',
-    // Short enough for a narrow phone; variant and source are searched too.
-    searchPlaceholder: 'Name, Marke, Kategorie, EAN',
+    searchPlaceholder: 'Katalog durchsuchen',
     // Not "Scannen": that is the screen in the navigation, which creates a
     // product. This one only fills the search field, and a screen reader
     // announces both one after the other.
@@ -517,7 +516,7 @@ export const strings = {
     category: 'Kategorie',
     allCategories: 'Alle Kategorien',
     kind: 'Art',
-    allKinds: 'Alles',
+    allKinds: 'Alle',
     kindProduct: 'Produkte',
     kindDish: 'Gerichte',
     minStars: 'Mindestens',
@@ -610,7 +609,7 @@ export const strings = {
     layouts: {
       classic: {
         name: 'Klassisch',
-        hint: 'Karten mit allen Sternen, Navigation mit Beschriftung.',
+        hint: 'Produktkarten mit Foto, Sternen und Link zum Bewerten.',
       },
       compact: { name: 'Kompakt', hint: 'Dichte Liste, mehr Einträge auf einem Bildschirm.' },
       gallery: { name: 'Galerie', hint: 'Kacheln mit großen Fotos, schwebende Navigation.' },

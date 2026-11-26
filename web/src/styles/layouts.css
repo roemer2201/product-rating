@@ -36,7 +36,7 @@
 }
 
 /*
- * One star and a number instead of ten stars. The row of stars leaves the
+ * The numeric score stands on its own in dense rows and tiles. The row of stars leaves the
  * screen but not the document: where it carries the label of the rating, a
  * screen reader still finds it.
  */
@@ -47,11 +47,6 @@
   height: 1px;
   overflow: hidden;
   clip-path: inset(50%);
-}
-
-[data-layout='compact'] .product-card__score,
-[data-layout='gallery'] .product-card__score {
-  display: inline;
 }
 
 /* --- Compact -------------------------------------------------------------- */
@@ -83,22 +78,24 @@
   font-size: 1.1875rem;
 }
 
-[data-layout='compact'] .catalogue-cover {
-  grid-template-columns: minmax(0, 1fr) 30%;
-}
+@media (min-width: 48rem) {
+  [data-layout='compact'] .catalogue-cover {
+    grid-template-columns: minmax(0, 1fr) 30%;
+  }
 
-[data-layout='compact'] .catalogue-cover__text {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-2) var(--space-3);
-}
+  [data-layout='compact'] .catalogue-cover__text {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-2) var(--space-3);
+  }
 
-[data-layout='compact'] .catalogue-cover .page__title {
-  margin: 0;
-  font-size: 1.5rem;
+  [data-layout='compact'] .catalogue-cover .page__title {
+    margin: 0;
+    font-size: 1.5rem;
+  }
 }
 
 [data-layout='compact'] .filters {
@@ -117,7 +114,11 @@
 }
 
 [data-layout='compact'] .product-card__link {
-  gap: var(--space-3);
+  margin-right: var(--tap-target);
+  grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+  grid-template-rows: auto;
+  gap: var(--space-2);
+  align-items: center;
   min-height: 3.5rem;
   padding: var(--space-2) 0;
   border: 0;
@@ -127,90 +128,74 @@
 }
 
 [data-layout='compact'] .product-card__thumb {
-  width: 2.5rem;
   height: 2.5rem;
+  border-radius: var(--radius-sm);
 }
 
-/*
- * Two lines: the name above, variant and brand below, and the rating to the
- * right of both. The variant takes at most its own width and never more than
- * three fifths of the line, so a long one cannot push the brand out entirely.
- */
 [data-layout='compact'] .product-card__body {
   display: grid;
-  flex: 1;
-  grid-template-columns: fit-content(60%) minmax(0, 1fr) auto;
+  grid-template-columns: fit-content(60%) minmax(0, 1fr);
+  justify-content: stretch;
   gap: 0;
+  padding: 0;
 }
 
 [data-layout='compact'] .product-card__name {
-  grid-row: 1;
-  grid-column: 1 / 3;
+  grid-column: 1 / -1;
+  overflow: hidden;
+  font-family: var(--font-sans);
   font-size: 0.9375rem;
+  font-weight: 650;
+  letter-spacing: 0;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
+[data-layout='compact'] .product-card__brand,
 [data-layout='compact'] .product-card__variant {
   grid-row: 2;
-  grid-column: 1;
+  margin: 0;
   color: var(--color-text-muted);
   font-size: 0.8125rem;
-}
-
-/* The line a product without a variant keeps empty has nothing to keep here. */
-[data-layout='compact'] .product-card__variant[aria-hidden='true'] {
-  display: none;
+  font-weight: 400;
+  letter-spacing: 0;
 }
 
 [data-layout='compact'] .product-card__brand {
-  grid-row: 2;
+  grid-column: 1 / -1;
+}
+
+[data-layout='compact'] .product-card__variant + .product-card__brand {
   grid-column: 2;
 }
 
-/* Without a variant the brand starts the line and takes all of it. */
-[data-layout='compact'] .product-card__variant[aria-hidden='true'] + .product-card__brand {
-  grid-column: 1 / 3;
-}
-
-[data-layout='compact'] .product-card__variant:not([aria-hidden]) + .product-card__brand::before {
+[data-layout='compact'] .product-card__variant + .product-card__brand::before {
   margin: 0 0.3em;
   content: '·';
 }
 
 [data-layout='compact'] .product-card__rating {
-  grid-row: 1 / 3;
+  display: flex;
+  min-height: 0;
   grid-column: 3;
   flex-direction: column;
   gap: 0;
   align-items: flex-end;
-  align-self: center;
-  max-width: 7.5rem;
-  margin-left: var(--space-2);
+  max-width: 6rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 0.75rem;
   text-align: right;
 }
 
-/* The comment of an own rating, and "not rated yet", may take two lines. */
-[data-layout='compact'] .product-card__comment,
-[data-layout='compact'] .product-card__unrated {
+[data-layout='compact'] .product-card__score {
+  font-size: 1rem;
+}
+
+[data-layout='compact'] .product-card__comment {
   max-width: 100%;
-  font-size: 0.75rem;
-  line-height: 1.3;
-}
-
-[data-layout='compact'] .product-card__unrated {
-  max-width: 5.5rem;
-}
-
-/* Score and average share a line, as if they were one number. */
-[data-layout='compact'] .product-card__rating:has(.product-card__average) {
-  flex-direction: row;
-  gap: var(--space-1);
-  align-items: baseline;
-}
-
-[data-layout='compact'] .product-card__average {
-  color: var(--color-text);
-  font-size: 0.875rem;
-  font-weight: 600;
 }
 
 [data-layout='compact'] .skeleton-card {
@@ -315,44 +300,55 @@
 }
 
 [data-layout='gallery'] .product-card__link {
+  display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 0;
-  align-items: stretch;
   min-width: 0;
-  padding: 0;
-  overflow: hidden;
   border: 0;
-  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-tile);
 }
 
-/* Square: most product photos are taken upright, and a wide frame would cut
-   the top and the bottom off every one of them. */
 [data-layout='gallery'] .product-card__thumb {
-  width: 100%;
   height: auto;
   aspect-ratio: 1;
-  border-radius: 0;
 }
 
 [data-layout='gallery'] .product-card__body {
-  padding: var(--space-2) var(--space-3) var(--space-3);
+  padding: var(--space-3) var(--space-3) 0;
 }
 
-[data-layout='gallery'] .product-card__variant {
-  color: var(--color-text-muted);
-  font-size: 0.8125rem;
+[data-layout='gallery'] .product-card__name {
+  font-size: clamp(1.25rem, 4.8vw, 1.6rem);
 }
 
 [data-layout='gallery'] .product-card__rating {
-  gap: var(--space-1);
-  margin-top: 0.125rem;
+  display: flex;
+  align-items: flex-end;
+  min-height: var(--tap-target);
+  margin-top: auto;
+  padding: var(--space-1) var(--tap-target) var(--space-3) var(--space-3);
+  border: 0;
+  background: none;
 }
 
-[data-layout='gallery'] .product-card__average {
-  color: var(--color-text);
-  font-weight: 600;
+[data-layout='gallery'] .product-card__score {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  padding: 0.1875rem 0.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-cover);
+  color: var(--color-cover-text);
+  font-size: 1.125rem;
+}
+
+[data-layout='gallery'] .product-card__score small {
+  color: inherit;
+}
+
+[data-layout='gallery'] .product-card__count,
+[data-layout='gallery'] .product-card__comment {
+  margin: 0;
 }
 
 [data-layout='gallery'] .skeleton-card {
@@ -459,4 +455,18 @@
   [data-layout='gallery'] .app-header {
     background: none;
   }
+}
+
+/* In dense rows and tiles the pencil keeps the full action and touch target. */
+[data-layout='compact'] .product-card__action span,
+[data-layout='gallery'] .product-card__action span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+[data-layout='compact'] .product-card__action {
+  top: 0;
 }

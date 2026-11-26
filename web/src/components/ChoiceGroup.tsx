@@ -26,7 +26,7 @@ interface ChoiceGroupProps<T extends string> {
   options: readonly ChoiceOption<T>[];
   onChange: (value: T) => void;
   /** `wide` for longer labels, `stacked` for options with a hint. */
-  variant?: 'wide' | 'stacked';
+  variant?: 'wide' | 'stacked' | 'segmented';
 }
 
 export function ChoiceGroup<T extends string>({
@@ -39,7 +39,9 @@ export function ChoiceGroup<T extends string>({
 }: ChoiceGroupProps<T>) {
   return (
     <fieldset className={variant === undefined ? 'choice' : `choice choice--${variant}`}>
-      <legend className="choice__legend">{legend}</legend>
+      <legend className={variant === 'segmented' ? 'visually-hidden' : 'choice__legend'}>
+        {legend}
+      </legend>
 
       <div className="choice__options">
         {options.map((option) => (

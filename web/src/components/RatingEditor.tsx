@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react';
+import { useLocation } from 'react-router';
 import { RATING_COMMENT_MAX_LENGTH, type Rating } from '@product-rating/shared';
 import { ErrorNotice } from '@/components/Feedback';
 import { OfflineCapture } from '@/components/OfflineCapture';
@@ -7,6 +9,7 @@ import { TextAreaField } from '@/components/Field';
 import { errorMessage } from '@/lib/api';
 import { emptyToNull } from '@/lib/forms';
 import { useDeleteRating, useEnqueueCapture, useUpsertRating } from '@/lib/queries';
+import { OWN_RATING_ANCHOR } from '@/lib/links';
 import { strings } from '@/lib/strings';
 
 /**
@@ -40,6 +43,16 @@ interface RatingEditorProps {
 }
 
 export function RatingEditor({ productId, ean, productName, rating }: RatingEditorProps) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  const { hash } = useLocation();
+  useEffect(() => {
+    // The target does not exist until the product request has finished.
+    if (hash === `#${OWN_RATING_ANCHOR}`) {
+      heading.current?.focus({ preventScroll: true });
+      heading.current?.scrollIntoView({ block: 'start' });
+    }
+  }, [hash]);
+
   const { draft, update } = useProductDraft();
   const { stars, comment } = draft?.rating ?? {
     stars: rating?.stars ?? null,
@@ -98,7 +111,14 @@ export function RatingEditor({ productId, ean, productName, rating }: RatingEdit
 
   return (
     <section className="section">
-      <h2 className="section__title">{strings.rating.own}</h2>
+      <h2
+        className="section__title rating-editor__title"
+        ref={heading}
+        id={OWN_RATING_ANCHOR}
+        tabIndex={-1}
+      >
+        {strings.rating.own}
+      </h2>
 
       {failure !== undefined && <ErrorNotice message={errorMessage(failure)} />}
 
